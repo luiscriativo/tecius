@@ -9,7 +9,7 @@
  * - Handle graceful shutdown
  */
 
-import { app, BrowserWindow, shell, nativeTheme, protocol, net, ipcMain } from 'electron'
+import { app, BrowserWindow, shell, nativeTheme, protocol, net, ipcMain, Menu } from 'electron'
 import { join } from 'path'
 import { autoUpdater } from 'electron-updater'
 import { registerIpcHandlers } from './ipc'
@@ -76,7 +76,9 @@ function createWindow(): void {
       // SECURITY: Do not allow the renderer to navigate or open new windows arbitrarily.
       navigateOnDragDrop: false,
       // SECURITY: Disables the experimental web platform features that could be abused.
-      experimentalFeatures: false
+      experimentalFeatures: false,
+      // SECURITY: Disable DevTools in production builds.
+      devTools: isDev,
     }
   })
 
@@ -166,6 +168,11 @@ app.on('second-instance', () => {
 // ── App lifecycle ─────────────────────────────────────────────────────────────
 
 app.whenReady().then(() => {
+  // Remove the native application menu in production (no File/Edit/View/DevTools exposure)
+  if (!isDev) {
+    Menu.setApplicationMenu(null)
+  }
+
   // Sync Electron's native theme with the OS preference
   nativeTheme.themeSource = 'system'
 
