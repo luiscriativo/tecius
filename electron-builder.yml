@@ -1,0 +1,122 @@
+# electron-builder configuration
+# Docs: https://www.electron.build/configuration/configuration
+
+appId: com.yourcompany.tecius
+productName: Tecius
+copyright: Copyright © 2026 Your Name
+
+# ── Directories ──────────────────────────────────────────────────────────────
+directories:
+  buildResources: resources
+  output: dist
+
+# ── ASAR packaging ───────────────────────────────────────────────────────────
+# asar: true packs all app files into a single encrypted archive.
+# asarUnpack extracts bytenode so Electron can load native bindings at runtime.
+asar: true
+asarUnpack:
+  - "node_modules/bytenode/**/*"
+
+# ── Files to include in the package ─────────────────────────────────────────
+files:
+  - out/**/*
+  - "!**/*.map"
+  - "!**/*.d.ts"
+
+# ── Application metadata ─────────────────────────────────────────────────────
+extraMetadata:
+  main: out/main/index.js
+
+# ── Auto-updater publish configuration ───────────────────────────────────────
+# Releases publicados no GitHub Releases são usados como fonte de atualização.
+# Configure GH_TOKEN no ambiente antes de rodar `npm run build:win` para publicar.
+publish:
+  provider: github
+  owner: your-github-username    # ← substitua pelo seu username do GitHub
+  repo: tecius
+  releaseType: release
+
+# ── Windows configuration ────────────────────────────────────────────────────
+win:
+  executableName: Tecius
+  icon: resources/icon.ico
+  # Code signing (configure when ready)
+  # certificateFile: path/to/cert.pfx
+  # certificatePassword: ${env.WIN_CERT_PASSWORD}
+  target:
+    - target: nsis
+      arch:
+        - x64
+        - arm64
+    - target: portable
+      arch:
+        - x64
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  allowElevation: true
+  installerIcon: resources/icon.ico
+  uninstallerIcon: resources/icon.ico
+  installerHeaderIcon: resources/icon.ico
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Tecius
+  deleteAppDataOnUninstall: false
+
+# ── macOS configuration ───────────────────────────────────────────────────────
+mac:
+  entitlementsInherit: resources/entitlements.mac.plist
+  extendInfo:
+    - NSCameraUsageDescription: Application requests access to the device's camera.
+    - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
+    - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
+    - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
+  notarize: false
+  icon: resources/icon.icns
+  # Code signing (configure when ready)
+  # identity: "Developer ID Application: Your Name (TEAM_ID)"
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+    - target: zip
+      arch:
+        - x64
+        - arm64
+
+dmg:
+  title: Tecius
+  icon: resources/icon.icns
+  iconSize: 80
+  window:
+    width: 540
+    height: 380
+
+# ── Linux configuration ───────────────────────────────────────────────────────
+linux:
+  icon: resources/icon.png
+  maintainer: Your Name <your@email.com>
+  category: Utility
+  synopsis: Electron application with React and TypeScript
+  description: A robust and scalable Electron desktop application
+  target:
+    - target: AppImage
+      arch:
+        - x64
+        - arm64
+    - target: deb
+      arch:
+        - x64
+    - target: rpm
+      arch:
+        - x64
+
+deb:
+  packageCategory: utils
+  priority: optional
+
+# ── Build optimization ────────────────────────────────────────────────────────
+compression: maximum
+removePackageScripts: true

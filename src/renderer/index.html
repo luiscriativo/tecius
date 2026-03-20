@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en" class="">
+  <!--
+    The `class` attribute on <html> is managed by the theme store.
+    Add the "dark" class to enable Tailwind dark mode.
+    Example: document.documentElement.classList.add('dark')
+  -->
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!--
+      Content Security Policy
+      A second layer of CSP in addition to the one set in main process headers.
+      This covers the initial HTML load before the header interceptor kicks in.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="
+        default-src 'self';
+        script-src 'self';
+        style-src 'self' 'unsafe-inline';
+        img-src 'self' data: blob:;
+        font-src 'self' data:;
+        connect-src 'self';
+        object-src 'none';
+        base-uri 'self'
+      "
+    />
+
+    <title>Electron App</title>
+
+    <!-- Favicon placeholder — replace resources/icon.png with your icon -->
+    <link rel="icon" type="image/png" href="/resources/icon.png" />
+  </head>
+  <body>
+    <!-- React mounts here -->
+    <div id="root"></div>
+
+    <!-- Vite injects the compiled renderer bundle -->
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

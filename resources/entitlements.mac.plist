@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  macOS App Sandbox Entitlements
+  These entitlements define what your app is allowed to do on macOS.
+  Adjust permissions based on your app's actual needs.
+  Reference: https://developer.apple.com/documentation/bundleresources/entitlements
+-->
+<plist version="1.0">
+  <dict>
+    <!-- Enable the App Sandbox -->
+    <key>com.apple.security.app-sandbox</key>
+    <true/>
+
+    <!-- Allow the app to inherit parent process entitlements -->
+    <key>com.apple.security.inherit</key>
+    <true/>
+
+    <!-- Network access -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+
+    <!-- Allow read access to user-selected files (via open dialogs) -->
+    <key>com.apple.security.files.user-selected.read-write</key>
+    <true/>
+
+    <!-- Allow access to the Downloads folder -->
+    <key>com.apple.security.files.downloads.read-write</key>
+    <true/>
+  </dict>
+</plist>
