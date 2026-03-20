@@ -32,7 +32,7 @@ extraMetadata:
 # Configure GH_TOKEN no ambiente antes de rodar `npm run build:win` para publicar.
 publish:
   provider: github
-  owner: your-github-username    # ← substitua pelo seu username do GitHub
+  owner: luiscriativo
   repo: tecius
   releaseType: release
 
