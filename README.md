@@ -87,23 +87,23 @@ A vault is just a folder. Here is a typical structure:
 
 ```
 my-vault/
-├── _vault.md                    # Vault title and metadata
+├── _vault.md                              # Vault title and metadata
 │
-├── Historia Geral/              # A timeline
-│   ├── _timeline.md             # Timeline metadata
-│   ├── 1789-07-14_bastilha.md   # A single event
-│   ├── revolucao-industrial.md  # A chronicle (multiple events)
+├── Amazon History/                        # A timeline
+│   ├── _timeline.md                       # Timeline metadata
+│   ├── 1541-02-12_orellana-expedition.md  # A single event
+│   ├── 1896-12-31_teatro-amazonas.md      # A single event
+│   ├── amazon-rubber-boom.md              # A chronicle (multiple events)
+│   ├── indigenous-peoples.md             # A chronicle
 │   │
-│   └── Napoleao/                # A sub-timeline
+│   └── Monuments & Architecture/          # A sub-timeline
 │       ├── _timeline.md
-│       ├── 1769-08-15_birth.md
-│       └── 1821-05-05_death.md
+│       ├── 1882-10-15_mercado-adolpho-lisboa.md
+│       ├── 1896-12-31_teatro-amazonas-architecture.md
+│       └── manaus-belle-epoque.md         # Chronicle
 │
-└── Musica/
-    ├── _timeline.md
-    ├── miles-davis.md           # Chronicle
-    └── _assets/
-        └── portrait.jpg
+└── _assets/
+    └── cover.jpg
 ```
 
 For a full explanation of frontmatter fields, event types, and chronicles, see the **[User Guide](docs/GUIDE.md)**.
@@ -120,7 +120,7 @@ For a full explanation of frontmatter fields, event types, and chronicles, see t
 ### Setup
 
 ```bash
-git clone https://github.com/your-username/tecius.git
+git clone https://github.com/luiscriativo/tecius.git
 cd tecius
 npm install
 ```
@@ -225,4 +225,4 @@ Contributions are welcome. Please open an issue first to discuss what you would 
 
 ## License
 
-[MIT](LICENSE) © 2026 Your Name
+[MIT](LICENSE) © 2026 Tecius

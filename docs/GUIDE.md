@@ -61,7 +61,7 @@ You can rename the vault at any time using the **Rename** button next to the vau
 ```
 my-vault/
 ├── _vault.md
-├── World History/
+├── Amazon History/
 │   ├── _timeline.md
 │   └── ...
 └── Personal/
@@ -83,11 +83,11 @@ A timeline is any subfolder that contains a `_timeline.md` file.
 ```markdown
 ---
 type: timeline
-title: "World War II"
-description: "Key events from 1939 to 1945"
-icon: "sword"
+title: "Amazon History"
+description: "The history of the Amazon region, from indigenous civilizations to the modern state"
+icon: "map"
 sort: chronological
-tags: [history, war]
+tags: [amazon, brazil, history, manaus]
 ---
 
 Optional long description rendered below the timeline header.
@@ -115,15 +115,17 @@ An event is any `.md` file inside a timeline folder that has `type: event` (or a
 ```markdown
 ---
 type: event
-title: "Fall of the Berlin Wall"
-date: 1989-11-09
-category: Politica
+title: "Inauguration of the Teatro Amazonas"
+date: 1896-12-31
+category: Culture
 importance: 5
-tags: [cold-war, germany, europe]
+tags: [teatro-amazonas, opera-house, rubber-boom, manaus]
 ---
 
-The Berlin Wall fell on the night of November 9, 1989,
-reunifying East and West Berlin after 28 years of separation.
+On December 31, 1896, the Teatro Amazonas — the Amazon Opera House —
+was inaugurated in Manaus, standing as the most audacious symbol of
+the rubber boom era. Built over seventeen years, it remains one of
+the most remarkable buildings in South America.
 ```
 
 ### Event fields
@@ -190,35 +192,61 @@ A chronicle is a single `.md` file that generates **multiple events** on the tim
 ```markdown
 ---
 type: chronicle
-title: "Industrial Revolution"
-category: Ciencia
-tags: [industry, technology]
+title: "The Amazon Rubber Boom"
+category: Economy
+tags: [rubber, boom, economy, amazon, belle-epoque]
 events:
-  - date: 1764-01-01
-    label: Hargreaves invents the Spinning Jenny
+  - date: 1839-06-15
+    label: Goodyear patents vulcanization — global rubber demand begins
     importance: 4
-    category: Ciencia
-    anchor: spinning-jenny
-  - date: 1769-01-01
-    label: James Watt improves the steam engine
+    anchor: vulcanization
+  - date: 1876-06-01
+    label: Wickham smuggles rubber seeds to Kew Gardens, London
     importance: 5
-    anchor: steam-engine
-  - date: 1825-09-27
-    label: First public steam railway — Stockton to Darlington
+    anchor: wickham
+  - date: 1896-12-31
+    label: Teatro Amazonas inaugurated — peak of rubber wealth
     importance: 5
-    anchor: stockton-railway
+    anchor: teatro
+  - date: 1912-06-01
+    label: Boom collapses — Asian plantations undercut Amazon prices
+    importance: 5
+    anchor: collapse
 ---
 
-The **Industrial Revolution** transformed agrarian economies into
-industrial ones, beginning in Britain in the late 18th century.
+The **Amazon Rubber Boom** (1850–1912) was one of the most dramatic
+economic episodes in South American history, transforming Manaus into
+one of the wealthiest cities in the Western Hemisphere.
 
-## Inventions
+## Origins
 
-Hargreaves' *Spinning Jenny* multiplied weaver productivity... ^spinning-jenny
+^vulcanization
 
-Watt's improved steam engine opened the door to factories... ^steam-engine
+In 1839, Charles Goodyear discovered vulcanization, making rubber
+commercially essential and driving demand for the Amazonian *Hevea
+brasiliensis* tree. ^wickham
 
-The Stockton and Darlington Railway carried the first passengers... ^stockton-railway
+## The Wickham Seeds
+
+In 1876, Henry Wickham transported 70,000 rubber seeds from the Amazon
+to Kew Gardens, seeding British plantations in Southeast Asia that
+would eventually destroy the Amazon monopoly.
+
+^teatro
+
+## Peak of Wealth
+
+The Teatro Amazonas, inaugurated on December 31, 1896, was the
+physical embodiment of rubber wealth — an opera house in the jungle,
+built from materials imported from four continents.
+
+^collapse
+
+## The Collapse
+
+By 1912, Asian plantation rubber had captured the global market.
+Prices collapsed, the Teatro Amazonas closed, and Manaus entered
+decades of decline.
 ```
 
 ### How anchors work
@@ -251,13 +279,13 @@ When inside a timeline, sub-timelines appear in the event list and on the canvas
 Simply create a subfolder inside a timeline folder and add a `_timeline.md` to it — exactly the same as a top-level timeline.
 
 ```
-World History/
+Amazon History/
 ├── _timeline.md
-├── 1789-07-14_bastille.md
-└── Napoleon/              ← sub-timeline
+├── 1541-02-12_orellana-expedition.md
+└── Monuments & Architecture/    ← sub-timeline
     ├── _timeline.md
-    ├── 1769-08-15_birth.md
-    └── 1821-05-05_death.md
+    ├── 1882-10-15_mercado-adolpho-lisboa.md
+    └── 1896-12-31_teatro-amazonas-architecture.md
 ```
 
 ---
