@@ -52,6 +52,8 @@ let mainWindow: BrowserWindow | null = null
  */
 function createWindow(): void {
   mainWindow = new BrowserWindow({
+    title: 'Tecius',
+
     // ── Dimensions ────────────────────────────────────────────────────────────
     width: 1280,
     height: 800,
