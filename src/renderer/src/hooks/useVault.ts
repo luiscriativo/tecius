@@ -50,6 +50,60 @@ export function useVault() {
         pickedPath
       )
       if (!result.success || !result.data) throw new Error(result.error ?? 'Erro ao ler vault')
+
+      // Seed an empty vault with a Welcome timeline and event
+      if (result.data.timelines.length === 0) {
+        const timelineName = 'Getting Started'
+        await window.electronAPI.invoke('fs:create-timeline', timelineName, pickedPath)
+
+        // Read the vault again to get the actual timeline dirPath (slug-based)
+        const afterTimeline = await window.electronAPI.invoke<{ success: boolean; data?: RawVault }>(
+          'fs:set-vault', pickedPath
+        )
+        const timelineDirPath = afterTimeline.data?.timelines[0]?.dirPath
+        if (timelineDirPath) {
+          const today = new Date().toISOString().split('T')[0]
+          const created = await window.electronAPI.invoke<{ success: boolean; data?: { filePath: string } }>(
+            'fs:create-event', timelineDirPath, 'Welcome to Tecius', `${today}_welcome`
+          )
+          if (created.success && created.data?.filePath) {
+            const welcomeBody = [
+              '---',
+              'type: event',
+              'title: "Welcome to Tecius"',
+              `date: ${today}`,
+              'importance: 4',
+              '---',
+              '',
+              'Welcome to **Tecius** — your personal visual timeline system.',
+              '',
+              'This is your first event. Every event is a plain Markdown file stored inside your vault folder.',
+              '',
+              '## Getting Started',
+              '',
+              '- **Timelines** are subfolders with a `_timeline.md` file',
+              '- **Events** are `.md` files with a `date:` field in the front matter',
+              '- **Chronicles** are single files that hold multiple events — great for biographies or project logs',
+              '',
+              'Use the canvas to zoom, pan, and explore. Click any dot to open its event panel.',
+              '',
+              '> Your vault is just a folder. Edit, move, or back up your files with any tool.',
+            ].join('\n')
+            await window.electronAPI.invoke('fs:write-event', created.data.filePath, welcomeBody)
+          }
+        }
+
+        // Final reload to reflect the seeded content
+        const seeded = await window.electronAPI.invoke<{ success: boolean; data?: RawVault }>(
+          'fs:set-vault', pickedPath
+        )
+        if (seeded.success && seeded.data) {
+          setVaultPath(pickedPath)
+          setVaultInfo(toVaultInfo(seeded.data, pickedPath))
+          return
+        }
+      }
+
       setVaultPath(pickedPath)
       setVaultInfo(toVaultInfo(result.data, pickedPath))
     } catch (e) {
