@@ -26,7 +26,7 @@ export function AppLayout(): React.ReactElement {
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-vault text-chr-primary">
       {/* ── Sidebar ─────────────────────────────────────────────────────── */}
-      <Sidebar />
+      {hasVault && <Sidebar />}
 
       {/* ── Area principal ───────────────────────────────────────────────── */}
       <main className="flex flex-1 flex-col overflow-hidden">

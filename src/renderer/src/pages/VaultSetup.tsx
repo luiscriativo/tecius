@@ -141,8 +141,8 @@ export default function VaultSetup() {
 
           {/* Conteúdo com fade — duas colunas */}
           <div
-            className="flex gap-7 flex-1 transition-opacity duration-[180ms]"
-            style={{ opacity: fading ? 0 : 1 }}
+            className="flex gap-7 flex-1 transition-opacity"
+            style={{ opacity: fading ? 0 : 1, transitionDuration: '180ms' }}
           >
             {/* Coluna esquerda: ícone + contador */}
             <div className="flex flex-col items-center gap-3 pt-0.5 shrink-0">

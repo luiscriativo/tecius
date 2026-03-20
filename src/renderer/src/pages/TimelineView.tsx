@@ -154,6 +154,94 @@ function NewEventModal({ timelineDirPath: _timelineDirPath, onConfirm, onCancel,
   )
 }
 
+// ── ClusterPanel ───────────────────────────────────────────────────────────────
+
+interface ClusterPanelProps {
+  events: ChroniclerEvent[]
+  onEventClick: (event: ChroniclerEvent) => void
+  onClose: () => void
+}
+
+function ClusterPanel({ events, onEventClick, onClose }: ClusterPanelProps) {
+  const allChronicle = events.every((e) => !!e.chronicle)
+  const hasChronicle  = events.some((e) => !!e.chronicle)
+
+  // Calcula o range de datas do cluster
+  const sorted = [...events].sort((a, b) => a.date.sortKey - b.date.sortKey)
+  const firstDate = sorted[0]?.date.display ?? ''
+  const lastDate  = sorted[sorted.length - 1]?.date.display ?? ''
+  const sameDate  = firstDate === lastDate
+  const dateLabel = sameDate ? firstDate : `${firstDate} – ${lastDate}`
+  const dateHint  = sameDate ? 'nesta data' : 'neste período'
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onClose])
+
+  return (
+    <div className="w-64 shrink-0 border-l border-chr-subtle bg-surface flex flex-col overflow-hidden">
+
+      {/* Header */}
+      <div className="shrink-0 px-4 py-3 border-b border-chr-subtle flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="font-mono text-2xs text-chr-muted truncate">{dateLabel}</p>
+          <p className="font-mono text-xs text-chr-secondary mt-0.5">
+            {events.length} evento{events.length !== 1 ? 's' : ''} {dateHint}
+          </p>
+          {hasChronicle && !allChronicle && (
+            <p className="font-mono text-2xs text-chr-muted mt-1 opacity-50">◆ chronicle · ● evento</p>
+          )}
+        </div>
+        <button
+          onClick={onClose}
+          className="shrink-0 text-chr-muted hover:text-chr-primary transition-colors mt-0.5"
+          aria-label="Fechar"
+        >
+          <X size={13} strokeWidth={1.5} />
+        </button>
+      </div>
+
+      {/* Lista */}
+      <div className="flex-1 overflow-y-auto">
+        {events.map((e) => (
+          <button
+            key={e.slug}
+            onClick={() => { onEventClick(e); onClose() }}
+            className={cn(
+              'w-full text-left px-4 py-3 flex items-start gap-3',
+              'border-b border-chr-subtle last:border-b-0',
+              'hover:bg-hover transition-colors duration-100'
+            )}
+          >
+            {e.chronicle ? (
+              <div className="w-2 h-2 border border-timeline-chronicle rotate-45 shrink-0 mt-1 opacity-80" />
+            ) : (
+              <div className="w-1.5 h-1.5 rounded-full bg-timeline-dot shrink-0 mt-1.5 opacity-60" />
+            )}
+            <div className="flex-1 min-w-0">
+              <span className="text-sm text-chr-secondary block leading-snug truncate">
+                {e.frontmatter.title}
+              </span>
+              {e.chronicle && (
+                <span className="font-mono text-2xs text-timeline-chronicle opacity-70 block truncate mt-0.5">
+                  {e.chronicle.title}
+                </span>
+              )}
+              {e.frontmatter.category && (
+                <span className="font-mono text-2xs text-chr-muted opacity-60 block truncate mt-0.5">
+                  {e.frontmatter.category}
+                </span>
+              )}
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ── FilesView helpers ──────────────────────────────────────────────────────────
 
 type FilesGroupBy    = 'auto' | 'year' | 'decade' | 'century' | 'category' | 'importance'
@@ -529,15 +617,17 @@ export default function TimelineView({ initialPath, initialTitle }: TimelineView
 
   const [showNewEvent, setShowNewEvent] = useState(false)
   const [creatingEvent, setCreatingEvent] = useState(false)
+  const [clusterEvents, setClusterEvents] = useState<ChroniclerEvent[] | null>(null)
 
   // ── Estado do modo FilesView ────────────────────────────────────────────
   const [pickedFiles, setPickedFiles] = useState<Set<string>>(new Set())
   const [fileFilter, setFileFilter] = useState<string[] | null>(null)
 
-  // Reseta seleção ao trocar de timeline
+  // Reseta seleção e painel ao trocar de timeline
   useEffect(() => {
     setPickedFiles(new Set())
     setFileFilter(null)
+    setClusterEvents(null)
   }, [currentTimeline?.dirPath]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -722,6 +812,7 @@ export default function TimelineView({ initialPath, initialTitle }: TimelineView
               selectedEvent={selectedEvent}
               onEventClick={handleEventClick}
               onEnterSubtimeline={handleEnterSubtimeline}
+              onClusterClick={setClusterEvents}
               filterPaths={fileFilter ?? undefined}
             />
           )}
@@ -748,6 +839,15 @@ export default function TimelineView({ initialPath, initialTitle }: TimelineView
               onDeleteEvent={handleDeleteEvent}
               onRenameEventFile={handleRenameEventFile}
               filterPaths={fileFilter ?? undefined}
+            />
+          )}
+
+          {/* Painel lateral direito — abre ao clicar em cluster */}
+          {clusterEvents && (
+            <ClusterPanel
+              events={clusterEvents}
+              onEventClick={handleEventClick}
+              onClose={() => setClusterEvents(null)}
             />
           )}
 

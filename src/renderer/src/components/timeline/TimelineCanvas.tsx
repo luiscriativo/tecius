@@ -29,18 +29,23 @@ interface TimelineCanvasProps {
   selectedEvent: ChroniclerEvent | null
   onEventClick: (event: ChroniclerEvent) => void
   onEnterSubtimeline: (event: ChroniclerEvent) => void
+  onClusterClick: (events: ChroniclerEvent[]) => void
   /** Quando definido, exibe apenas eventos cujos filePaths estão na lista */
   filterPaths?: string[]
 }
 
 const MIN_CANVAS_WIDTH = 800
 const PADDING_PERCENT = 0.05
+// Raio de fusão em pixels — o losango tem ~28px de diagonal (20px * √2),
+// então 16px garante que dois dots adjacentes nunca se sobreponham.
+const DOT_MERGE_RADIUS = 16
 
 export function TimelineCanvas({
   timeline,
   selectedEvent,
   onEventClick,
   onEnterSubtimeline,
+  onClusterClick,
   filterPaths,
 }: TimelineCanvasProps) {
   const activeEvents = filterPaths
@@ -100,20 +105,41 @@ export function TimelineCanvas({
 
   const canvasWidth = Math.max(MIN_CANVAS_WIDTH, MIN_CANVAS_WIDTH * zoom)
 
-  // ── Pixel merging ──────────────────────────────────────────────────────────
-  // Converte cada evento para sua posição em pixels e agrupa os que coincidem.
-  // Recalcula só quando eventos ou zoom mudam — O(N) uma vez, não por render.
+  // ── Proximity merging ──────────────────────────────────────────────────────
+  // Converte cada evento para sua posição em pixels, ordena, e então agrupa
+  // eventos dentro de DOT_MERGE_RADIUS*2 pixels uns dos outros.
+  // Isso garante que dots nunca se sobreponham visualmente, independente do
+  // zoom ou da densidade de eventos. O(N log N) pela ordenação, O(N) na varredura.
   const pixelGroups = useMemo(() => {
     const rangeSpan = maxDate.sortKey - minDate.sortKey || 1
     const pMin = minDate.sortKey - rangeSpan * PADDING_PERCENT
     const pMax = maxDate.sortKey + rangeSpan * PADDING_PERCENT
 
+    // 1. Calcula posição em pixels para cada evento e ordena
+    const positioned = activeEvents
+      .map((event) => {
+        const pos = (event.date.sortKey - pMin) / (pMax - pMin)
+        const px = Math.round(Math.max(0, Math.min(1, pos)) * canvasWidth)
+        return { px, event }
+      })
+      .sort((a, b) => a.px - b.px)
+
+    // 2. Varredura greedy: inicia um grupo no primeiro evento não agrupado,
+    //    absorve todos os eventos dentro de DOT_MERGE_RADIUS*2 px do anchor,
+    //    posiciona o grupo no centro do span coletado.
     const map = new Map<number, ChroniclerEvent[]>()
-    for (const event of activeEvents) {
-      const pos = (event.date.sortKey - pMin) / (pMax - pMin)
-      const px = Math.round(Math.max(0, Math.min(1, pos)) * canvasWidth)
-      if (!map.has(px)) map.set(px, [])
-      map.get(px)!.push(event)
+    let i = 0
+    while (i < positioned.length) {
+      const anchor = positioned[i].px
+      const group: ChroniclerEvent[] = []
+      let last = anchor
+      while (i < positioned.length && positioned[i].px - anchor <= DOT_MERGE_RADIUS * 2) {
+        group.push(positioned[i].event)
+        last = positioned[i].px
+        i++
+      }
+      const center = Math.round((anchor + last) / 2)
+      map.set(center, group)
     }
     return map
   }, [activeEvents, minDate.sortKey, maxDate.sortKey, canvasWidth])
@@ -182,7 +208,7 @@ export function TimelineCanvas({
                   key={`cluster-px-${px}`}
                   events={groupEvents}
                   hasSelected={groupEvents.some((e) => selectedEvent?.slug === e.slug)}
-                  onEventClick={onEventClick}
+                  onClusterClick={onClusterClick}
                   style={{ left }}
                   tooltipAlign={tooltipAlign}
                 />
