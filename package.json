@@ -1,12 +1,12 @@
 {
   "name": "tecius",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Tecius — Sistema pessoal de timelines visuais",
   "main": "./out/main/index.js",
   "homepage": ".",
   "author": {
-    "name": "Your Name",
-    "email": "your@email.com"
+    "name": "luiscriativo",
+    "email": "luiscriativo@github.com"
   },
   "scripts": {
     "dev": "electron-vite dev",
