@@ -11,6 +11,7 @@
 <br />
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-black?style=flat-square)](LICENSE)
+[![Latest Release](https://img.shields.io/github/v/release/luiscriativo/tecius?style=flat-square&color=black&label=release)](https://github.com/luiscriativo/tecius/releases/latest)
 [![Electron](https://img.shields.io/badge/Electron-33-black?style=flat-square&logo=electron)](https://www.electronjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-black?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-18-black?style=flat-square&logo=react)](https://reactjs.org/)
@@ -18,7 +19,10 @@
 
 <br />
 
-<!-- Replace with a real screenshot when available -->
+[**⬇ Download for Windows**](https://github.com/luiscriativo/tecius/releases/latest) · [View all releases](https://github.com/luiscriativo/tecius/releases) · [User Guide](docs/GUIDE.md)
+
+<br />
+
 ![Tecius Screenshot](docs/screenshot.png)
 
 <br />
@@ -29,9 +33,26 @@
 
 ## What is Tecius?
 
-Tecius is a desktop application for managing historical timelines using plain `.md` files. Inspired by [Obsidian](https://obsidian.md/), it uses a **vault** — a regular folder on your computer — as its database. Every event, every timeline, every chronicle is a Markdown file you can open, edit, move, or back up with any tool.
+Tecius is a **desktop app for building and exploring historical timelines** using plain `.md` files stored on your own machine. Inspired by [Obsidian](https://obsidian.md/), it uses a **vault** — just a regular folder — as its database. Every event, timeline, and chronicle is a Markdown file you can open, edit, move, or back up with any tool you already use.
 
-No proprietary formats. No cloud lock-in. Your data stays where you put it.
+No proprietary formats. No cloud lock-in. No subscriptions. Your data stays exactly where you put it.
+
+---
+
+## Why Tecius?
+
+There are many tools for notes and knowledge management. Tecius does something different:
+
+| | Tecius | Notion | Obsidian |
+|---|---|---|---|
+| Visual timeline canvas | ✅ | ❌ | ❌ (plugin only) |
+| Plain Markdown storage | ✅ | ❌ | ✅ |
+| 100% offline & local | ✅ | ❌ | ✅ |
+| Free, no subscription | ✅ | ❌ | ✅ |
+| Built for chronological data | ✅ | ❌ | ❌ |
+| Chronicles (multi-entry events) | ✅ | ❌ | ❌ |
+
+If you want to map **when things happened** — a biography, a historical research project, a personal diary, a company history — Tecius is purpose-built for that.
 
 ---
 
@@ -61,6 +82,9 @@ Keep images, PDFs, and references alongside your events in the `_assets/` folder
 **📄 PDF Export**
 Export any timeline as a print-ready PDF directly from the timeline view.
 
+**🔄 Auto-update**
+Built-in updater checks for new releases and downloads them inside the app — no manual re-downloading needed.
+
 **🌍 Internationalization**
 Interface available in **Portuguese (PT)** and **English (EN)**.
 
@@ -71,13 +95,15 @@ Full dark and light mode support with a typographic design system inspired by 19
 
 ## Installing
 
-Download the latest release for your platform from the [Releases](../../releases) page:
+Download the latest release for your platform:
 
-| Platform | Format |
+| Platform | Download |
 |---|---|
-| Windows | `.exe` installer (NSIS) or portable `.exe` |
-| macOS | `.dmg` |
-| Linux | `.AppImage`, `.deb`, or `.rpm` |
+| **Windows** | [Tecius Setup .exe](https://github.com/luiscriativo/tecius/releases/latest) (installer) or portable `.exe` |
+| macOS | `.dmg` *(coming soon)* |
+| Linux | `.AppImage`, `.deb`, or `.rpm` *(coming soon)* |
+
+> **Windows SmartScreen warning:** Tecius is unsigned (code signing certificates are expensive). Click "More info" → "Run anyway" to proceed. The app is fully open source — you can read every line of code in this repository.
 
 ---
 
@@ -107,6 +133,22 @@ my-vault/
 ```
 
 For a full explanation of frontmatter fields, event types, and chronicles, see the **[User Guide](docs/GUIDE.md)**.
+
+---
+
+## Roadmap
+
+These are features planned or under consideration. Community feedback helps prioritize them.
+
+- [ ] macOS and Linux builds
+- [ ] Timeline export to HTML (shareable static page)
+- [ ] Event linking (reference one event from another)
+- [ ] Search across the entire vault
+- [ ] Custom categories and color theming per timeline
+- [ ] Multiple vault support (quick switching)
+- [ ] Mobile companion app (read-only)
+
+Have an idea? [Open an issue](https://github.com/luiscriativo/tecius/issues) and let's discuss it.
 
 ---
 
@@ -214,15 +256,27 @@ src/
 
 ## Contributing
 
-Contributions are welcome. Please open an issue first to discuss what you would like to change, then submit a pull request.
+Contributions are very welcome — bug reports, feature suggestions, translations, and pull requests all help.
 
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feat/my-feature`
-3. Commit your changes following [Conventional Commits](https://www.conventionalcommits.org/)
-4. Push and open a Pull Request
+1. **Fork** the repository
+2. **Create a branch**: `git checkout -b feat/my-feature`
+3. **Commit** following [Conventional Commits](https://www.conventionalcommits.org/): `feat:`, `fix:`, `chore:`, etc.
+4. **Push** and open a **Pull Request** describing what you changed and why
+
+For larger changes, please open an issue first so we can discuss the approach before you invest time coding.
+
+**Good first issues:** look for the [`good first issue`](https://github.com/luiscriativo/tecius/labels/good%20first%20issue) label.
 
 ---
 
 ## License
 
-[MIT](LICENSE) © 2026 Tecius
+[MIT](LICENSE) © 2026 [luiscriativo](https://github.com/luiscriativo)
+
+---
+
+<div align="center">
+
+If Tecius is useful to you, consider giving it a ⭐ on GitHub — it helps others discover the project.
+
+</div>
