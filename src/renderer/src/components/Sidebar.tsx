@@ -7,8 +7,9 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react'
+import pkg from '../../../../package.json'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { BookOpen, Images, Plus, Pencil, Trash2, Trash } from 'lucide-react'
+import { BookOpen, Plus, Pencil, Trash2, Trash, Images } from 'lucide-react'
 import { useAppStore } from '@/stores/useAppStore'
 import { useVaultStore } from '@/stores/useVaultStore'
 import { useTimeline } from '@/hooks/useTimeline'
@@ -170,7 +171,7 @@ function ContextMenu({ menu, onRename, onTrash, onClose }: ContextMenuProps) {
 // ── TimelinesSection ──────────────────────────────────────────────────────────
 
 function TimelinesSection({ timelines, collapsed }: TimelinesSectionProps) {
-  const { openTimeline } = useTimeline()
+  const { openTimeline, currentTimeline } = useTimeline()
   const { createTimeline, renameTimeline, trashTimeline } = useVault()
   const navigate = useNavigate()
   const { t } = useI18n()
@@ -183,11 +184,20 @@ function TimelinesSection({ timelines, collapsed }: TimelinesSectionProps) {
   const [confirmTrash, setConfirmTrash]     = useState<TimelineRef | null>(null)
   const [contextMenu, setContextMenu]       = useState<ContextMenuState | null>(null)
 
-  const newInputRef    = useRef<HTMLInputElement>(null)
-  const renameInputRef = useRef<HTMLInputElement>(null)
+  const newInputRef          = useRef<HTMLInputElement>(null)
+  const renameInputRef       = useRef<HTMLInputElement>(null)
+  const renameJustStartedRef = useRef(false)
 
   useEffect(() => { if (creatingNew) newInputRef.current?.focus()    }, [creatingNew])
-  useEffect(() => { if (renamingDir) renameInputRef.current?.select() }, [renamingDir])
+  useEffect(() => {
+    if (renamingDir) {
+      renameJustStartedRef.current = true
+      // Defer focus until after mouseup/click from the context menu have fired,
+      // otherwise those events steal focus back before the user can type.
+      setTimeout(() => { renameInputRef.current?.select() }, 80)
+      setTimeout(() => { renameJustStartedRef.current = false }, 250)
+    }
+  }, [renamingDir])
 
   const handleContextMenu = (e: React.MouseEvent, timeline: TimelineRef) => {
     if (collapsed) return
@@ -222,9 +232,11 @@ function TimelinesSection({ timelines, collapsed }: TimelinesSectionProps) {
 
   const handleTrashConfirm = async () => {
     if (!confirmTrash) return
+    const isOpen = currentTimeline?.dirPath === confirmTrash.dirPath
     setIsProcessing(true)
     try {
       await trashTimeline(confirmTrash.dirPath)
+      if (isOpen) navigate('/')
     } finally {
       setConfirmTrash(null)
       setIsProcessing(false)
@@ -304,7 +316,7 @@ function TimelinesSection({ timelines, collapsed }: TimelinesSectionProps) {
                       if (e.key === 'Enter')  handleRenameSubmit()
                       if (e.key === 'Escape') setRenamingDir(null)
                     }}
-                    onBlur={handleRenameSubmit}
+                    onBlur={() => { if (!renameJustStartedRef.current) handleRenameSubmit() }}
                     disabled={isProcessing}
                     className={cn(
                       'w-full px-2 py-1.5 text-sm rounded-sm outline-none',
@@ -482,8 +494,12 @@ export function Sidebar(): React.ReactElement {
             }
             title={isSidebarCollapsed ? t('nav_images') : undefined}
           >
-            <span className="shrink-0"><Images size={20} className="w-5 h-5" strokeWidth={1.5} /></span>
-            {!isSidebarCollapsed && <span className="truncate">{t('nav_images')}</span>}
+            <span className="shrink-0">
+              <Images size={18} className="w-5 h-5" strokeWidth={1.5} />
+            </span>
+            {!isSidebarCollapsed && (
+              <span className="truncate">{t('nav_images')}</span>
+            )}
           </NavLink>
         )}
 
@@ -505,7 +521,7 @@ export function Sidebar(): React.ReactElement {
           >
             <span className="shrink-0 relative">
               <Trash size={18} className="w-5 h-5" strokeWidth={1.5} />
-              {vaultInfo.trashCount > 0 && !isSidebarCollapsed && (
+              {vaultInfo.trashCount > 0 && (
                 <span className="absolute -top-1 -right-1.5 min-w-[14px] h-3.5 px-0.5 rounded-full bg-chr-muted text-surface font-mono text-[9px] leading-none flex items-center justify-center">
                   {vaultInfo.trashCount}
                 </span>
@@ -543,7 +559,7 @@ export function Sidebar(): React.ReactElement {
           <div className="w-5 h-5 border border-chr-subtle flex items-center justify-center shrink-0">
             <span className="font-serif text-xs text-chr-secondary font-medium">C</span>
           </div>
-          {!isSidebarCollapsed && <span>v0.1.0</span>}
+          {!isSidebarCollapsed && <span>v{pkg.version}</span>}
         </div>
       </div>
     </aside>

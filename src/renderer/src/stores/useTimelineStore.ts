@@ -8,7 +8,7 @@ interface TimelineState {
   selectedEventRaw: string | null
   isLoadingTimeline: boolean
   isLoadingEvent: boolean
-  viewMode: 'horizontal' | 'list' | 'files'
+  viewMode: 'horizontal' | 'list'
   cache: Map<string, TimelineData>
 
   setCurrentTimeline: (t: TimelineData | null) => void
@@ -17,7 +17,7 @@ interface TimelineState {
   setSelectedEventRaw: (raw: string | null) => void
   setLoadingTimeline: (v: boolean) => void
   setLoadingEvent: (v: boolean) => void
-  setViewMode: (mode: 'horizontal' | 'list' | 'files') => void
+  setViewMode: (mode: 'horizontal' | 'list') => void
   cacheTimeline: (path: string, data: TimelineData) => void
   getCached: (path: string) => TimelineData | undefined
   deleteCached: (path: string) => void

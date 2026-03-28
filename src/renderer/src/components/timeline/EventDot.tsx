@@ -6,6 +6,7 @@ interface EventDotProps {
   isSelected: boolean
   onClick: () => void
   onDoubleClick?: () => void
+  onContextMenu?: (e: React.MouseEvent) => void
   style: React.CSSProperties
   /** Alinhamento do tooltip — 'left' quando o dot está perto da borda esquerda,
    *  'right' quando perto da borda direita, 'center' (padrão) no meio. */
@@ -20,7 +21,7 @@ const IMPORTANCE_SIZE: Record<number, string> = {
   5: 'w-4 h-4',
 }
 
-export function EventDot({ event, isSelected, onClick, onDoubleClick, style, tooltipAlign = 'center' }: EventDotProps) {
+export function EventDot({ event, isSelected, onClick, onDoubleClick, onContextMenu, style, tooltipAlign = 'center' }: EventDotProps) {
   const importance = event.frontmatter.importance ?? 3
   const hasSubtimeline = event.hasSubtimeline
   const isChronicle = !!event.chronicle
@@ -42,6 +43,7 @@ export function EventDot({ event, isSelected, onClick, onDoubleClick, style, too
         className="absolute inset-0 -m-3"
         onClick={onClick}
         onDoubleClick={onDoubleClick}
+        onContextMenu={(e) => { e.preventDefault(); onContextMenu?.(e) }}
       />
 
       {isChronicle ? (
@@ -56,6 +58,7 @@ export function EventDot({ event, isSelected, onClick, onDoubleClick, style, too
           )}
           onClick={onClick}
           onDoubleClick={onDoubleClick}
+          onContextMenu={(e) => { e.preventDefault(); onContextMenu?.(e) }}
         />
       ) : (
         /* ── Dot padrão: círculo escuro ──────────────────────────── */
@@ -69,6 +72,7 @@ export function EventDot({ event, isSelected, onClick, onDoubleClick, style, too
           )}
           onClick={onClick}
           onDoubleClick={onDoubleClick}
+          onContextMenu={(e) => { e.preventDefault(); onContextMenu?.(e) }}
         />
       )}
 

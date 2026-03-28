@@ -1,106 +1,177 @@
 /**
  * About Page
+ *
+ * Exibe informações sobre o aplicativo Tecius:
+ * - Versão atual (carregada via IPC app:get-version)
+ * - Links para GitHub e releases
+ * - Créditos e licença
+ * - Stack técnica (colapsável)
  */
 
-import React from 'react'
-import { Info } from 'lucide-react'
-import { useElectron } from '@/hooks/useElectron'
-import { useAppStore } from '@/stores/useAppStore'
-import { useI18n } from '@/hooks/useI18n'
+import React, { useEffect, useState } from 'react'
+import { Github, ExternalLink, ChevronDown, ChevronUp, Heart } from 'lucide-react'
+import { useAppStore } from '../stores/useAppStore'
 
-// ── TechBadge ─────────────────────────────────────────────────────────────────
+// ── helpers ───────────────────────────────────────────────────────────────────
 
-function TechBadge({ name, version }: { name: string; version: string }): React.ReactElement {
+function platformLabel(p: string): string {
+  if (p === 'win32') return 'Windows'
+  if (p === 'darwin') return 'macOS'
+  if (p === 'linux') return 'Linux'
+  return p
+}
+
+// ── sub-components ────────────────────────────────────────────────────────────
+
+function InfoRow({ label, value }: { label: string; value: string }): React.ReactElement {
   return (
     <div className="flex items-center justify-between py-2 border-b border-chr-subtle last:border-0">
-      <span className="font-mono text-xs text-chr-secondary">{name}</span>
-      <span className="font-mono text-2xs text-chr-muted bg-subtle px-2 py-0.5 rounded-sm">{version}</span>
+      <span className="font-mono text-xs text-chr-muted">{label}</span>
+      <span className="font-mono text-xs text-chr-secondary tabular-nums">{value}</span>
     </div>
   )
 }
 
-// ── Section Card ──────────────────────────────────────────────────────────────
-
-function SectionCard({
-  title,
-  description,
-  children,
+function LinkButton({
+  icon: Icon,
+  label,
+  onClick,
 }: {
-  title: string
-  description?: string
-  children: React.ReactNode
+  icon: React.ElementType
+  label: string
+  onClick: () => void
 }): React.ReactElement {
   return (
-    <div className="chr-card overflow-hidden">
-      <div className="px-5 py-4 border-b border-chr-subtle">
-        <h2 className="font-serif text-base text-chr-primary leading-none">{title}</h2>
-        {description && (
-          <p className="font-mono text-2xs text-chr-muted mt-1">{description}</p>
-        )}
-      </div>
-      <div className="px-5 py-3">{children}</div>
-    </div>
+    <button
+      onClick={onClick}
+      className="flex items-center gap-2 px-4 py-2 rounded-sm border border-chr-subtle text-chr-secondary font-mono text-xs hover:border-chr hover:text-chr-primary transition-colors duration-150"
+    >
+      <Icon size={13} strokeWidth={1.5} />
+      {label}
+    </button>
   )
 }
 
 // ── AboutPage ─────────────────────────────────────────────────────────────────
 
 export function AboutPage(): React.ReactElement {
-  const { invoke, isElectron } = useElectron()
   const appVersion = useAppStore((s) => s.appVersion)
-  const platform = useAppStore((s) => s.platform)
-  const { t } = useI18n()
+  const [platform, setPlatform] = useState<string>('…')
+  const [nodeVersion, setNodeVersion] = useState<string>('…')
+  const [electronVersion, setElectronVersion] = useState<string>('…')
+  const [showStack, setShowStack] = useState(false)
 
-  const handleOpenGitHub = (): void => {
-    if (isElectron) invoke('app:open-external', 'https://github.com/electron/electron')
+  useEffect(() => {
+    // Plataforma do sistema operacional
+    window.electronAPI
+      .invoke<string>('app:get-platform')
+      .then((p) => setPlatform(p ? platformLabel(p) : '—'))
+      .catch(() => setPlatform('—'))
+
+    // Versões do runtime (disponíveis via preload)
+    const versions = window.electronAPI?.versions
+    if (versions) {
+      setNodeVersion(versions.node ?? '—')
+      setElectronVersion(versions.electron ?? '—')
+    }
+  }, [])
+
+  function openExternal(url: string): void {
+    window.electronAPI.invoke('app:open-external', url)
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-vault">
+    <div className="flex flex-col h-full overflow-y-auto bg-vault">
+      <div className="px-8 py-10 max-w-xl mx-auto w-full space-y-8">
 
-      {/* Cabeçalho */}
-      <header className="shrink-0 border-b border-chr-subtle bg-surface">
-        <div className="flex items-center justify-between px-6 py-3 gap-4">
-          <div className="flex items-center gap-3">
-            <Info size={16} strokeWidth={1.5} className="text-chr-muted" />
-            <div>
-              <h1 className="font-mono text-sm font-medium text-chr-primary leading-none">{t('about_title')}</h1>
-              <p className="font-mono text-2xs text-chr-muted mt-0.5">{t('about_desc')}</p>
-            </div>
+        {/* ── Hero ──────────────────────────────────────────────────────────── */}
+        <div className="flex flex-col items-center text-center gap-4">
+          {/* Ícone */}
+          <div className="w-14 h-14 rounded-xl bg-surface border border-chr-subtle flex items-center justify-center shrink-0">
+            <span className="font-serif text-2xl text-chr-primary select-none">T</span>
           </div>
 
+          {/* Nome e tagline */}
+          <div>
+            <h1 className="font-serif text-2xl text-chr-primary leading-none">Tecius</h1>
+            <p className="font-mono text-xs text-chr-muted mt-2 leading-relaxed max-w-sm">
+              Sistema pessoal de timelines visuais.<br />
+              Seus eventos, seus arquivos, seu controle.
+            </p>
+          </div>
+
+          {/* Badge de versão */}
+          <span className="font-mono text-xs text-chr-secondary border border-chr-subtle px-3 py-1 rounded-full">
+            {appVersion ? `v${appVersion}` : '…'} · {platform}
+          </span>
+        </div>
+
+        {/* ── Links ─────────────────────────────────────────────────────────── */}
+        <div className="flex flex-wrap justify-center gap-2">
+          <LinkButton
+            icon={Github}
+            label="Código-fonte"
+            onClick={() => openExternal('https://github.com/luiscriativo/tecius')}
+          />
+          <LinkButton
+            icon={ExternalLink}
+            label="Releases"
+            onClick={() => openExternal('https://github.com/luiscriativo/tecius/releases')}
+          />
+          <LinkButton
+            icon={ExternalLink}
+            label="Reportar bug"
+            onClick={() => openExternal('https://github.com/luiscriativo/tecius/issues')}
+          />
+        </div>
+
+        {/* ── Créditos ──────────────────────────────────────────────────────── */}
+        <div className="chr-card px-5 py-4 text-center space-y-1">
+          <p className="font-mono text-xs text-chr-muted flex items-center justify-center gap-1.5">
+            Feito com <Heart size={11} className="text-chr-muted fill-chr-muted" /> por
+            <button
+              onClick={() => openExternal('https://github.com/luiscriativo')}
+              className="text-chr-secondary hover:text-chr-primary transition-colors duration-150 underline underline-offset-2"
+            >
+              luiscriativo
+            </button>
+          </p>
+          <p className="font-mono text-2xs text-chr-muted">
+            Licença MIT · Open Source · Gratuito para sempre
+          </p>
+        </div>
+
+        {/* ── Stack técnica (colapsável) ────────────────────────────────────── */}
+        <div className="chr-card overflow-hidden">
           <button
-            onClick={handleOpenGitHub}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-sm font-mono text-xs border border-chr-subtle text-chr-muted hover:border-chr hover:text-chr-secondary transition-colors duration-150"
+            onClick={() => setShowStack((v) => !v)}
+            className="w-full flex items-center justify-between px-5 py-3 hover:bg-active transition-colors duration-100"
           >
-            {t('view_on_github')}
+            <span className="font-mono text-xs text-chr-secondary">Informações técnicas</span>
+            {showStack
+              ? <ChevronUp size={13} strokeWidth={1.5} className="text-chr-muted" />
+              : <ChevronDown size={13} strokeWidth={1.5} className="text-chr-muted" />
+            }
           </button>
+
+          {showStack && (
+            <div className="px-5 pb-3 border-t border-chr-subtle">
+              <div className="pt-2 space-y-0">
+                <p className="font-mono text-2xs text-chr-muted py-2 border-b border-chr-subtle">Runtime</p>
+                <InfoRow label="Electron" value={electronVersion} />
+                <InfoRow label="Node.js"  value={nodeVersion} />
+                <InfoRow label="Chrome"   value={window.electronAPI?.versions?.chrome ?? '—'} />
+                <p className="font-mono text-2xs text-chr-muted py-2 border-b border-chr-subtle mt-1">Interface</p>
+                <InfoRow label="React"        value="18.x" />
+                <InfoRow label="TypeScript"   value="5.x"  />
+                <InfoRow label="Tailwind CSS" value="3.x"  />
+                <InfoRow label="Zustand"      value="5.x"  />
+                <InfoRow label="Vite"         value="6.x"  />
+              </div>
+            </div>
+          )}
         </div>
-      </header>
 
-      {/* Corpo */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="px-8 py-6 space-y-4 max-w-2xl">
-
-          <SectionCard title={t('app_card_title')} description={t('app_card_desc')}>
-            <TechBadge name={t('app_version_label')} version={appVersion || '0.1.0'} />
-            <TechBadge name={t('platform_label')}    version={platform ?? 'unknown'} />
-            <TechBadge name="Node.js"                version={window.electronAPI?.versions?.node     ?? 'N/A'} />
-            <TechBadge name="Chrome"                 version={window.electronAPI?.versions?.chrome   ?? 'N/A'} />
-            <TechBadge name="Electron"               version={window.electronAPI?.versions?.electron ?? 'N/A'} />
-          </SectionCard>
-
-          <SectionCard title={t('tech_stack')} description={t('tech_stack_desc')}>
-            <TechBadge name="Electron"             version="33.x" />
-            <TechBadge name="React"                version="18.x" />
-            <TechBadge name="TypeScript"           version="5.x"  />
-            <TechBadge name="Tailwind CSS"         version="3.x"  />
-            <TechBadge name="Vite (electron-vite)" version="2.x"  />
-            <TechBadge name="Zustand"              version="5.x"  />
-            <TechBadge name="React Router"         version="6.x"  />
-          </SectionCard>
-
-        </div>
       </div>
     </div>
   )

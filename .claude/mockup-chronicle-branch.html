@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tecius — Mockup: Chronicle Branch</title>
+<style>
+  :root {
+    --bg-vault:       #0F0F0D;
+    --bg-surface:     #171714;
+    --bg-subtle:      #1E1E1A;
+    --bg-hover:       #262621;
+    --text-primary:   #F0EEE8;
+    --text-secondary: #A09E96;
+    --text-muted:     #5C5A52;
+    --border-default: #2A2A26;
+    --timeline-line:  #F0EEE8;
+    --chronicle-dot:  #C49A3C;
+    --font-serif: 'Georgia', serif;
+    --font-mono:  'Courier New', monospace;
+    --font-sans:  system-ui, sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg-vault);
+    font-family: var(--font-sans);
+    color: var(--text-primary);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 20px 60px;
+    gap: 20px;
+  }
+
+  h1 { font-family: var(--font-serif); font-size: 18px; font-weight: normal; }
+  .sub { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); }
+  .hint { font-family: var(--font-mono); font-size: 10px; color: var(--chronicle-dot); border: 1px solid var(--chronicle-dot); padding: 4px 12px; opacity: .8; }
+
+  /* ── Layout ── */
+  .layout {
+    display: flex;
+    width: 100%;
+    max-width: 920px;
+  }
+
+  /* ── Timeline principal ── */
+  .scene {
+    flex: 1;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+
+  .fake-header {
+    padding: 7px 16px;
+    border-bottom: 1px solid var(--border-default);
+    background: var(--bg-subtle);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .fake-header .t { font-family: var(--font-mono); font-size: 10px; color: var(--text-secondary); font-weight: 600; }
+  .fake-header .m { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); }
+
+  /* Canvas */
+  .canvas {
+    position: relative;
+    height: 200px;
+    overflow: visible;   /* ramo sobe para cima */
+    padding: 0 48px;
+  }
+
+  /* Main timeline line — centralizada verticalmente */
+  .main-line {
+    position: absolute;
+    top: 50%; left: 48px; right: 48px;
+    height: 1px;
+    background: var(--timeline-line);
+    opacity: .5;
+    transform: translateY(-50%);
+  }
+
+  /* Eixo de anos */
+  .axis {
+    position: absolute;
+    bottom: 12px;
+    left: 48px; right: 48px;
+    display: flex;
+    justify-content: space-between;
+  }
+  .axis span { font-family: var(--font-mono); font-size: 9px; color: var(--text-muted); }
+
+  /* Rodapé */
+  .footer {
+    padding: 6px 16px;
+    border-top: 1px solid var(--border-default);
+    display: flex;
+    justify-content: space-between;
+  }
+  .footer span { font-family: var(--font-mono); font-size: 9px; color: var(--text-muted); }
+
+  /* ─────────────────────────────────
+     DOTS NA MAIN LINE
+  ───────────────────────────────── */
+  .dot {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    cursor: pointer;
+    z-index: 5;
+  }
+
+  /* Círculo padrão */
+  .circle {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    border: 1.5px solid var(--timeline-line);
+    background: var(--bg-surface);
+    transition: background .12s;
+  }
+  .dot:hover .circle { background: var(--timeline-line); }
+
+  /* Losango chronicle */
+  .diamond {
+    width: 12px; height: 12px;
+    border: 1.5px solid var(--chronicle-dot);
+    background: var(--bg-surface);
+    transform: rotate(45deg);
+    transition: background .12s, transform .12s;
+  }
+  .dot:hover .diamond { background: var(--chronicle-dot); }
+  .dot.open .diamond  { background: var(--chronicle-dot); transform: rotate(45deg) scale(1.3); }
+
+  .imp4 .circle, .imp4 .diamond { width: 14px; height: 14px; }
+  .imp5 .circle, .imp5 .diamond { width: 16px; height: 16px; }
+
+  /* Tooltip simples */
+  .tip {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg-subtle);
+    border: 1px solid var(--border-default);
+    padding: 5px 9px;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .12s;
+    z-index: 30;
+  }
+  .dot:hover .tip { opacity: 1; }
+  .tip p    { font-size: 10px; color: var(--text-primary); }
+  .tip small { font-family: var(--font-mono); font-size: 9px; color: var(--text-muted); }
+  .tip .cbadge { font-family: var(--font-mono); font-size: 9px; color: var(--chronicle-dot); display: block; margin-top: 2px; }
+
+  /* ─────────────────────────────────
+     RAMO (branch)
+
+     Estrutura:
+       .branch               — âncora no mesmo left% do dot, com bottom: 50%
+         .branch-stem        — linha vertical, de baixo para cima
+         .branch-rail        — linha horizontal no topo do stem
+         .branch-trecho × N  — dots posicionados ao longo do rail
+  ───────────────────────────────── */
+
+  /* Contêiner do ramo todo.
+     bottom: 50% → borda inferior alinhada ao centro da main-line.
+     A altura é controlada inline (STEM + RAIL_AREA).             */
+  .branch {
+    position: absolute;
+    bottom: 50%;                 /* ancora na linha principal */
+    transform: translateX(-50%); /* centraliza no dot */
+    pointer-events: none;
+    z-index: 20;
+    opacity: 0;
+    transition: opacity .15s;
+  }
+  .branch.open {
+    opacity: 1;
+    pointer-events: all;
+  }
+
+  /* Stem vertical — parte de baixo (junto à main-line) para cima */
+  .branch-stem {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 1px;
+    /* height definido inline */
+    background: var(--chronicle-dot);
+    opacity: .5;
+  }
+
+  /* Rail horizontal — linha do ramo */
+  .branch-rail {
+    position: absolute;
+    /* top definido inline (= altura total − RAIL_AREA/2) */
+    left: 0;
+    /* width definido inline */
+    height: 1px;
+    background: var(--chronicle-dot);
+    opacity: .4;
+  }
+
+  /* Dot de cada trecho no ramo */
+  .btrecho {
+    position: absolute;
+    /* top e left definidos inline */
+    transform: translate(-50%, -50%);
+    cursor: pointer;
+    z-index: 25;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .btrecho-gem {
+    width: 9px; height: 9px;
+    border: 1.5px solid var(--chronicle-dot);
+    background: var(--bg-surface);
+    transform: rotate(45deg);
+    transition: background .1s, transform .1s;
+  }
+  .btrecho:hover .btrecho-gem,
+  .btrecho.sel   .btrecho-gem {
+    background: var(--chronicle-dot);
+  }
+  .btrecho.sel .btrecho-gem { transform: rotate(45deg) scale(1.25); }
+
+  /* Tooltip do trecho — aparece ACIMA do dot do ramo */
+  .btrecho-tip {
+    position: absolute;
+    bottom: calc(100% + 7px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg-subtle);
+    border: 1px solid var(--border-default);
+    padding: 4px 8px;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .1s;
+    text-align: center;
+    z-index: 40;
+  }
+  .btrecho:hover .btrecho-tip { opacity: 1; }
+  .btrecho-tip p     { font-size: 10px; color: var(--text-primary); }
+  .btrecho-tip small { font-family: var(--font-mono); font-size: 9px; color: var(--text-muted); }
+
+  /* Número abaixo do dot do ramo */
+  .btrecho-num {
+    position: absolute;
+    top: calc(100% + 5px);
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: var(--font-mono);
+    font-size: 8px;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+
+  /* Animação pop nos dots do ramo */
+  .branch.open .btrecho {
+    animation: bpop .18s ease-out both;
+  }
+  @keyframes bpop {
+    from { opacity:0; transform: translate(-50%,-50%) scale(.4); }
+    to   { opacity:1; transform: translate(-50%,-50%) scale(1); }
+  }
+
+  /* ── Painel lateral ── */
+  .panel {
+    width: 260px;
+    flex-shrink: 0;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-left: none;
+    display: flex;
+    flex-direction: column;
+    opacity: .3;
+    transition: opacity .2s;
+  }
+  .panel.on { opacity: 1; }
+
+  .pchr {
+    padding: 5px 12px;
+    border-bottom: 1px solid var(--border-default);
+    background: var(--bg-subtle);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    display: none;
+  }
+  .pchr.on { display: flex; }
+  .pchr-gem { width: 7px; height: 7px; border: 1px solid var(--chronicle-dot); background: var(--chronicle-dot); transform: rotate(45deg); flex-shrink: 0; }
+  .pchr-title { font-family: var(--font-mono); font-size: 9px; color: var(--chronicle-dot); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pchr-count { font-family: var(--font-mono); font-size: 9px; color: var(--text-muted); flex-shrink: 0; }
+
+  .phead { padding: 12px; border-bottom: 1px solid var(--border-default); }
+  .phead h2 { font-family: var(--font-serif); font-size: 14px; font-weight: normal; line-height: 1.35; }
+  .phead .pdate { font-family: var(--font-mono); font-size: 9px; color: var(--text-muted); margin-top: 4px; }
+  .pbody { padding: 12px; flex: 1; }
+  .pbody p { font-size: 11px; color: var(--text-secondary); line-height: 1.65; }
+
+  /* ── Nota ── */
+  .note { max-width: 920px; width: 100%; padding: 12px 16px; background: var(--bg-subtle); border: 1px solid var(--border-default); }
+  .note p { font-family: var(--font-mono); font-size: 10px; color: var(--text-secondary); line-height: 1.8; }
+  .note strong { color: var(--text-primary); }
+
+  /* Backdrop */
+  .backdrop { display:none; position:fixed; inset:0; z-index:10; }
+  .backdrop.on { display:block; }
+</style>
+</head>
+<body>
+
+<h1>Chronicle Branch Timeline</h1>
+<p class="sub">Mockup — tema escuro · branch sobe da linha principal</p>
+<p class="hint">▶ Clique num losango âmbar (◆) para abrir o ramo de trechos</p>
+
+<div class="backdrop" id="bd" onclick="closeAll()"></div>
+
+<div class="layout">
+
+  <!-- Timeline -->
+  <div class="scene" id="scene">
+    <div class="fake-header">
+      <span class="t">Guerra Fria</span>
+      <span class="m">·</span>
+      <span class="m">8 eventos · 1947 – 1991 · 44 anos</span>
+    </div>
+
+    <div class="canvas" id="canvas">
+
+      <div class="main-line"></div>
+
+      <!-- ── Eventos normais ── -->
+      <div class="dot" style="left:6%"  onclick="pickNormal('truman')">
+        <div class="circle"></div>
+        <div class="tip"><p>Doutrina Truman</p><small>12 Mar 1947</small></div>
+      </div>
+
+      <div class="dot" style="left:16%" onclick="pickNormal('marshall')">
+        <div class="circle"></div>
+        <div class="tip"><p>Plano Marshall</p><small>5 Jun 1947</small></div>
+      </div>
+
+      <!-- ── Chronicle: Crise de Berlim (4 trechos) ── -->
+      <div class="dot imp4" id="dBerlim" style="left:30%" onclick="toggleBranch('berlim',event)">
+        <div class="diamond"></div>
+        <div class="tip">
+          <p>Crise de Berlim</p>
+          <small>1948 – 1949</small>
+          <span class="cbadge">◆ Grandes Crises · 4 trechos</span>
+        </div>
+      </div>
+
+      <!-- Branch Berlim -->
+      <div class="branch" id="brBerlim" style="left:30%"></div>
+
+      <!-- ── Evento normal grande ── -->
+      <div class="dot imp5" style="left:48%" onclick="pickNormal('korea')">
+        <div class="circle"></div>
+        <div class="tip"><p>Guerra da Coreia</p><small>25 Jun 1950</small></div>
+      </div>
+
+      <!-- ── Chronicle: Crise dos Mísseis (3 trechos) ── -->
+      <div class="dot imp4" id="dCuba" style="left:64%" onclick="toggleBranch('cuba',event)">
+        <div class="diamond"></div>
+        <div class="tip">
+          <p>Crise dos Mísseis</p>
+          <small>Out 1962</small>
+          <span class="cbadge">◆ Grandes Crises · 3 trechos</span>
+        </div>
+      </div>
+
+      <!-- Branch Cuba -->
+      <div class="branch" id="brCuba" style="left:64%"></div>
+
+      <!-- ── Evento normal grande ── -->
+      <div class="dot imp5" style="left:86%" onclick="pickNormal('muro')">
+        <div class="circle"></div>
+        <div class="tip"><p>Queda do Muro de Berlim</p><small>9 Nov 1989</small></div>
+      </div>
+
+      <div class="axis">
+        <span>1947</span><span>1950</span><span>1955</span>
+        <span>1960</span><span>1965</span><span>1975</span>
+        <span>1985</span><span>1991</span>
+      </div>
+    </div>
+
+    <div class="footer">
+      <span>8 eventos · 1947 – 1991</span>
+      <span>Ctrl+scroll para zoom</span>
+    </div>
+  </div>
+
+  <!-- Painel -->
+  <div class="panel" id="panel">
+    <div class="pchr" id="pchr">
+      <div class="pchr-gem"></div>
+      <span class="pchr-title" id="pchrTitle"></span>
+      <span class="pchr-count" id="pchrCount"></span>
+    </div>
+    <div class="phead">
+      <h2 id="pTitle">—</h2>
+      <div class="pdate" id="pDate"></div>
+    </div>
+    <div class="pbody"><p id="pBody">Selecione um evento.</p></div>
+  </div>
+
+</div>
+
+<div class="note">
+  <p>
+    <strong>Comportamento proposto:</strong><br>
+    • Clicar num chronicle dot com 2+ trechos abre um <strong>ramo</strong> que sobe da linha principal<br>
+    • Stem vertical conecta o dot do chronicle ao rail horizontal do ramo<br>
+    • Cada trecho é um losango no rail · hover mostra título+data · clique seleciona<br>
+    • Clicar fora fecha o ramo · clicar em outro chronicle substitui o ramo ativo
+  </p>
+</div>
+
+<script>
+/* ── Dados ── */
+const DATA = {
+  berlim: {
+    chr: 'Grandes Crises da Guerra Fria',
+    trechos: [
+      { id:'b1', label:'Início do Bloqueio',     date:'24 Jun 1948', body:'A União Soviética corta todos os acessos terrestres e fluviais a Berlim Ocidental — o primeiro grande confronto direto da Guerra Fria.' },
+      { id:'b2', label:'Ponte Aérea de Berlim',  date:'26 Jun 1948', body:'Os aliados lançam uma operação aérea monumental: até 1.000 voos diários abastecem a cidade. A URSS não interfere, temendo escalada.' },
+      { id:'b3', label:'Negociações secretas',   date:'Mar 1949',    body:'Diplomatas americanos e soviéticos iniciam conversas discretas nas Nações Unidas, longe dos holofotes.' },
+      { id:'b4', label:'Fim do Bloqueio',         date:'12 Mai 1949', body:'Após 323 dias e mais de 200 mil voos, a URSS levanta o bloqueio. Berlim sobreviveu; a Guerra Fria se intensificou.' },
+    ]
+  },
+  cuba: {
+    chr: 'Grandes Crises da Guerra Fria',
+    trechos: [
+      { id:'c1', label:'Descoberta dos mísseis',     date:'14 Out 1962', body:'Um U-2 americano fotografa bases soviéticas em construção em Cuba. 13 dias de tensão máxima começam.' },
+      { id:'c2', label:'Bloqueio naval',              date:'22 Out 1962', body:'Kennedy anuncia a "quarentena" naval e exige a retirada dos mísseis. O mundo chega ao limite da guerra nuclear.' },
+      { id:'c3', label:'Acordo Kennedy–Khrushchev',  date:'28 Out 1962', body:'Acordo secreto: URSS retira mísseis de Cuba; EUA prometem não invadir Cuba e retirar mísseis da Turquia.' },
+    ]
+  }
+}
+
+const NORMALS = {
+  truman:   { title:'Doutrina Truman',          date:'12 Mar 1947', body:'O presidente Truman pede apoio ao Congresso para Grécia e Turquia, estabelecendo a política de contenção do comunismo.' },
+  marshall: { title:'Plano Marshall',            date:'5 Jun 1947',  body:'O secretário Marshall propõe um programa de reconstrução econômica europeia — e de contenção soviética.' },
+  korea:    { title:'Guerra da Coreia',          date:'25 Jun 1950', body:'A Coreia do Norte invade a do Sul. Os EUA intervêm sob mandato da ONU, iniciando o primeiro conflito armado da Guerra Fria.' },
+  muro:     { title:'Queda do Muro de Berlim',  date:'9 Nov 1989',  body:'O governo da Alemanha Oriental abre as fronteiras. Berlinenses de ambos os lados derrubam o muro em horas.' },
+}
+
+/* ── Constantes de layout do ramo ── */
+const STEM_H      = 32    // altura do stem vertical (px)
+const RAIL_AREA   = 40    // altura reservada para o rail + dot (px)
+const DOT_SPACING = 72    // espaço horizontal entre trechos (px)
+const DOT_PAD_L   = 10   // padding esquerdo antes do 1º trecho
+
+let active = null   // id do branch aberto
+
+/* ── Constrói e abre um ramo ── */
+function buildBranch(id) {
+  const d       = DATA[id]
+  const n       = d.trechos.length
+  const totalH  = STEM_H + RAIL_AREA           // altura total do .branch
+  const railW   = (n - 1) * DOT_SPACING + DOT_PAD_L * 2  // largura do rail
+
+  const brEl = document.getElementById('br' + cap(id))
+  brEl.innerHTML = ''
+  brEl.style.height = totalH + 'px'
+
+  /* Stem vertical — de baixo (main-line) para cima STEM_H px */
+  const stem = document.createElement('div')
+  stem.className = 'branch-stem'
+  stem.style.height = STEM_H + 'px'
+  brEl.appendChild(stem)
+
+  /* Rail horizontal — no topo do stem */
+  const rail = document.createElement('div')
+  rail.className = 'branch-rail'
+  rail.style.top   = '0px'               // no topo do .branch
+  rail.style.width = railW + 'px'
+  brEl.appendChild(rail)
+
+  /* Dots dos trechos ao longo do rail */
+  const dotTop = RAIL_AREA / 2   // posição vertical do dot dentro do .branch (do topo)
+  d.trechos.forEach((t, i) => {
+    const left = DOT_PAD_L + i * DOT_SPACING
+
+    const wrap = document.createElement('div')
+    wrap.className = 'btrecho'
+    wrap.id = 'bt-' + t.id
+    wrap.style.top  = dotTop + 'px'
+    wrap.style.left = left   + 'px'
+
+    wrap.innerHTML = `
+      <div class="btrecho-tip"><p>${t.label}</p><small>${t.date}</small></div>
+      <div class="btrecho-gem"></div>
+      <div class="btrecho-num">${i+1}/${n}</div>
+    `
+    wrap.style.animationDelay = (i * 0.04) + 's'
+    wrap.addEventListener('click', e => { e.stopPropagation(); pickTrecho(id, t.id) })
+    brEl.appendChild(wrap)
+  })
+
+  brEl.classList.add('open')
+}
+
+function toggleBranch(id, ev) {
+  ev.stopPropagation()
+  if (active === id) { closeAll(); return }
+  closeAll()
+  active = id
+  document.getElementById('d' + cap(id)).classList.add('open')
+  buildBranch(id)
+  document.getElementById('bd').classList.add('on')
+  // Seleciona o 1º trecho automaticamente
+  pickTrecho(id, DATA[id].trechos[0].id)
+}
+
+function closeAll() {
+  if (!active) return
+  document.getElementById('br' + cap(active)).classList.remove('open')
+  document.getElementById('d'  + cap(active)).classList.remove('open')
+  document.getElementById('bd').classList.remove('on')
+  active = null
+}
+
+function pickTrecho(brId, tId) {
+  document.querySelectorAll('.btrecho').forEach(el => el.classList.remove('sel'))
+  const el = document.getElementById('bt-' + tId)
+  if (el) el.classList.add('sel')
+
+  const d     = DATA[brId]
+  const t     = d.trechos.find(x => x.id === tId)
+  const idx   = d.trechos.indexOf(t)
+  setPanel({ title: t.label, date: t.date, body: t.body, chr: d.chr, count: `${idx+1} / ${d.trechos.length}` })
+}
+
+function pickNormal(id) {
+  closeAll()
+  const d = NORMALS[id]
+  setPanel({ title: d.title, date: d.date, body: d.body })
+}
+
+function setPanel({ title, date, body, chr, count }) {
+  document.getElementById('pTitle').textContent = title
+  document.getElementById('pDate').textContent  = date
+  document.getElementById('pBody').textContent  = body
+  const bar = document.getElementById('pchr')
+  if (chr) {
+    bar.classList.add('on')
+    document.getElementById('pchrTitle').textContent = chr
+    document.getElementById('pchrCount').textContent = count ?? ''
+  } else {
+    bar.classList.remove('on')
+  }
+  document.getElementById('panel').classList.add('on')
+}
+
+function cap(s) { return s[0].toUpperCase() + s.slice(1) }
+</script>
+</body>
+</html>

@@ -22,7 +22,7 @@
  */
 
 import { useMemo, useState, useEffect, useRef, useCallback } from 'react'
-import { ChevronDown, ChevronRight, Search, X, Pencil, Trash2, AlertTriangle } from 'lucide-react'
+import { ChevronDown, ChevronRight, Search, X, Pencil, Trash2, AlertTriangle, Filter } from 'lucide-react'
 import { cn } from '../../utils/cn'
 import { useI18n } from '../../hooks/useI18n'
 import type { TimelineData, ChroniclerEvent } from '../../types/chronicler'
@@ -62,13 +62,15 @@ interface ContextMenuState {
 interface ContextMenuProps {
   state: ContextMenuState
   onRename: () => void
+  onFilter: () => void
   onDelete: () => void
   onClose: () => void
 }
 
-function ContextMenu({ state, onRename, onDelete, onClose }: ContextMenuProps) {
+function ContextMenu({ state, onRename, onFilter, onDelete, onClose }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null)
   const { t } = useI18n()
+  const [pos, setPos] = useState({ x: state.x, y: state.y })
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -76,15 +78,25 @@ function ContextMenu({ state, onRename, onDelete, onClose }: ContextMenuProps) {
     return () => window.removeEventListener('keydown', handler)
   }, [onClose])
 
-  const style: React.CSSProperties = { position: 'fixed', top: state.y, left: state.x, zIndex: 100 }
+  useEffect(() => {
+    const el = menuRef.current
+    if (!el) return
+    const { width, height } = el.getBoundingClientRect()
+    const vw = window.innerWidth
+    const vh = window.innerHeight
+    setPos({
+      x: Math.max(4, Math.min(state.x, vw - width - 8)),
+      y: Math.max(4, Math.min(state.y, vh - height - 8)),
+    })
+  }, [state.x, state.y])
 
   return (
     <>
       <div className="fixed inset-0 z-[99]" onMouseDown={onClose} />
       <div
         ref={menuRef}
-        style={style}
-        className="z-[100] relative w-44 chr-card py-1 shadow-card-hover text-sm"
+        style={{ position: 'fixed', top: pos.y, left: pos.x, zIndex: 100 }}
+        className="z-[100] relative w-48 chr-card py-1 shadow-card-hover text-sm"
       >
         <button
           onClick={() => { onRename(); onClose() }}
@@ -92,6 +104,13 @@ function ContextMenu({ state, onRename, onDelete, onClose }: ContextMenuProps) {
         >
           <Pencil size={12} strokeWidth={1.5} className="shrink-0" />
           {t('rename_file')}
+        </button>
+        <button
+          onClick={() => { onFilter(); onClose() }}
+          className="w-full flex items-center gap-2.5 px-3 py-2 text-left font-mono text-xs text-chr-secondary hover:bg-hover hover:text-chr-primary transition-colors"
+        >
+          <Filter size={12} strokeWidth={1.5} className="shrink-0" />
+          {t('filter_by_file')}
         </button>
         <div className="h-px bg-chr-subtle mx-2 my-1" />
         <button
@@ -433,6 +452,7 @@ interface TimelineListProps {
   onEnterSubtimeline: (event: ChroniclerEvent) => void
   onDeleteEvent?: (event: ChroniclerEvent) => Promise<void>
   onRenameEventFile?: (event: ChroniclerEvent, newFilename: string) => Promise<void>
+  onFilterByFile?: (filePath: string) => void
   /** Quando definido, exibe apenas os eventos cujos filePaths estão na lista */
   filterPaths?: string[]
 }
@@ -444,6 +464,7 @@ export function TimelineList({
   onEnterSubtimeline,
   onDeleteEvent,
   onRenameEventFile,
+  onFilterByFile,
   filterPaths,
 }: TimelineListProps) {
   const [search, setSearch] = useState('')
@@ -724,6 +745,7 @@ export function TimelineList({
         <ContextMenu
           state={contextMenu}
           onRename={() => setRenaming(contextMenu.event)}
+          onFilter={() => onFilterByFile?.(contextMenu.event.filePath)}
           onDelete={() => setConfirmDelete(contextMenu.event)}
           onClose={() => setContextMenu(null)}
         />

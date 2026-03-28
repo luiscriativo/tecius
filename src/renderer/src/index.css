@@ -4,6 +4,31 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Cores âmbar para busca — adaptam ao tema via CSS custom properties ──── */
+:root {
+  /* cur = cor atual de match (usada tanto em ::selection quanto em ::highlight) */
+  --chr-search-cur:  rgba(130,  90, 38, 0.42);
+  --chr-search-all:  rgba(130,  90, 38, 0.18);
+}
+.dark {
+  --chr-search-cur:  rgba(200, 160, 80, 0.48);
+  --chr-search-all:  rgba(200, 160, 80, 0.20);
+}
+
+/* ::selection e ::highlight(chr-search-cur) usam a mesma variável → visual idêntico */
+::selection {
+  background-color: var(--chr-search-cur);
+  color: inherit;
+}
+
+::highlight(chr-search-all) {
+  background-color: var(--chr-search-all);
+}
+::highlight(chr-search-cur) {
+  background-color: var(--chr-search-cur);
+}
+
+
 /* ─────────────────────────────────────────────────────────────
    TECIUS DESIGN SYSTEM — Estetica Tipografica Classica
    Inspiracao: Jornal seculo XIX, enciclopedias, Obsidian

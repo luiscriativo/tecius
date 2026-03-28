@@ -48,6 +48,7 @@ const INVOKE_CHANNELS = [
   'fs:rename-event-file',
   'fs:rename-vault',
   'update:check',
+  'update:download',
 ] as const
 
 const SEND_CHANNELS = [
@@ -63,6 +64,7 @@ const SEND_CHANNELS = [
 const RECEIVE_CHANNELS = [
   'update:available',
   'update:downloaded',
+  'update:progress',
   'app:theme-changed',
   'fs:vault-changed',
 ] as const

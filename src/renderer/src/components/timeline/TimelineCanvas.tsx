@@ -18,11 +18,104 @@
  *    pixelGroups e visibleGroups só recalculam quando deps mudam.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { EventDot } from './EventDot'
 import { ClusterDot } from './ClusterDot'
 import { TimelineAxis } from './TimelineAxis'
+import { propSortKey } from '../../utils/chroniclerDate'
 import type { TimelineData, ChroniclerEvent } from '../../types/chronicler'
+
+// ── TimelineMinimap ────────────────────────────────────────────────────────────
+
+interface TimelineMinimapProps {
+  pixelGroups: Map<number, ChroniclerEvent[]>
+  canvasWidth: number
+  viewLeft: number
+  viewWidth: number
+  scrollRef: React.RefObject<HTMLDivElement | null>
+}
+
+function TimelineMinimap({ pixelGroups, canvasWidth, viewLeft, viewWidth, scrollRef }: TimelineMinimapProps) {
+  const barRef = useRef<HTMLDivElement>(null)
+  const isDragging = useRef(false)
+
+  const scrollTo = useCallback((clientX: number) => {
+    const rect = barRef.current?.getBoundingClientRect()
+    if (!rect || !scrollRef.current) return
+    const fraction = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
+    scrollRef.current.scrollLeft = Math.max(0, fraction * canvasWidth - viewWidth / 2)
+  }, [canvasWidth, viewWidth, scrollRef])
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => { if (isDragging.current) scrollTo(e.clientX) }
+    const onUp   = () => { isDragging.current = false }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+  }, [scrollTo])
+
+  const winL = canvasWidth > 0 ? (viewLeft / canvasWidth) * 100 : 0
+  const winW = canvasWidth > 0 ? Math.min(100 - winL, (viewWidth / canvasWidth) * 100) : 100
+
+  return (
+    <div
+      ref={barRef}
+      onMouseDown={(e) => { e.preventDefault(); isDragging.current = true; scrollTo(e.clientX) }}
+      className="shrink-0 relative border-t border-chr-subtle overflow-hidden cursor-crosshair"
+      style={{ height: 36, userSelect: 'none' }}
+      title="Minimapa — clique ou arraste para navegar"
+    >
+      {/* Linha central de referência */}
+      <div
+        className="absolute inset-x-0 pointer-events-none"
+        style={{ height: 1, top: '50%', backgroundColor: 'rgba(255,255,255,0.04)' }}
+      />
+
+      {/* Marcas de eventos */}
+      {Array.from(pixelGroups.entries()).map(([px, events]) => {
+        const leftPct = canvasWidth > 0 ? (px / canvasWidth) * 100 : 0
+        const isCluster = events.length > 1
+        const maxImportance = Math.max(...events.map((e) => (e.frontmatter.importance as number | undefined) ?? 3))
+        // Altura proporcional à importância: min 20% → max 80%
+        const heightPct = isCluster ? 72 : Math.round(18 + (maxImportance / 5) * 58)
+        return (
+          <div
+            key={px}
+            className="absolute pointer-events-none"
+            style={{
+              left: `${leftPct}%`,
+              width: isCluster ? 3 : 1.5,
+              height: `${heightPct}%`,
+              top: `${(100 - heightPct) / 2}%`,
+              transform: 'translateX(-50%)',
+              borderRadius: 1,
+              backgroundColor: isCluster
+                ? 'rgba(220, 150, 70, 0.8)'
+                : 'rgba(160, 160, 185, 0.6)',
+            }}
+          />
+        )
+      })}
+
+      {/* Janela do viewport */}
+      <div
+        className="absolute inset-y-0 pointer-events-none"
+        style={{
+          left: `${winL}%`,
+          width: `${winW}%`,
+          backgroundColor: 'rgba(110, 110, 190, 0.08)',
+          borderLeft: '1.5px solid rgba(140, 140, 220, 0.45)',
+          borderRight: '1.5px solid rgba(140, 140, 220, 0.45)',
+        }}
+      />
+    </div>
+  )
+}
+
+// ── TimelineCanvas ─────────────────────────────────────────────────────────────
 
 interface TimelineCanvasProps {
   timeline: TimelineData
@@ -30,6 +123,7 @@ interface TimelineCanvasProps {
   onEventClick: (event: ChroniclerEvent) => void
   onEnterSubtimeline: (event: ChroniclerEvent) => void
   onClusterClick: (events: ChroniclerEvent[]) => void
+  onContextMenu?: (event: ChroniclerEvent, x: number, y: number) => void
   /** Quando definido, exibe apenas eventos cujos filePaths estão na lista */
   filterPaths?: string[]
 }
@@ -46,6 +140,7 @@ export function TimelineCanvas({
   onEventClick,
   onEnterSubtimeline,
   onClusterClick,
+  onContextMenu,
   filterPaths,
 }: TimelineCanvasProps) {
   const activeEvents = filterPaths
@@ -53,6 +148,7 @@ export function TimelineCanvas({
     : timeline.events
   const scrollRef = useRef<HTMLDivElement>(null)
   const [zoom, setZoom] = useState(1)
+  const maxZoomRef = useRef(5)  // atualizado a cada render com o valor dinâmico
 
   // Estado do viewport (scrollLeft e largura visível)
   const [viewLeft, setViewLeft] = useState(0)
@@ -86,7 +182,24 @@ export function TimelineCanvas({
     const handleWheel = (e: WheelEvent) => {
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault()
-        setZoom((z) => Math.max(0.5, Math.min(5, z - e.deltaY * 0.002)))
+        const el = scrollRef.current
+        if (!el) return
+        const rect = el.getBoundingClientRect()
+        const mouseXInCanvas = el.scrollLeft + (e.clientX - rect.left)
+        const mouseClientX = e.clientX - rect.left
+        setZoom((z) => {
+          const factor = 1 + Math.abs(e.deltaY) * 0.003
+          const newZ = e.deltaY > 0
+            ? Math.max(0.5, z / factor)
+            : Math.min(maxZoomRef.current, z * factor)
+          const fraction = mouseXInCanvas / (MIN_CANVAS_WIDTH * z)
+          requestAnimationFrame(() => {
+            if (scrollRef.current) {
+              scrollRef.current.scrollLeft = fraction * MIN_CANVAS_WIDTH * newZ - mouseClientX
+            }
+          })
+          return newZ
+        })
       }
     }
     el.addEventListener('wheel', handleWheel, { passive: false })
@@ -103,7 +216,37 @@ export function TimelineCanvas({
     )
   }
 
+  // ── SortKeys proporcionais ─────────────────────────────────────────────────
+  // O sortKey nativo (YYYYMMDD) distribui 12 meses em apenas 12% do espaço do ano
+  // (offsets 100–1299 de 10000), deixando 88% vazio. Isso faz eventos de Dezembro
+  // aparecerem perto de Fevereiro na régua proporcional.
+  //
+  // Usamos propSortKey() que distribui meses uniformemente ao longo do ano inteiro,
+  // mantendo o mesmo espaço de coordenadas (year × 10000) mas com distribuição correta.
+  // Todos os cálculos de posição — eventos E régua — usam esta escala.
+  const propMin = propSortKey(minDate.year, minDate.month, minDate.day)
+  const propMax = propSortKey(maxDate.year, maxDate.month, maxDate.day)
+
+  // Zoom máximo dinâmico: garante ~65px por dia no canvas a zoom máximo.
+  // Esse valor permite que step=1 seja atingido (requer dayPx ≥ 45),
+  // exibindo TODOS os dias do mês com números legíveis — igual ao design de referência.
+  //
+  // Limite físico: navegadores suportam elementos CSS até ~33M px.
+  // Usamos 24M px como teto seguro → maxZoom = 24_000_000 / 800 = 30.000×
+  // Para timelines de ~1000 anos isso dá dayPx ≈ 65px (step=1, todos os dias visíveis).
+  const SKU_PER_DAY = 10000 / 365.25
+  const totalSku = (propMax - propMin) || 1
+  const totalDays = totalSku / SKU_PER_DAY
+  const TARGET_PX_PER_DAY = 65
+  const MAX_CANVAS_PX = 24_000_000                          // ~24M px — teto seguro para CSS
+  const maxZoom = Math.max(5, Math.min(
+    MAX_CANVAS_PX / MIN_CANVAS_WIDTH,                       // 30.000× (limite do canvas)
+    (TARGET_PX_PER_DAY * totalDays) / MIN_CANVAS_WIDTH      // calculado pela densidade de dias
+  ))
+  maxZoomRef.current = maxZoom
+
   const canvasWidth = Math.max(MIN_CANVAS_WIDTH, MIN_CANVAS_WIDTH * zoom)
+  const pixelsPerSku = canvasWidth / totalSku
 
   // ── Proximity merging ──────────────────────────────────────────────────────
   // Converte cada evento para sua posição em pixels, ordena, e então agrupa
@@ -111,14 +254,15 @@ export function TimelineCanvas({
   // Isso garante que dots nunca se sobreponham visualmente, independente do
   // zoom ou da densidade de eventos. O(N log N) pela ordenação, O(N) na varredura.
   const pixelGroups = useMemo(() => {
-    const rangeSpan = maxDate.sortKey - minDate.sortKey || 1
-    const pMin = minDate.sortKey - rangeSpan * PADDING_PERCENT
-    const pMax = maxDate.sortKey + rangeSpan * PADDING_PERCENT
+    const rangeSpan = propMax - propMin || 1
+    const pMin = propMin - rangeSpan * PADDING_PERCENT
+    const pMax = propMax + rangeSpan * PADDING_PERCENT
 
-    // 1. Calcula posição em pixels para cada evento e ordena
+    // 1. Calcula posição proporcional em pixels para cada evento e ordena
     const positioned = activeEvents
       .map((event) => {
-        const pos = (event.date.sortKey - pMin) / (pMax - pMin)
+        const evSk = propSortKey(event.date.year, event.date.month, event.date.day)
+        const pos = (evSk - pMin) / (pMax - pMin)
         const px = Math.round(Math.max(0, Math.min(1, pos)) * canvasWidth)
         return { px, event }
       })
@@ -142,7 +286,7 @@ export function TimelineCanvas({
       map.set(center, group)
     }
     return map
-  }, [activeEvents, minDate.sortKey, maxDate.sortKey, canvasWidth])
+  }, [activeEvents, propMin, propMax, canvasWidth])
 
   // ── Viewport culling ───────────────────────────────────────────────────────
   // Renderiza apenas grupos dentro do viewport + 1 tela de buffer em cada lado.
@@ -155,13 +299,39 @@ export function TimelineCanvas({
     [pixelGroups, viewLeft, viewWidth, buffer]
   )
 
-  // Datas com padding para o eixo
-  const rangeSpan = maxDate.sortKey - minDate.sortKey || 1
-  const paddedMinDate = { ...minDate, sortKey: minDate.sortKey - rangeSpan * PADDING_PERCENT }
-  const paddedMaxDate = { ...maxDate, sortKey: maxDate.sortKey + rangeSpan * PADDING_PERCENT }
+  // Datas com padding para o eixo — usa sortKeys proporcionais para consistência
+  const rangeSpan = propMax - propMin || 1
+  const paddedMinDate = { ...minDate, sortKey: propMin - rangeSpan * PADDING_PERCENT }
+  const paddedMaxDate = { ...maxDate, sortKey: propMax + rangeSpan * PADDING_PERCENT }
 
-  const zoomIn  = () => setZoom((z) => Math.min(5, Math.round((z + 0.25) * 100) / 100))
-  const zoomOut = () => setZoom((z) => Math.max(0.5, Math.round((z - 0.25) * 100) / 100))
+  // Step logarítmico: multiplica/divide por 1.5 por clique
+  const ZOOM_FACTOR = 1.5
+  const zoomIn = () => setZoom((z) => {
+    const newZ = Math.min(maxZoomRef.current, z * ZOOM_FACTOR)
+    const el = scrollRef.current
+    if (el) {
+      const centerFraction = (el.scrollLeft + el.clientWidth / 2) / (MIN_CANVAS_WIDTH * z)
+      requestAnimationFrame(() => {
+        if (scrollRef.current) {
+          scrollRef.current.scrollLeft = centerFraction * MIN_CANVAS_WIDTH * newZ - scrollRef.current.clientWidth / 2
+        }
+      })
+    }
+    return newZ
+  })
+  const zoomOut = () => setZoom((z) => {
+    const newZ = Math.max(0.5, z / ZOOM_FACTOR)
+    const el = scrollRef.current
+    if (el) {
+      const centerFraction = (el.scrollLeft + el.clientWidth / 2) / (MIN_CANVAS_WIDTH * z)
+      requestAnimationFrame(() => {
+        if (scrollRef.current) {
+          scrollRef.current.scrollLeft = centerFraction * MIN_CANVAS_WIDTH * newZ - scrollRef.current.clientWidth / 2
+        }
+      })
+    }
+    return newZ
+  })
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden select-none">
@@ -197,6 +367,7 @@ export function TimelineCanvas({
                     isSelected={selectedEvent?.slug === event.slug}
                     onClick={() => onEventClick(event)}
                     onDoubleClick={() => event.hasSubtimeline && onEnterSubtimeline(event)}
+                    onContextMenu={(e) => onContextMenu?.(event, e.clientX, e.clientY)}
                     style={{ left }}
                     tooltipAlign={tooltipAlign}
                   />
@@ -220,9 +391,21 @@ export function TimelineCanvas({
             minDate={paddedMinDate}
             maxDate={paddedMaxDate}
             width={canvasWidth}
+            pixelsPerSku={pixelsPerSku}
+            viewLeft={viewLeft}
+            viewWidth={viewWidth}
           />
         </div>
       </div>
+
+      {/* Minimapa de navegação */}
+      <TimelineMinimap
+        pixelGroups={pixelGroups}
+        canvasWidth={canvasWidth}
+        viewLeft={viewLeft}
+        viewWidth={viewWidth}
+        scrollRef={scrollRef}
+      />
 
       {/* Rodapé */}
       <div className="shrink-0 px-5 py-2 border-t border-chr-subtle flex items-center justify-between">
@@ -253,15 +436,28 @@ export function TimelineCanvas({
             −
           </button>
           <button
-            onClick={() => setZoom(1)}
-            className="font-mono text-2xs text-chr-muted hover:text-chr-secondary transition-colors w-10 text-center"
+            onClick={() => {
+              const el = scrollRef.current
+              const centerFraction = el ? (el.scrollLeft + el.clientWidth / 2) / (MIN_CANVAS_WIDTH * zoom) : 0.5
+              setZoom(1)
+              requestAnimationFrame(() => {
+                if (scrollRef.current) {
+                  scrollRef.current.scrollLeft = centerFraction * MIN_CANVAS_WIDTH - scrollRef.current.clientWidth / 2
+                }
+              })
+            }}
+            className="font-mono text-2xs text-chr-muted hover:text-chr-secondary transition-colors w-14 text-center"
             title="Resetar zoom"
           >
-            {Math.round(zoom * 100)}%
+            {zoom < 10
+              ? `${Math.round(zoom * 100)}%`
+              : zoom < 100
+              ? `${Math.round(zoom)}x`
+              : `${Math.round(zoom / 10) * 10}x`}
           </button>
           <button
             onClick={zoomIn}
-            disabled={zoom >= 5}
+            disabled={zoom >= maxZoom}
             className="w-6 h-6 flex items-center justify-center font-mono text-sm text-chr-muted hover:text-chr-primary hover:bg-hover rounded-sm transition-colors disabled:opacity-30 disabled:cursor-default"
             title="Aumentar zoom"
           >

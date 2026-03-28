@@ -1,9 +1,9 @@
-import { AlignLeft, GitCommitHorizontal, Files } from 'lucide-react'
+import { AlignLeft, GitCommitHorizontal } from 'lucide-react'
 import { cn } from '../../utils/cn'
 
 interface ViewToggleProps {
-  mode: 'horizontal' | 'list' | 'files'
-  onChange: (mode: 'horizontal' | 'list' | 'files') => void
+  mode: 'horizontal' | 'list'
+  onChange: (mode: 'horizontal' | 'list') => void
 }
 
 export function ViewToggle({ mode, onChange }: ViewToggleProps) {
@@ -13,7 +13,6 @@ export function ViewToggle({ mode, onChange }: ViewToggleProps) {
         [
           { value: 'horizontal', icon: GitCommitHorizontal, label: 'Timeline horizontal' },
           { value: 'list',       icon: AlignLeft,            label: 'Lista cronológica'   },
-          { value: 'files',      icon: Files,                label: 'Selecionar arquivos' },
         ] as const
       ).map(({ value, icon: Icon, label }) => (
         <button

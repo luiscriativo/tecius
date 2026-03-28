@@ -259,6 +259,16 @@ function setupAutoUpdater(): void {
     // noop — não notifica o usuário
   })
 
+  // Progresso do download — envia percentual ao renderer em tempo real
+  autoUpdater.on('download-progress', (progress) => {
+    mainWindow?.webContents.send('update:progress', {
+      percent: Math.round(progress.percent),
+      bytesPerSecond: progress.bytesPerSecond,
+      transferred: progress.transferred,
+      total: progress.total,
+    })
+  })
+
   // Download concluído: notifica o renderer para mostrar o banner "Reiniciar e instalar"
   autoUpdater.on('update-downloaded', (info) => {
     mainWindow?.webContents.send('update:downloaded', {
@@ -274,6 +284,15 @@ function setupAutoUpdater(): void {
   // Usuário clicou em "Instalar agora" no banner do renderer
   ipcMain.on('update:install', () => {
     autoUpdater.quitAndInstall(false, true)
+  })
+
+  // Usuário confirmou o download no banner
+  ipcMain.handle('update:download', async () => {
+    try {
+      await autoUpdater.downloadUpdate()
+    } catch (err) {
+      console.error('[auto-updater] download error:', err)
+    }
   })
 
   // Verificação manual disparada pelo renderer (Settings → "Verificar atualizações")

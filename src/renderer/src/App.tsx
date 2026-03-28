@@ -15,7 +15,7 @@
  */
 
 import React, { useEffect } from 'react'
-import { MemoryRouter, Routes, Route } from 'react-router-dom'
+import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { AppLayout } from '@/layouts/AppLayout'
 import { HomePage } from '@/pages/Home'
 import { SettingsPage } from '@/pages/Settings'
@@ -88,36 +88,39 @@ function VaultBootstrapper({ children }: { children: React.ReactNode }): React.R
   return <>{children}</>
 }
 
+// ── Router (data router — necessário para useBlocker no EventView) ────────────
+// createMemoryRouter funciona em Electron (file://) como MemoryRouter, mas é
+// um "data router" que habilita useBlocker para guardar alterações não salvas.
+const router = createMemoryRouter(
+  [
+    {
+      path: '/',
+      element: <AppLayout />,
+      children: [
+        { index: true, element: <HomePage /> },
+        { path: 'timeline', element: <TimelineView /> },
+        { path: 'event', element: <EventView /> },
+        { path: 'assets', element: <AssetManager /> },
+        { path: 'trash', element: <TrashView /> },
+        { path: 'settings', element: <SettingsPage /> },
+        { path: 'about', element: <AboutPage /> },
+      ],
+    },
+    { path: '*', element: <NotFoundPage /> },
+  ],
+  { initialEntries: ['/'] }
+)
+
 // ── App ───────────────────────────────────────────────────────────────────────
 
 export default function App(): React.ReactElement {
+  // ThemeProvider e VaultBootstrapper não usam hooks de rota — ficam fora do
+  // RouterProvider mas seus contextos ainda fluem para os filhos da árvore React.
   return (
-    /*
-     * MemoryRouter e usado ao inves de BrowserRouter / HashRouter porque:
-     * - Em producao, Electron carrega a partir de URLs file://
-     * - BrowserRouter requer servidor para navegacao (nao disponivel em file://)
-     * - MemoryRouter mantém o estado de navegacao em memoria, funciona em qualquer contexto
-     */
-    <MemoryRouter initialEntries={['/']} initialIndex={0}>
-      <ThemeProvider>
-        <VaultBootstrapper>
-          <Routes>
-            {/* Todas as rotas principais compartilham o AppLayout (sidebar + header) */}
-            <Route element={<AppLayout />}>
-              <Route index element={<HomePage />} />
-              <Route path="/timeline" element={<TimelineView />} />
-              <Route path="/event" element={<EventView />} />
-              <Route path="/assets" element={<AssetManager />} />
-              <Route path="/trash" element={<TrashView />} />
-              <Route path="/settings" element={<SettingsPage />} />
-              <Route path="/about" element={<AboutPage />} />
-            </Route>
-
-            {/* 404 catch-all */}
-            <Route path="*" element={<NotFoundPage />} />
-          </Routes>
-        </VaultBootstrapper>
-      </ThemeProvider>
-    </MemoryRouter>
+    <ThemeProvider>
+      <VaultBootstrapper>
+        <RouterProvider router={router} />
+      </VaultBootstrapper>
+    </ThemeProvider>
   )
 }

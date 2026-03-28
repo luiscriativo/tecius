@@ -10,6 +10,8 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { Trash2, RotateCcw, X, BookOpen, AlertTriangle } from 'lucide-react'
 import { useVault } from '@/hooks/useVault'
+import { useVaultStore } from '@/stores/useVaultStore'
+import { useTimelineStore } from '@/stores/useTimelineStore'
 import { useI18n } from '@/hooks/useI18n'
 import { cn } from '@/utils/cn'
 import type { TrashItem } from '@/types/chronicler'
@@ -87,6 +89,8 @@ function ConfirmModal({ title, description, confirmLabel, isDanger = false, isLo
 
 export default function TrashView(): React.ReactElement {
   const { listTrash, restoreFromTrash, deleteFromTrash, emptyTrash } = useVault()
+  const deleteCached = useTimelineStore((s) => s.deleteCached)
+  const trashCount = useVaultStore((s) => s.vaultInfo?.trashCount ?? 0)
   const { t, language, nEvents, nItems } = useI18n()
 
   const [items, setItems]           = useState<TrashItem[]>([])
@@ -110,12 +114,28 @@ export default function TrashView(): React.ReactElement {
 
   useEffect(() => { load() }, [load])
 
+  // Retry when vault reports items exist but the first load returned empty (redirect timing race)
+  useEffect(() => {
+    if (!isLoading && items.length === 0 && trashCount > 0) {
+      const timer = setTimeout(() => load(), 300)
+      return () => clearTimeout(timer)
+    }
+  }, [isLoading, items.length, trashCount, load])
+
   // ── Ações ─────────────────────────────────────────────────────────────────
 
   const handleRestore = async (item: TrashItem) => {
     setProcessing(item.dirPath)
     try {
       await restoreFromTrash(item.dirPath)
+      // Invalidate timeline cache so the restored content appears immediately.
+      // For event items, originalPath is the event .md file — invalidate its parent dir.
+      // For timeline items, originalPath is the dir itself.
+      const isEventItem = item.originalPath.endsWith('.md')
+      const timelineDirPath = isEventItem
+        ? item.originalPath.replace(/[\\/][^\\/]+$/, '')
+        : item.originalPath
+      deleteCached(timelineDirPath)
       await load()
     } finally {
       setProcessing(null)

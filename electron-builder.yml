@@ -73,7 +73,7 @@ mac:
     - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
     - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
   notarize: false
-  icon: resources/icon.icns
+  icon: resources/icon.png
   # Code signing (configure when ready)
   # identity: "Developer ID Application: Your Name (TEAM_ID)"
   target:
@@ -88,7 +88,7 @@ mac:
 
 dmg:
   title: Tecius
-  icon: resources/icon.icns
+  icon: resources/icon.png
   iconSize: 80
   window:
     width: 540

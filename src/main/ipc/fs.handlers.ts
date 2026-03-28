@@ -257,10 +257,10 @@ export function registerFsHandlers(): void {
 
   // ── fs:create-event ───────────────────────────────────────────────────────
   // Cria um novo arquivo de evento .md numa timeline
-  ipcMain.handle('fs:create-event', async (_event, timelineDirPath: string, title: string, filename?: string) => {
+  ipcMain.handle('fs:create-event', async (_event, timelineDirPath: string, title: string, filename?: string, date?: string) => {
     try {
       fileSystemService.assertWithinVault(timelineDirPath)
-      const result = fileSystemService.createEvent(timelineDirPath, title, filename)
+      const result = fileSystemService.createEvent(timelineDirPath, title, filename, date)
       return { success: true, data: result }
     } catch (e) {
       return { success: false, error: String(e) }
