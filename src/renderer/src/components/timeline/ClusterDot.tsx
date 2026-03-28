@@ -39,6 +39,7 @@ export function ClusterDot({ events, hasSelected, onClusterClick, style, tooltip
       className="absolute top-1/2 group cursor-pointer"
       style={{ ...style, transform: 'translateX(-50%) translateY(-50%)' }}
       onClick={() => onClusterClick(events)}
+      onContextMenu={(e) => { e.preventDefault(); onClusterClick(events) }}
     >
       {allChronicle ? (
         /* ── Cluster todo-chronicle: losango âmbar ──────────────── */

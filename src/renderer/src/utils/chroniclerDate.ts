@@ -103,6 +103,30 @@ function formatDisplayShort(
 }
 
 /**
+ * Converte (year, month?, day?) para sortKey PROPORCIONAL.
+ *
+ * O formato YYYYMMDD original distribui os 12 meses apenas nos primeiros
+ * 12% do espaço de cada ano (offset 101–1299 de 10000), deixando 88% vazio.
+ * Isso faz com que eventos de Dezembro apareçam perto de Fevereiro na régua.
+ *
+ * O sortKey proporcional distribui os meses uniformemente ao longo do ano inteiro:
+ *   Janeiro  → base + 0
+ *   Julho    → base + 5000
+ *   Dezembro → base + 9167
+ *   ...
+ *
+ * Deve ser usado em TODOS os cálculos de posição: eventos E régua.
+ */
+export function propSortKey(year: number, month?: number, day?: number): number {
+  if (!month) return year * 10000
+  const m0  = month - 1                          // 0-based (Jan=0, Dez=11)
+  const base = year * 10000 + 101
+  if (!day) return base + Math.round((m0 / 12) * 10000)
+  const dIM  = new Date(year, month, 0).getDate() // dias no mês (month 1-based ok)
+  return base + Math.round(((m0 / 12) + ((day - 1) / (dIM * 12))) * 10000)
+}
+
+/**
  * Calcula a posicao proporcional de um evento na timeline (0 a 1).
  * Baseado em sortKey para nao depender de Date.
  */
@@ -152,4 +176,168 @@ export function generateTimelineTicks(
     ticks.push(y)
   }
   return ticks
+}
+
+// ── Eixo adaptativo ──────────────────────────────────────────────────────────
+
+/** Decompõe sortKey em { year, month, day } */
+export function sortKeyToYMD(sk: number): { year: number; month: number; day: number } {
+  const year = Math.floor(sk / 10000)
+  const rem  = sk % 10000
+  const rawMonth = Math.floor(rem / 100)
+  const rawDay   = rem % 100
+  const month = rawMonth < 1 ? 1 : rawMonth > 12 ? 12 : rawMonth
+  const day   = rawDay   < 1 ? 1 : rawDay   > 28  ? 28  : rawDay
+  return { year, month, day }
+}
+
+function isLeapYear(y: number): boolean {
+  return (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0
+}
+
+function daysInMonth(y: number, m: number): number {
+  const d = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+  return m === 2 && isLeapYear(y) ? 29 : (d[m] ?? 30)
+}
+
+// Reutiliza MONTHS_SHORT já definido acima
+const AXIS_MONTHS = ['', 'jan', 'fev', 'mar', 'abr', 'mai', 'jun',
+                          'jul', 'ago', 'set', 'out', 'nov', 'dez']
+
+/** Granularidade do eixo de acordo com pixels/dia */
+export type AxisGranularity = 'century' | 'decade' | 'year' | 'month' | 'day'
+
+/**
+ * Determina a granularidade ideal para o eixo.
+ * pixelsPerSortKeyUnit = canvasWidth / (maxSortKey - minSortKey)
+ * 1 dia ≈ 10000/365.25 ≈ 27.4 unidades de sortKey
+ */
+export function getAxisGranularity(pixelsPerSortKeyUnit: number): AxisGranularity {
+  const SKU_PER_DAY = 10000 / 365.25
+  const pxPerDay = pixelsPerSortKeyUnit * SKU_PER_DAY
+  if (pxPerDay >= 12)  return 'day'
+  if (pxPerDay >= 0.8) return 'month'
+  if (pxPerDay >= 0.04) return 'year'
+  if (pxPerDay >= 0.008) return 'decade'
+  return 'century'
+}
+
+export interface AxisTick {
+  sortKey: number
+  label: string
+  isMajor: boolean  // ex: janeiro num eixo de meses, ou 1.º do mês num eixo de dias
+}
+
+/**
+ * Gera os ticks visíveis do eixo adaptativo.
+ * Só gera ticks dentro de [visMinSk, visMaxSk] (range visível + buffer),
+ * evitando criar dezenas de milhares de nós para uma timeline de séculos em dias.
+ */
+export function generateAxisTicks(
+  visMinSk: number,   // sortKey do início do range visível (com buffer)
+  visMaxSk: number,   // sortKey do final do range visível (com buffer)
+  pixelsPerSku: number, // pixels por sortKey unit
+  granularity: AxisGranularity,
+): AxisTick[] {
+  const MIN_PX = 65   // px mínimo entre ticks para não sobrepor labels
+  // quantos ticks cabem na janela visível
+  const visWidthPx = (visMaxSk - visMinSk) * pixelsPerSku
+  const targetCount = Math.max(2, Math.floor(visWidthPx / MIN_PX))
+
+  /* ── Anos / Décadas / Séculos ── */
+  if (granularity !== 'month' && granularity !== 'day') {
+    const minYear = Math.floor(visMinSk / 10000)
+    const maxYear = Math.ceil(visMaxSk / 10000)
+    const span = maxYear - minYear || 1
+    const rawInterval = span / targetCount
+
+    const intervals: Record<AxisGranularity, number[]> = {
+      century: [100, 200, 500, 1000],
+      decade:  [10, 20, 25, 50, 100],
+      year:    [1, 2, 5, 10, 25, 50, 100],
+      month:   [], day: [],
+    }
+    const list = intervals[granularity]
+    const interval = list.find(n => n >= rawInterval) ?? list[list.length - 1] ?? 100
+
+    const ticks: AxisTick[] = []
+    const start = Math.ceil(minYear / interval) * interval
+    for (let y = start; y <= maxYear; y += interval) {
+      ticks.push({ sortKey: y * 10000 + 101, label: String(y), isMajor: true })
+    }
+    return ticks
+  }
+
+  /* ── Meses ── */
+  if (granularity === 'month') {
+    const s = sortKeyToYMD(visMinSk)
+    const e = sortKeyToYMD(visMaxSk)
+    const totalMonths = (e.year - s.year) * 12 + (e.month - s.month) + 1
+    const rawInterval = totalMonths / targetCount
+    const niceM = [1, 2, 3, 6, 12, 24, 36, 60, 120]
+    const mInterval = niceM.find(n => n >= rawInterval) ?? 120
+
+    const ticks: AxisTick[] = []
+
+    // Itera ano a ano para garantir que Janeiro (tick major) sempre apareça,
+    // independente do alinhamento do mInterval. Alinha meses a partir de m=1.
+    for (let y = s.year; y <= e.year; y++) {
+      const mStart = y === s.year ? s.month : 1
+      const mEnd   = y === e.year ? e.month : 12
+      for (let m = mStart; m <= mEnd; m++) {
+        if (mInterval <= 12) {
+          // Emite meses alinhados ao intervalo a partir de Janeiro (offset 0)
+          if ((m - 1) % mInterval !== 0) continue
+        } else {
+          // Intervalo grande (> 1 ano): só Janeiro, a cada (mInterval/12) anos
+          if (m !== 1) continue
+          const yearInterval = Math.round(mInterval / 12)
+          if (yearInterval > 1 && y % yearInterval !== 0) continue
+        }
+        const sk = y * 10000 + m * 100 + 1
+        if (sk < visMinSk || sk > visMaxSk) continue
+        ticks.push({
+          sortKey: sk,
+          label: m === 1 ? String(y) : (AXIS_MONTHS[m] ?? ''),
+          isMajor: m === 1,
+        })
+      }
+    }
+    return ticks
+  }
+
+  /* ── Dias ── */
+  {
+    const s = sortKeyToYMD(visMinSk)
+    const e = sortKeyToYMD(visMaxSk)
+    const approxDays = Math.max(1,
+      (e.year - s.year) * 365 + (e.month - s.month) * 30 + (e.day - s.day))
+    const rawInterval = approxDays / targetCount
+    const niceD = [1, 2, 5, 7, 10, 14, 15, 30]
+    const dInterval = niceD.find(n => n >= rawInterval) ?? 30
+
+    let { year, month, day } = s
+    // alinha ao intervalo
+    day = Math.floor(day / dInterval) * dInterval || dInterval
+
+    const ticks: AxisTick[] = []
+    for (let i = 0; i < 5000; i++) {
+      // Clamp day ao mês
+      const maxDay = daysInMonth(year, month)
+      if (day > maxDay) { day = 1; month++; if (month > 12) { year++; month = 1 } }
+
+      const sk = year * 10000 + month * 100 + day
+      if (sk > visMaxSk) break
+      if (sk >= visMinSk) {
+        const isFirst = day <= dInterval && day <= 7
+        ticks.push({
+          sortKey: sk,
+          label: isFirst ? `${AXIS_MONTHS[month]} ${year}` : String(day),
+          isMajor: isFirst,
+        })
+      }
+      day += dInterval
+    }
+    return ticks
+  }
 }

@@ -15,6 +15,7 @@ import {
 import { cn } from '../lib/utils'
 import { useVault } from '../hooks/useVault'
 import { useI18n } from '../hooks/useI18n'
+import { useAppStore } from '../stores/useAppStore'
 
 // ── Slides de dica ────────────────────────────────────────────
 const SLIDES = [
@@ -70,6 +71,7 @@ const AUTOPLAY_INTERVAL = 4500
 export default function VaultSetup() {
   const { pickAndLoadVault, isLoading, error } = useVault()
   const { t } = useI18n()
+  const appVersion = useAppStore((s) => s.appVersion)
 
   const [current, setCurrent] = useState(0)
   const [fading, setFading] = useState(false)
@@ -222,7 +224,7 @@ export default function VaultSetup() {
 
       {/* Versão */}
       <p className="font-mono text-2xs text-chr-muted tracking-wider uppercase">
-        Tecius v0.1.0
+        Tecius {appVersion ? `v${appVersion}` : ''}
       </p>
 
     </div>

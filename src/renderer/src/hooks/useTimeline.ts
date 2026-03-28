@@ -226,12 +226,12 @@ export function useTimeline() {
   }, [currentTimeline, deleteCached, loadTimeline])
 
   const createEvent = useCallback(
-    async (timelineDirPath: string, title: string, filename?: string): Promise<{ filePath: string; slug: string } | null> => {
+    async (timelineDirPath: string, title: string, filename?: string, date?: string): Promise<{ filePath: string; slug: string } | null> => {
       const result = await window.electronAPI.invoke<{
         success: boolean
         data?: { filePath: string; slug: string }
         error?: string
-      }>('fs:create-event', timelineDirPath, title, filename)
+      }>('fs:create-event', timelineDirPath, title, filename, date)
       if (result.success && result.data) {
         deleteCached(timelineDirPath)
         return result.data

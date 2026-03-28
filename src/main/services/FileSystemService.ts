@@ -22,6 +22,7 @@ export interface RawEvent {
     title: string
     entryIndex: number
     totalEntries: number
+    anchor?: string
   }
 }
 
@@ -735,7 +736,7 @@ export class FileSystemService {
     fs.rmSync(dirPath, { recursive: true, force: true })
   }
 
-  createEvent(timelineDirPath: string, title: string, filename?: string): { filePath: string; slug: string } {
+  createEvent(timelineDirPath: string, title: string, filename?: string, date?: string): { filePath: string; slug: string } {
     this.assertWithinVault(timelineDirPath)
     const base = (filename || title)
       .toLowerCase()
@@ -755,8 +756,14 @@ export class FileSystemService {
       filePath = path.join(timelineDirPath, `${slug}.md`)
     }
 
-    const today = new Date()
-    const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+    // Usa a data fornecida pelo usuário; cai para hoje se não informada ou inválida.
+    // Aceita os mesmos formatos que parseChroniclerDate: "1789", "1789-07", "1789-07-14"
+    const dateStr = date && /^\d{4}(-\d{2}(-\d{2})?)?$/.test(date.trim())
+      ? date.trim()
+      : (() => {
+          const today = new Date()
+          return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+        })()
 
     const template = `---\ntitle: ${title}\ndate: ${dateStr}\nimportance: 3\n---\n\n`
     fs.writeFileSync(filePath, template, 'utf-8')

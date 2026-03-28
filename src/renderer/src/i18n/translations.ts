@@ -7,8 +7,10 @@ export type Language = 'pt' | 'en'
 const pt = {
   // ── Comum ──────────────────────────────────────────────────────────────
   cancel:                'Cancelar',
+  revert:                'Reverter',
   save:                  'Salvar',
-  saving:                'Salvando...',
+  saving:                'Salvando',
+  saved:                 'Salvo',
   close:                 'Fechar',
   rename:                'Renomear',
   renaming:              'Renomeando...',
@@ -78,6 +80,8 @@ const pt = {
   section_anchor_hint:   'ID da âncora — deve corresponder ao ^id no corpo do texto',
   remove_section:        'Remover seção',
   sections_empty_hint:   'Adicione seções para dividir este conteúdo em múltiplos eventos na timeline.',
+  section_body_ph:       'Escreva o conteúdo desta seção em Markdown...',
+  add_first_section:     'Dividir em seções',
 
   // ── Toolbar ────────────────────────────────────────────────────────────
   raw_mode_label:        'Raw',
@@ -142,6 +146,7 @@ const pt = {
   grouped_importance_label: 'importância',
   no_category:           'Sem categoria',
   rename_file:           'Renomear arquivo',
+  filter_by_file:        'Filtrar por este arquivo',
   send_to_trash:         'Enviar para Lixeira',
   send_to_trash_title:   'Enviar para a Lixeira?',
   send_to_trash_desc:    '"{title}" será movido para a lixeira. Você pode restaurá-lo depois.',
@@ -154,7 +159,7 @@ const pt = {
   trash_empty_status:    'Vazia',
   empty_trash_btn:       'Esvaziar tudo',
   trash_is_empty:        'A lixeira está vazia',
-  trash_empty_desc:      'Timelines removidas aparecerão aqui',
+  trash_empty_desc:      'Timelines e eventos removidos aparecerão aqui',
   removed_at:            'Removida em {date}',
   restore:               'Restaurar',
   delete_perm:           'Excluir',
@@ -248,8 +253,10 @@ const pt = {
 const en = {
   // ── Common ─────────────────────────────────────────────────────────────
   cancel:                'Cancel',
+  revert:                'Revert',
   save:                  'Save',
-  saving:                'Saving...',
+  saving:                'Saving',
+  saved:                 'Saved',
   close:                 'Close',
   rename:                'Rename',
   renaming:              'Renaming...',
@@ -319,6 +326,8 @@ const en = {
   section_anchor_hint:   'Anchor ID — must match the ^id in the text body',
   remove_section:        'Remove section',
   sections_empty_hint:   'Add sections to split this content into multiple events in the timeline.',
+  section_body_ph:       "Write this section's content in Markdown...",
+  add_first_section:     'Split into sections',
 
   // ── Toolbar ────────────────────────────────────────────────────────────
   raw_mode_label:        'Raw',
@@ -383,6 +392,7 @@ const en = {
   grouped_importance_label: 'importance',
   no_category:           'No category',
   rename_file:           'Rename file',
+  filter_by_file:        'Filter by this file',
   send_to_trash:         'Send to Trash',
   send_to_trash_title:   'Send to Trash?',
   send_to_trash_desc:    '"{title}" will be moved to trash. You can restore it later.',
@@ -395,7 +405,7 @@ const en = {
   trash_empty_status:    'Empty',
   empty_trash_btn:       'Empty all',
   trash_is_empty:        'Trash is empty',
-  trash_empty_desc:      'Removed timelines will appear here',
+  trash_empty_desc:      'Removed timelines and events will appear here',
   removed_at:            'Removed on {date}',
   restore:               'Restore',
   delete_perm:           'Delete',

@@ -1,11 +1,13 @@
 import { useEffect, useState, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Plus, X, Filter, Search, ChevronDown, ChevronRight } from 'lucide-react'
+import { ArrowLeft, Plus, X, Filter, Search, ChevronDown, ChevronRight, Pencil, Trash2, AlertTriangle } from 'lucide-react'
 import { BreadcrumbBar, TimelineCanvas, TimelineList, ViewToggle } from '../components/timeline'
 import { useTimeline } from '../hooks/useTimeline'
+import { useVault } from '../hooks/useVault'
 import { useNavigationStore } from '../stores/useNavigationStore'
 import { useI18n } from '../hooks/useI18n'
 import { cn } from '../utils/cn'
+import { DateInput } from '../components/DateInput'
 import type { ChroniclerEvent, TimelineData } from '../types/chronicler'
 
 // ── NewEventModal ──────────────────────────────────────────────────────────────
@@ -83,11 +85,9 @@ function NewEventModal({ timelineDirPath: _timelineDirPath, onConfirm, onCancel,
           {/* Data */}
           <div>
             <label className="block font-mono text-2xs text-chr-muted mb-1">{t('event_date')}</label>
-            <input
-              type="text"
+            <DateInput
               value={date}
-              onChange={(e) => setDate(e.target.value)}
-              placeholder="YYYY-MM-DD"
+              onChange={setDate}
               className={cn(
                 'w-full px-3 py-2 rounded-sm text-sm font-mono',
                 'bg-vault border border-chr-subtle text-chr-primary',
@@ -159,10 +159,11 @@ function NewEventModal({ timelineDirPath: _timelineDirPath, onConfirm, onCancel,
 interface ClusterPanelProps {
   events: ChroniclerEvent[]
   onEventClick: (event: ChroniclerEvent) => void
+  onContextMenu: (event: ChroniclerEvent, x: number, y: number) => void
   onClose: () => void
 }
 
-function ClusterPanel({ events, onEventClick, onClose }: ClusterPanelProps) {
+function ClusterPanel({ events, onEventClick, onContextMenu, onClose }: ClusterPanelProps) {
   const allChronicle = events.every((e) => !!e.chronicle)
   const hasChronicle  = events.some((e) => !!e.chronicle)
 
@@ -209,6 +210,7 @@ function ClusterPanel({ events, onEventClick, onClose }: ClusterPanelProps) {
           <button
             key={e.slug}
             onClick={() => { onEventClick(e); onClose() }}
+            onContextMenu={(ev) => { ev.preventDefault(); onContextMenu(e, ev.clientX, ev.clientY) }}
             className={cn(
               'w-full text-left px-4 py-3 flex items-start gap-3',
               'border-b border-chr-subtle last:border-b-0',
@@ -586,6 +588,144 @@ function FilesView({ timeline, pickedFiles, onToggle, onApply, onSelectAll, onCl
   )
 }
 
+// ── CanvasContextMenu + modals ─────────────────────────────────────────────────
+
+interface CanvasCtxState { x: number; y: number; event: ChroniclerEvent }
+
+function CanvasContextMenu({
+  state, onRename, onFilter, onDelete, onClose,
+}: { state: CanvasCtxState; onRename: () => void; onFilter: () => void; onDelete: () => void; onClose: () => void }) {
+  const { t } = useI18n()
+  const menuRef = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState({ x: state.x, y: state.y })
+
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', h)
+    return () => window.removeEventListener('keydown', h)
+  }, [onClose])
+
+  useEffect(() => {
+    const el = menuRef.current
+    if (!el) return
+    const { width, height } = el.getBoundingClientRect()
+    const vw = window.innerWidth
+    const vh = window.innerHeight
+    setPos({
+      x: Math.max(4, Math.min(state.x, vw - width - 8)),
+      y: Math.max(4, Math.min(state.y, vh - height - 8)),
+    })
+  }, [state.x, state.y])
+
+  return (
+    <>
+      <div className="fixed inset-0 z-[99]" onMouseDown={onClose} />
+      <div
+        ref={menuRef}
+        style={{ position: 'fixed', top: pos.y, left: pos.x, zIndex: 100 }}
+        className="w-48 chr-card py-1 shadow-card-hover"
+      >
+        <button onClick={() => { onRename(); onClose() }}
+          className="w-full flex items-center gap-2.5 px-3 py-2 text-left font-mono text-xs text-chr-secondary hover:bg-hover hover:text-chr-primary transition-colors">
+          <Pencil size={12} strokeWidth={1.5} className="shrink-0" />{t('rename_file')}
+        </button>
+        <button onClick={() => { onFilter(); onClose() }}
+          className="w-full flex items-center gap-2.5 px-3 py-2 text-left font-mono text-xs text-chr-secondary hover:bg-hover hover:text-chr-primary transition-colors">
+          <Filter size={12} strokeWidth={1.5} className="shrink-0" />{t('filter_by_file')}
+        </button>
+        <div className="h-px bg-chr-subtle mx-2 my-1" />
+        <button onClick={() => { onDelete(); onClose() }}
+          className="w-full flex items-center gap-2.5 px-3 py-2 text-left font-mono text-xs text-red-500/80 hover:bg-red-500/5 hover:text-red-500 transition-colors">
+          <Trash2 size={12} strokeWidth={1.5} className="shrink-0" />{t('send_to_trash')}
+        </button>
+      </div>
+    </>
+  )
+}
+
+function CanvasConfirmDeleteModal({
+  event, isLoading, onConfirm, onCancel,
+}: { event: ChroniclerEvent; isLoading: boolean; onConfirm: () => void; onCancel: () => void }) {
+  const { t } = useI18n()
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel() }
+    window.addEventListener('keydown', h)
+    return () => window.removeEventListener('keydown', h)
+  }, [onCancel])
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/60" onClick={onCancel} />
+      <div className="relative z-10 w-96 chr-card p-5 shadow-card-hover">
+        <div className="flex items-start gap-3 mb-3">
+          <AlertTriangle size={18} className="text-red-500 shrink-0 mt-0.5" strokeWidth={1.5} />
+          <h3 className="font-serif text-base text-chr-primary">{t('send_to_trash_title')}</h3>
+        </div>
+        <p className="font-mono text-xs text-chr-muted mb-5 leading-relaxed pl-7">
+          {t('send_to_trash_desc', { title: event.frontmatter.title })}
+        </p>
+        <div className="flex items-center gap-2 justify-end">
+          <button onClick={onCancel} disabled={isLoading}
+            className="px-3 py-1.5 font-mono text-xs rounded-sm border border-chr-subtle text-chr-muted hover:text-chr-secondary hover:border-chr transition-colors disabled:opacity-40">
+            {t('cancel')}
+          </button>
+          <button onClick={onConfirm} disabled={isLoading}
+            className="px-3 py-1.5 font-mono text-xs rounded-sm bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-40">
+            {isLoading ? t('please_wait') : t('send_to_trash')}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CanvasRenameModal({
+  event, isLoading, onConfirm, onCancel,
+}: { event: ChroniclerEvent; isLoading: boolean; onConfirm: (name: string) => void; onCancel: () => void }) {
+  const currentSlug = event.filePath.replace(/\\/g, '/').split('/').pop()?.replace(/\.md$/i, '') ?? event.slug
+  const [value, setValue] = useState(currentSlug)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const { t } = useI18n()
+  useEffect(() => {
+    inputRef.current?.select()
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel() }
+    window.addEventListener('keydown', h)
+    return () => window.removeEventListener('keydown', h)
+  }, [onCancel])
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/60" onClick={onCancel} />
+      <div className="relative z-10 w-[420px] chr-card p-5 shadow-card-hover">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-serif text-base text-chr-primary">{t('rename_file_modal_title')}</h3>
+          <button onClick={onCancel} className="text-chr-muted hover:text-chr-secondary transition-colors">
+            <X size={16} strokeWidth={1.5} />
+          </button>
+        </div>
+        <p className="font-mono text-2xs text-chr-muted mb-3 leading-relaxed">
+          {t('file_title_in')} <span className="text-chr-secondary">{event.frontmatter.title}</span>
+        </p>
+        <form onSubmit={(e) => { e.preventDefault(); if (value.trim() && value.trim() !== currentSlug) { onConfirm(value.trim()) } else { onCancel() } }} className="space-y-3">
+          <div className="flex items-center gap-2">
+            <input ref={inputRef} type="text" value={value} onChange={(e) => setValue(e.target.value)}
+              className="flex-1 px-3 py-2 rounded-sm text-sm font-mono bg-vault border border-chr-subtle text-chr-primary focus:outline-none focus:border-chr transition-colors" />
+            <span className="font-mono text-xs text-chr-muted shrink-0">.md</span>
+          </div>
+          <div className="flex items-center gap-2 justify-end">
+            <button type="button" onClick={onCancel} disabled={isLoading}
+              className="px-3 py-1.5 font-mono text-xs rounded-sm border border-chr-subtle text-chr-muted hover:text-chr-secondary transition-colors disabled:opacity-40">
+              {t('cancel')}
+            </button>
+            <button type="submit" disabled={isLoading || !value.trim()}
+              className="px-3 py-1.5 font-mono text-xs rounded-sm bg-chr-primary text-surface hover:opacity-90 transition-opacity disabled:opacity-40">
+              {isLoading ? t('renaming') : t('rename')}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 // ── TimelineView ───────────────────────────────────────────────────────────────
 
 interface TimelineViewProps {
@@ -595,6 +735,7 @@ interface TimelineViewProps {
 
 export default function TimelineView({ initialPath, initialTitle }: TimelineViewProps) {
   const navigate = useNavigate()
+  const { reloadVault } = useVault()
   const {
     currentTimeline,
     selectedEvent,
@@ -619,13 +760,17 @@ export default function TimelineView({ initialPath, initialTitle }: TimelineView
   const [creatingEvent, setCreatingEvent] = useState(false)
   const [clusterEvents, setClusterEvents] = useState<ChroniclerEvent[] | null>(null)
 
-  // ── Estado do modo FilesView ────────────────────────────────────────────
-  const [pickedFiles, setPickedFiles] = useState<Set<string>>(new Set())
+  // ── Filtro de arquivo (via menu de contexto) ───────────────────────────
   const [fileFilter, setFileFilter] = useState<string[] | null>(null)
 
-  // Reseta seleção e painel ao trocar de timeline
+  // ── Context menu do canvas ──────────────────────────────────────────────
+  const [canvasCtxMenu, setCanvasCtxMenu] = useState<CanvasCtxState | null>(null)
+  const [canvasConfirmDelete, setCanvasConfirmDelete] = useState<ChroniclerEvent | null>(null)
+  const [canvasRenaming, setCanvasRenaming] = useState<ChroniclerEvent | null>(null)
+  const [canvasActionLoading, setCanvasActionLoading] = useState(false)
+
+  // Reseta filtro e painel ao trocar de timeline
   useEffect(() => {
-    setPickedFiles(new Set())
     setFileFilter(null)
     setClusterEvents(null)
   }, [currentTimeline?.dirPath]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -636,29 +781,8 @@ export default function TimelineView({ initialPath, initialTitle }: TimelineView
     }
   }, [initialPath, initialTitle]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleToggleFile = (filePath: string) => {
-    setPickedFiles((prev) => {
-      const next = new Set(prev)
-      if (next.has(filePath)) next.delete(filePath)
-      else next.add(filePath)
-      return next
-    })
-  }
-
-  const handleApplyFileFilter = () => {
-    setFileFilter(Array.from(pickedFiles))
-    setViewMode('horizontal')
-  }
-
   const handleClearFileFilter = () => {
     setFileFilter(null)
-    setPickedFiles(new Set())
-  }
-
-  const handleEditSelection = () => {
-    // Ao voltar para o modo files, pré-carrega os picks do filtro ativo
-    if (fileFilter) setPickedFiles(new Set(fileFilter))
-    setViewMode('files')
   }
 
   const handleEventClick = (event: ChroniclerEvent) => {
@@ -670,11 +794,11 @@ export default function TimelineView({ initialPath, initialTitle }: TimelineView
     enterSubtimeline(event)
   }
 
-  const handleCreateEvent = async (title: string, _date: string, filename: string) => {
+  const handleCreateEvent = async (title: string, date: string, filename: string) => {
     if (!currentTimeline) return
     setCreatingEvent(true)
     try {
-      const result = await createEvent(currentTimeline.dirPath, title, filename || undefined)
+      const result = await createEvent(currentTimeline.dirPath, title, filename || undefined, date || undefined)
       if (result) {
         setShowNewEvent(false)
         await reloadTimeline()
@@ -688,12 +812,37 @@ export default function TimelineView({ initialPath, initialTitle }: TimelineView
     await deleteEvent(event.filePath)
     clearSelection()
     await reloadTimeline()
+    await reloadVault()
+    // Remove do painel de cluster se estiver aberto
+    setClusterEvents((prev) => {
+      if (!prev) return null
+      const next = prev.filter((e) => e.filePath !== event.filePath)
+      return next.length > 0 ? next : null
+    })
   }
 
   const handleRenameEventFile = async (event: ChroniclerEvent, newFilename: string) => {
     await renameEventFile(event.filePath, newFilename)
     clearSelection()
     await reloadTimeline()
+  }
+
+  const handleFilterByFile = (filePath: string) => {
+    setFileFilter([filePath])
+  }
+
+  const handleCanvasConfirmDelete = async () => {
+    if (!canvasConfirmDelete) return
+    setCanvasActionLoading(true)
+    try { await handleDeleteEvent(canvasConfirmDelete); setCanvasConfirmDelete(null) }
+    finally { setCanvasActionLoading(false) }
+  }
+
+  const handleCanvasConfirmRename = async (newFilename: string) => {
+    if (!canvasRenaming) return
+    setCanvasActionLoading(true)
+    try { await handleRenameEventFile(canvasRenaming, newFilename); setCanvasRenaming(null) }
+    finally { setCanvasActionLoading(false) }
   }
 
   if (isLoadingTimeline || !currentTimeline) {
@@ -779,8 +928,8 @@ export default function TimelineView({ initialPath, initialTitle }: TimelineView
       {/* ── Área principal ───────────────────────────────────────────────── */}
       <div className="flex flex-col flex-1 overflow-hidden">
 
-        {/* Banner de filtro ativo — visível em horizontal e lista */}
-        {fileFilter && viewMode !== 'files' && (
+        {/* Banner de filtro ativo */}
+        {fileFilter && (
           <div className="shrink-0 px-8 py-2 flex items-center gap-2 bg-active border-b border-chr-subtle">
             <Filter size={11} strokeWidth={1.5} className="text-chr-muted shrink-0" />
             <span className="font-mono text-2xs text-chr-secondary flex-1">
@@ -788,12 +937,6 @@ export default function TimelineView({ initialPath, initialTitle }: TimelineView
                 .replace('{count}', String(fileFilter.length))
                 .replace('{s}', fileFilter.length === 1 ? '' : 's')}
             </span>
-            <button
-              onClick={handleEditSelection}
-              className="font-mono text-2xs text-chr-muted hover:text-chr-primary transition-colors"
-            >
-              {t('files_edit_sel')}
-            </button>
             <button
               onClick={handleClearFileFilter}
               className="flex items-center gap-1 font-mono text-2xs text-chr-muted hover:text-chr-primary transition-colors"
@@ -813,20 +956,8 @@ export default function TimelineView({ initialPath, initialTitle }: TimelineView
               onEventClick={handleEventClick}
               onEnterSubtimeline={handleEnterSubtimeline}
               onClusterClick={setClusterEvents}
+              onContextMenu={(event, x, y) => setCanvasCtxMenu({ x, y, event })}
               filterPaths={fileFilter ?? undefined}
-            />
-          )}
-
-          {viewMode === 'files' && (
-            <FilesView
-              timeline={currentTimeline}
-              pickedFiles={pickedFiles}
-              onToggle={handleToggleFile}
-              onApply={handleApplyFileFilter}
-              onSelectAll={() =>
-                setPickedFiles(new Set(currentTimeline.events.map((e) => e.filePath)))
-              }
-              onClearAll={() => setPickedFiles(new Set())}
             />
           )}
 
@@ -838,18 +969,26 @@ export default function TimelineView({ initialPath, initialTitle }: TimelineView
               onEnterSubtimeline={handleEnterSubtimeline}
               onDeleteEvent={handleDeleteEvent}
               onRenameEventFile={handleRenameEventFile}
+              onFilterByFile={handleFilterByFile}
               filterPaths={fileFilter ?? undefined}
             />
           )}
 
           {/* Painel lateral direito — abre ao clicar em cluster */}
-          {clusterEvents && (
-            <ClusterPanel
-              events={clusterEvents}
-              onEventClick={handleEventClick}
-              onClose={() => setClusterEvents(null)}
-            />
-          )}
+          {clusterEvents && (() => {
+            const visibleCluster = fileFilter
+              ? clusterEvents.filter((e) => fileFilter.includes(e.filePath))
+              : clusterEvents
+            if (visibleCluster.length === 0) return null
+            return (
+              <ClusterPanel
+                events={visibleCluster}
+                onEventClick={handleEventClick}
+                onContextMenu={(event, x, y) => setCanvasCtxMenu({ x, y, event })}
+                onClose={() => setClusterEvents(null)}
+              />
+            )
+          })()}
 
         </div>
       </div>
@@ -861,6 +1000,35 @@ export default function TimelineView({ initialPath, initialTitle }: TimelineView
           onConfirm={handleCreateEvent}
           onCancel={() => setShowNewEvent(false)}
           isLoading={creatingEvent}
+        />
+      )}
+
+      {/* ── Context menu do canvas ────────────────────────────────────────── */}
+      {canvasCtxMenu && (
+        <CanvasContextMenu
+          state={canvasCtxMenu}
+          onRename={() => setCanvasRenaming(canvasCtxMenu.event)}
+          onFilter={() => handleFilterByFile(canvasCtxMenu.event.filePath)}
+          onDelete={() => setCanvasConfirmDelete(canvasCtxMenu.event)}
+          onClose={() => setCanvasCtxMenu(null)}
+        />
+      )}
+
+      {canvasConfirmDelete && (
+        <CanvasConfirmDeleteModal
+          event={canvasConfirmDelete}
+          isLoading={canvasActionLoading}
+          onConfirm={handleCanvasConfirmDelete}
+          onCancel={() => setCanvasConfirmDelete(null)}
+        />
+      )}
+
+      {canvasRenaming && (
+        <CanvasRenameModal
+          event={canvasRenaming}
+          isLoading={canvasActionLoading}
+          onConfirm={handleCanvasConfirmRename}
+          onCancel={() => setCanvasRenaming(null)}
         />
       )}
     </div>
