@@ -1,7 +1,8 @@
 {
   "name": "tecius",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "description": "Tecius — Sistema pessoal de timelines visuais",
+  "license": "MIT",
   "main": "./out/main/index.js",
   "homepage": ".",
   "author": {

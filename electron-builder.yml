@@ -1,9 +1,9 @@
 # electron-builder configuration
 # Docs: https://www.electron.build/configuration/configuration
 
-appId: com.yourcompany.tecius
+appId: io.github.luiscriativo.tecius
 productName: Tecius
-copyright: Copyright © 2026 Your Name
+copyright: Copyright © 2026 Tecius
 
 # ── Directories ──────────────────────────────────────────────────────────────
 directories:
@@ -97,7 +97,7 @@ dmg:
 # ── Linux configuration ───────────────────────────────────────────────────────
 linux:
   icon: resources/icon.png
-  maintainer: Your Name <your@email.com>
+  maintainer: luiscriativo <luiscriativo@gmail.com>
   category: Utility
   synopsis: Electron application with React and TypeScript
   description: A robust and scalable Electron desktop application
