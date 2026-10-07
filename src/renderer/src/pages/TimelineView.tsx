@@ -753,6 +753,7 @@ export default function TimelineView({ initialPath, initialTitle }: TimelineView
     clearSelection,
   } = useTimeline()
   const stack = useNavigationStore((s) => s.stack)
+  const truncateNav = useNavigationStore((s) => s.truncate)
   const canGoBack = stack.length > 1
   const { t } = useI18n()
 
@@ -822,7 +823,9 @@ export default function TimelineView({ initialPath, initialTitle }: TimelineView
   }
 
   const handleRenameEventFile = async (event: ChroniclerEvent, newFilename: string) => {
-    await renameEventFile(event.filePath, newFilename)
+    const result = await renameEventFile(event.filePath, newFilename)
+    // Mantém o filtro por arquivo apontando para o novo nome
+    if (result) setFileFilter((prev) => prev?.map((p) => (p === event.filePath ? result.newFilePath : p)) ?? null)
     clearSelection()
     await reloadTimeline()
   }
@@ -872,7 +875,7 @@ export default function TimelineView({ initialPath, initialTitle }: TimelineView
                   <span key={`${i}-${item.dirPath}`} className="flex items-center gap-1 shrink-0">
                     {i > 0 && <ChevronRight size={9} strokeWidth={1.5} className="text-chr-muted" />}
                     <button
-                      onClick={() => loadTimeline(item.dirPath, item.title, false)}
+                      onClick={() => { truncateNav(i + 1); loadTimeline(item.dirPath, item.title, false) }}
                       className="font-mono text-2xs text-chr-muted hover:text-chr-secondary transition-colors whitespace-nowrap"
                     >
                       {item.title}

@@ -527,14 +527,6 @@ export function TimelineList({
     [timeline.events, filterPaths]
   )
 
-  if (baseEvents.length === 0 && timeline.events.length === 0) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <p className="font-mono text-xs text-chr-muted">{t('no_events')}</p>
-      </div>
-    )
-  }
-
   const spanYears = timeline.dateRange.spanYears
   const effectiveGroupBy: GroupBy = groupBy === 'auto' ? getGroupLevel(spanYears) : groupBy
   const useFlat = effectiveGroupBy === 'year'
@@ -590,6 +582,15 @@ export function TimelineList({
       .sort(([a], [b]) => a - b)
       .map(([k, evs]) => [getPeriodLabel(k, level), evs])
   }, [filtered, effectiveGroupBy, t])
+
+  // Early return só depois de todos os hooks (regras dos hooks) — ver TimelineCanvas
+  if (baseEvents.length === 0 && timeline.events.length === 0) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <p className="font-mono text-xs text-chr-muted">{t('no_events')}</p>
+      </div>
+    )
+  }
 
   const footerGroupLabel = (() => {
     if (groupBy === 'auto') {

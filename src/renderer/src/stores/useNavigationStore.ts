@@ -6,6 +6,8 @@ interface NavigationState {
   push: (item: NavigationItem) => void
   pop: () => NavigationItem | undefined
   reset: (item: NavigationItem) => void
+  /** Mantém só os `length` primeiros itens (navegar para um ancestral) */
+  truncate: (length: number) => void
   current: () => NavigationItem | undefined
 }
 
@@ -20,6 +22,7 @@ export const useNavigationStore = create<NavigationState>()((set, get) => ({
     return prev
   },
   reset: (item) => set({ stack: [item] }),
+  truncate: (length) => set((s) => ({ stack: s.stack.slice(0, length) })),
   current: () => {
     const { stack } = get()
     return stack[stack.length - 1]

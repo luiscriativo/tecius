@@ -8,7 +8,7 @@
  *   - Com seções  → arquivo salvo como chronicle (type: chronicle + entries)
  */
 
-import React, { useEffect, useState, useRef, useCallback } from 'react'
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -102,10 +102,81 @@ function extractSectionBody(body: string, anchorId: string): string {
 /** Envolve valor em aspas duplas se contiver caracteres especiais do YAML */
 function yamlStr(value: string): string {
   if (!value) return value
-  if (/[:#\[\]{}&*!|>'"]/.test(value) || value.startsWith(' ') || value.endsWith(' ') || value.includes('\n')) {
+  if (
+    /[:#\[\]{}&*!|>'"%@`]/.test(value) ||
+    /^[\s\-?,]/.test(value) ||
+    value.endsWith(' ') ||
+    value.includes('\n') ||
+    /^(true|false|yes|no|on|off|null|~)$/i.test(value)
+  ) {
     return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n')}"`
   }
   return value
+}
+
+/** Remove as aspas de um escalar YAML, desfazendo os escapes (inverso de yamlStr) */
+function unquoteYaml(value: string): string {
+  const v = value.trim()
+  if (v.length >= 2 && v.startsWith('"') && v.endsWith('"')) {
+    try { return JSON.parse(v) as string } catch { /* escape YAML não suportado pelo JSON */ }
+    return v.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, '\\')
+  }
+  if (v.length >= 2 && v.startsWith("'") && v.endsWith("'")) {
+    return v.slice(1, -1).replace(/''/g, "'")
+  }
+  return v
+}
+
+/** Linha "chave: valor" no topo do YAML (coluna 0, não é comentário nem item de lista) */
+const YAML_KEY_LINE = /^[^\s#-][^:]*:/
+
+/**
+ * Valor de um campo extra (preservado como texto bruto). Valores com várias
+ * linhas (listas/objetos aninhados, ex: `links:`) começam com '\n'.
+ */
+function yamlLine(key: string, value: string, indent = ''): string {
+  return value === '' || value.startsWith('\n') ? `${indent}${key}:${value}` : `${indent}${key}: ${value}`
+}
+
+/** Itens de uma lista YAML em bloco ("  - a", "  - b") */
+function parseYamlList(lines: string[]): string[] {
+  return lines
+    .map((l) => l.match(/^\s*-\s+(.*)$/)?.[1])
+    .filter((v): v is string => v !== undefined)
+    .map((v) => unquoteYaml(v))
+    .filter(Boolean)
+}
+
+/** Tags vindas de um campo bruto: inline `[a, b]` ou lista em bloco */
+function tagsFromRaw(value: string): string[] {
+  return value.includes('\n') ? parseYamlList(value.split('\n')) : parseTagsValue(value)
+}
+
+/** Serializa tags no formato inline, com aspas quando necessário */
+function buildTags(tags: string[]): string {
+  return `[${tags.map((t) => (t.includes(',') ? JSON.stringify(t) : yamlStr(t))).join(', ')}]`
+}
+
+/**
+ * Agrupa o YAML do frontmatter em campos de topo. Linhas indentadas (ou itens
+ * de lista) que seguem uma chave pertencem a ela e são preservadas como texto
+ * bruto — assim campos aninhados (links, references, tags em bloco...)
+ * sobrevivem intactos ao salvar pelo editor.
+ */
+function splitYamlFields(yaml: string): Array<{ key: string; value: string; cont: string[] }> {
+  const fields: Array<{ key: string; value: string; cont: string[] }> = []
+  for (const line of yaml.split(/\r?\n/)) {
+    if (YAML_KEY_LINE.test(line)) {
+      const ci = line.indexOf(':')
+      fields.push({ key: line.slice(0, ci).trim(), value: line.slice(ci + 1).trim(), cont: [] })
+    } else if (fields.length > 0 && (/^[\s-]/.test(line) || line.trim() === '')) {
+      fields[fields.length - 1].cont.push(line)
+    }
+  }
+  for (const f of fields) {
+    while (f.cont.length > 0 && f.cont[f.cont.length - 1].trim() === '') f.cont.pop()
+  }
+  return fields
 }
 
 function slugify(text: string): string {
@@ -148,21 +219,17 @@ function parseEventRaw(raw: string): { fm: EditFm; body: string } {
   if (!match) return { fm: defaultEditFm(), body: raw }
   const fm = defaultEditFm()
   const extra: Record<string, string> = {}
-  for (const line of match[1].split(/\r?\n/)) {
-    const ci = line.indexOf(':')
-    if (ci < 0) continue
-    const key = line.slice(0, ci).trim()
-    const value = line.slice(ci + 1).trim()
+  for (const { key, value, cont } of splitYamlFields(match[1])) {
     switch (key) {
-      case 'title':      fm.title = value.replace(/^["']|["']$/g, ''); break
-      case 'date':       fm.date = value; break
-      case 'date-end':   fm.dateEnd = value; fm.hasDateEnd = true; break
+      case 'title':      fm.title = unquoteYaml(value); break
+      case 'date':       fm.date = unquoteYaml(value); break
+      case 'date-end':   fm.dateEnd = unquoteYaml(value); fm.hasDateEnd = true; break
       case 'circa':      fm.circa = value === 'true'; break
-      case 'category':   fm.category = value.replace(/^["']|["']$/g, ''); break
+      case 'category':   fm.category = unquoteYaml(value); break
       case 'importance': fm.importance = parseInt(value) || 3; break
-      case 'tags':       fm.tags = parseTagsValue(value); break
+      case 'tags':       fm.tags = value ? parseTagsValue(value) : parseYamlList(cont); break
       case 'type':       break
-      default:           extra[key] = value
+      default:           extra[key] = cont.length > 0 ? [value, ...cont].join('\n') : value
     }
   }
   fm.extra = extra
@@ -177,8 +244,8 @@ function buildEventRaw(fm: EditFm, body: string): string {
   if (fm.circa)    lines.push('circa: true')
   if (fm.category) lines.push(`category: ${yamlStr(fm.category)}`)
   lines.push(`importance: ${fm.importance}`)
-  if (fm.tags.length > 0) lines.push(`tags: [${fm.tags.join(', ')}]`)
-  for (const [k, v] of Object.entries(fm.extra)) lines.push(`${k}: ${v}`)
+  if (fm.tags.length > 0) lines.push(`tags: ${buildTags(fm.tags)}`)
+  for (const [k, v] of Object.entries(fm.extra)) lines.push(yamlLine(k, v))
   lines.push('---', '')
   if (body.trim()) lines.push(body.trim())
   return lines.join('\n')
@@ -225,82 +292,113 @@ function parseChronicleRaw(raw: string): ChronicleEdit {
 
   const lines = yamlBlock.split(/\r?\n/)
   let inEntries = false
+  let itemIndent = -1 // indentação dos itens "- " da lista de entradas
   let currentEntry: EntryEdit | null = null
+  // Campo extra que recebe as linhas de continuação (valores aninhados)
+  let last: { target: Record<string, string>; key: string } | null = null
+  const indentOf = (l: string) => l.length - l.trimStart().length
 
   for (const line of lines) {
     if (/^(?:entries|events):\s*$/.test(line)) {
       inEntries = true
+      itemIndent = -1
+      last = null
       continue
     }
 
     if (inEntries) {
-      const newItemMatch = line.match(/^  - (.*)$/)
-      if (newItemMatch) {
+      const trimmed = line.trim()
+      if (!trimmed) continue
+      const ind = indentOf(line)
+
+      // Novo item da lista (aceita qualquer indentação, inclusive coluna 0)
+      if ((trimmed === '-' || trimmed.startsWith('- ')) && (itemIndent === -1 || ind === itemIndent)) {
+        itemIndent = ind
         if (currentEntry) entries.push(currentEntry)
         currentEntry = defaultEntry()
-        const rest = newItemMatch[1].trim()
-        const ci = rest.indexOf(':')
-        if (ci >= 0) {
-          const key = rest.slice(0, ci).trim()
-          const val = rest.slice(ci + 1).trim().replace(/^["']|["']$/g, '')
-          applyEntryField(currentEntry, key, val)
+        last = null
+        const rest = trimmed.slice(1).trim()
+        if (rest) last = applyEntryField(currentEntry, rest)
+        continue
+      }
+
+      if (currentEntry && ind > itemIndent) {
+        if (ind === itemIndent + 2 && YAML_KEY_LINE.test(trimmed)) {
+          last = applyEntryField(currentEntry, trimmed)
+        } else if (last) {
+          // Linha aninhada: normaliza a indentação para o formato gravado (itens com 2 espaços)
+          const delta = 2 - itemIndent
+          last.target[last.key] += '\n' + (delta >= 0 ? ' '.repeat(delta) + line : line.slice(-delta))
         }
         continue
       }
 
-      const fieldMatch = line.match(/^    (.+)$/)
-      if (fieldMatch && currentEntry) {
-        const rest = fieldMatch[1].trim()
-        const ci = rest.indexOf(':')
-        if (ci >= 0) {
-          const key = rest.slice(0, ci).trim()
-          const val = rest.slice(ci + 1).trim().replace(/^["']|["']$/g, '')
-          applyEntryField(currentEntry, key, val)
-        }
-        continue
-      }
-
-      if (line.trim() && !line.startsWith('  ')) {
-        if (currentEntry) { entries.push(currentEntry); currentEntry = null }
-        inEntries = false
-        // Fall through to top-level parsing below
-      } else {
-        continue
-      }
+      // Linha de topo: fim da lista de entradas
+      if (currentEntry) { entries.push(currentEntry); currentEntry = null }
+      inEntries = false
+      last = null
     }
 
     // Top-level meta fields
-    const ci = line.indexOf(':')
-    if (ci < 0) continue
-    const key = line.slice(0, ci).trim()
-    const val = line.slice(ci + 1).trim().replace(/^["']|["']$/g, '')
-    switch (key) {
-      case 'type': break
-      case 'title': meta.title = val; break
-      case 'description': meta.description = val; break
-      default: meta.extra[key] = val
+    if (YAML_KEY_LINE.test(line)) {
+      const ci = line.indexOf(':')
+      const key = line.slice(0, ci).trim()
+      const val = line.slice(ci + 1).trim()
+      last = null
+      switch (key) {
+        case 'type': break
+        case 'title': meta.title = unquoteYaml(val); break
+        case 'description': meta.description = unquoteYaml(val); break
+        default:
+          meta.extra[key] = val
+          last = { target: meta.extra, key }
+      }
+    } else if (last && (/^[\s-]/.test(line) || line.trim() === '')) {
+      last.target[last.key] += '\n' + line
     }
   }
 
   if (currentEntry) entries.push(currentEntry)
+  for (const obj of [meta.extra, ...entries.map((e) => e.extra)]) {
+    for (const k of Object.keys(obj)) obj[k] = obj[k].replace(/(\n[ \t]*)+$/, '')
+  }
   return { meta, entries, body }
 }
 
-function applyEntryField(entry: EntryEdit, key: string, val: string) {
+/** Aplica "chave: valor" a uma entrada; retorna o alvo para linhas de continuação (campos extras) */
+function applyEntryField(entry: EntryEdit, text: string): { target: Record<string, string>; key: string } | null {
+  const ci = text.indexOf(':')
+  if (ci < 0) return null
+  const key = text.slice(0, ci).trim()
+  const val = text.slice(ci + 1).trim()
   switch (key) {
     case 'title':
-    case 'label':  entry.title = val; break  // 'label' é o formato legado
-    case 'date':   entry.date = val; break
-    case 'anchor': entry.anchor = val; break
-    default:       entry.extra[key] = val
+    case 'label':  entry.title = unquoteYaml(val); return null  // 'label' é o formato legado
+    case 'date':   entry.date = unquoteYaml(val); return null
+    case 'anchor': entry.anchor = unquoteYaml(val); return null
+    default:
+      entry.extra[key] = val  // bruto: preserva aspas e valores com ':' intactos
+      return { target: entry.extra, key }
   }
+}
+
+/** EditFm de um chronicle: category/importance/tags vêm dos campos extras do arquivo */
+function chronicleEditFm(parsed: ChronicleEdit): EditFm {
+  const fm = defaultEditFm()
+  fm.title = parsed.meta.title
+  fm.category = unquoteYaml(parsed.meta.extra['category'] ?? '')
+  fm.importance = parseInt(parsed.meta.extra['importance'] ?? '3') || 3
+  fm.tags = parsed.meta.extra['tags'] ? tagsFromRaw(parsed.meta.extra['tags']) : []
+  const { category: _c, importance: _i, tags: _t, ...restExtra } = parsed.meta.extra
+  fm.extra = restExtra
+  return fm
 }
 
 function buildChronicleRaw(edit: ChronicleEdit): string {
   const lines: string[] = ['---', 'type: chronicle']
   if (edit.meta.title)       lines.push(`title: ${yamlStr(edit.meta.title)}`)
   if (edit.meta.description) lines.push(`description: ${yamlStr(edit.meta.description)}`)
-  for (const [k, v] of Object.entries(edit.meta.extra)) lines.push(`${k}: ${v}`)
+  for (const [k, v] of Object.entries(edit.meta.extra)) lines.push(yamlLine(k, v))
 
   if (edit.entries.length > 0) {
     lines.push('entries:')
@@ -308,7 +406,7 @@ function buildChronicleRaw(edit: ChronicleEdit): string {
       lines.push(`  - title: ${yamlStr(entry.title || '(sem título)')}`)
       if (entry.date)   lines.push(`    date: ${entry.date}`)
       if (entry.anchor) lines.push(`    anchor: ${entry.anchor}`)
-      for (const [k, v] of Object.entries(entry.extra)) lines.push(`    ${k}: ${v}`)
+      for (const [k, v] of Object.entries(entry.extra)) lines.push(yamlLine(k, v, '    '))
     }
   }
 
@@ -335,14 +433,26 @@ function buildSaveContent(
     return buildEventRaw(fm, body)
   }
   const extra: Record<string, string> = { ...fm.extra }
-  if (fm.category) extra['category'] = fm.category
+  if (fm.category) extra['category'] = yamlStr(fm.category)
   if (fm.importance !== 3) extra['importance'] = String(fm.importance)
-  if (fm.tags.length > 0) extra['tags'] = `[${fm.tags.join(', ')}]`
+  if (fm.tags.length > 0) extra['tags'] = buildTags(fm.tags)
   return buildChronicleRaw({
     meta: { title: fm.title, description: chrDesc, extra },
     entries: sortEntries(entries),
     body,
   })
+}
+
+/** Conteúdo bruto (.md) a ser gravado a partir do estado de edição */
+function buildRawFromEditValues(vals: {
+  editFm: EditFm; editBody: string; editEntries: EntryEdit[]; editSectionBodies: Record<string, string>
+  editChrDesc: string; editContent: string; editIsRaw: boolean
+}): string {
+  if (vals.editIsRaw) return vals.editContent
+  const body = vals.editEntries.length > 0
+    ? buildBodyFromSections(vals.editEntries, vals.editSectionBodies)
+    : vals.editBody
+  return buildSaveContent(vals.editFm, body, vals.editEntries, vals.editChrDesc)
 }
 
 function buildBodyFromSections(entries: EntryEdit[], sectionBodies: Record<string, string>): string {
@@ -915,7 +1025,40 @@ function SectionBlocksEditor({ entries, sectionBodies, onEntriesChange, onBodyCh
     setPendingDeleteId(null)
   }
 
-  const sorted = sortEntries(entries)
+  // Enquanto uma data está sendo digitada, a ordem fica congelada: reordenar a
+  // cada tecla fazia a seção "pular" pela lista (datas parciais como "2", "20"...).
+  // A reordenação acontece ao sair do campo.
+  const [frozenOrder, setFrozenOrder] = useState<string[] | null>(null)
+  const sorted = frozenOrder
+    ? [
+        ...frozenOrder.map((id) => entries.find((e) => e.id === id)).filter((e): e is EntryEdit => !!e),
+        ...entries.filter((e) => !frozenOrder.includes(e.id)),
+      ]
+    : sortEntries(entries)
+
+  // Ao sair do campo de data, a seção pode ir parar longe (ex: posição 143 de 200).
+  // Rola até ela e a destaca brevemente para o usuário não perdê-la de vista.
+  const [highlightId, setHighlightId] = useState<string | null>(null)
+  const scrollToIdRef = useRef<string | null>(null)
+  const handleDateBlur = (entryId: string, e: React.FocusEvent<HTMLInputElement>) => {
+    const before = frozenOrder ?? sorted.map((x) => x.id)
+    const after = sortEntries(entries).map((x) => x.id)
+    setFrozenOrder(null)
+    if (before.indexOf(entryId) === after.indexOf(entryId)) return
+    setHighlightId(entryId)
+    // Se o foco foi para um campo de OUTRA seção (clique), não arrasta a tela para longe dele
+    const target = (e.relatedTarget as HTMLElement | null)?.closest<HTMLElement>('[data-entry-id]')
+    if (!target || target.dataset.entryId === entryId) scrollToIdRef.current = entryId
+  }
+  useEffect(() => {
+    if (!highlightId) return
+    if (scrollToIdRef.current === highlightId) {
+      scrollToIdRef.current = null
+      document.querySelector(`[data-entry-id="${highlightId}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+    const timer = setTimeout(() => setHighlightId(null), 1600)
+    return () => clearTimeout(timer)
+  }, [highlightId])
   const pendingEntry = entries.find((e) => e.id === pendingDeleteId)
 
   return (
@@ -932,67 +1075,77 @@ function SectionBlocksEditor({ entries, sectionBodies, onEntriesChange, onBodyCh
       <div className={wideLayout ? 'max-w-5xl mx-auto px-8 pt-2 pb-20' : 'max-w-2xl mx-auto px-12 pt-2 pb-20'}>
 
         {sorted.map((entry, idx) => (
-          <div key={entry.id} className="group relative">
+          <div key={entry.id} data-entry-id={entry.id} className="group relative">
             {/* Divider between sections */}
             {idx > 0 && <div className="h-px bg-chr-subtle my-10" />}
 
-            {/* Meta row: date + number + delete */}
-            <div className="flex items-center justify-between mb-3">
-              <DateInput
-                value={entry.date}
-                onChange={(v) => updateEntry(entry.id, { date: v })}
-                className="font-mono text-sm text-timeline-chronicle bg-transparent border-0 outline-none focus:outline-none placeholder:text-chr-muted/30 w-32"
-              />
-              <div className="flex items-center gap-3">
-                <span className="font-mono text-xs text-chr-muted/30 select-none tabular-nums">
-                  {String(idx + 1).padStart(2, '0')}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setPendingDeleteId(entry.id)}
-                  title={t('remove_section')}
-                  className="text-chr-muted hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
-                >
-                  <X size={12} strokeWidth={1.5} />
-                </button>
+            <div
+              className="rounded-sm transition-[background-color,box-shadow] duration-700"
+              style={highlightId === entry.id
+                ? { backgroundColor: 'rgb(var(--chronicle-dot) / 0.08)', boxShadow: '0 0 0 12px rgb(var(--chronicle-dot) / 0.08)' }
+                : undefined}
+            >
+
+              {/* Meta row: date + number + delete */}
+              <div className="flex items-center justify-between mb-3">
+                <DateInput
+                  value={entry.date}
+                  onChange={(v) => updateEntry(entry.id, { date: v })}
+                  onFocus={() => setFrozenOrder(sorted.map((e) => e.id))}
+                  onBlur={(e) => handleDateBlur(entry.id, e)}
+                  className="font-mono text-sm text-timeline-chronicle bg-transparent border-0 outline-none focus:outline-none placeholder:text-chr-muted/30 w-32"
+                />
+                <div className="flex items-center gap-3">
+                  <span className="font-mono text-xs text-chr-muted/30 select-none tabular-nums">
+                    {String(idx + 1).padStart(2, '0')}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setPendingDeleteId(entry.id)}
+                    title={t('remove_section')}
+                    className="text-chr-muted hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
+                  >
+                    <X size={12} strokeWidth={1.5} />
+                  </button>
+                </div>
               </div>
+
+              {/* Title — large serif */}
+              <textarea
+                ref={(el) => { if (el) { const len = String(el.value.length); if (el.dataset.hLen !== len) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; el.dataset.hLen = len } } }}
+                value={entry.title}
+                onChange={(e) => {
+                  const newTitle = e.target.value
+                  const prevSlug = slugify(entry.title)
+                  const anchor = (!entry.anchor || entry.anchor === prevSlug) ? slugify(newTitle) : entry.anchor
+                  updateEntry(entry.id, { title: newTitle, anchor })
+                  const el = e.currentTarget; el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'
+                }}
+                placeholder={t('section_title_ph')}
+                spellCheck={false}
+                rows={1}
+                className="w-full font-serif text-2xl text-chr-primary bg-transparent border-0 outline-none focus:outline-none placeholder:text-chr-muted/20 mb-5 leading-tight resize-none overflow-hidden"
+              />
+
+              {/* Body textarea — open, auto-height */}
+              <textarea
+                ref={(el) => { if (el) { const len = String(el.value.length); if (el.dataset.hLen !== len) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; el.dataset.hLen = len } } }}
+                value={sectionBodies[entry.id] || ''}
+                onChange={(e) => onBodyChange(entry.id, e.target.value)}
+                onFocus={(e) => onBodyFocus(e.currentTarget, entry.id)}
+                onBlur={onBodyBlur}
+                placeholder={t('section_body_ph')}
+                spellCheck={false}
+                rows={1}
+                data-section-id={entry.id}
+                className="w-full resize-none overflow-hidden outline-none block font-mono text-sm text-chr-primary leading-relaxed bg-transparent border-0 focus:outline-none focus:ring-0 placeholder:text-chr-muted/30"
+                onInput={(e) => {
+                  const el = e.currentTarget
+                  el.style.height = 'auto'
+                  el.style.height = el.scrollHeight + 'px'
+                }}
+              />
             </div>
-
-            {/* Title — large serif */}
-            <textarea
-              ref={(el) => { if (el) { const len = String(el.value.length); if (el.dataset.hLen !== len) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; el.dataset.hLen = len } } }}
-              value={entry.title}
-              onChange={(e) => {
-                const newTitle = e.target.value
-                const prevSlug = slugify(entry.title)
-                const anchor = (!entry.anchor || entry.anchor === prevSlug) ? slugify(newTitle) : entry.anchor
-                updateEntry(entry.id, { title: newTitle, anchor })
-                const el = e.currentTarget; el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'
-              }}
-              placeholder={t('section_title_ph')}
-              spellCheck={false}
-              rows={1}
-              className="w-full font-serif text-2xl text-chr-primary bg-transparent border-0 outline-none focus:outline-none placeholder:text-chr-muted/20 mb-5 leading-tight resize-none overflow-hidden"
-            />
-
-            {/* Body textarea — open, auto-height */}
-            <textarea
-              ref={(el) => { if (el) { const len = String(el.value.length); if (el.dataset.hLen !== len) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; el.dataset.hLen = len } } }}
-              value={sectionBodies[entry.id] || ''}
-              onChange={(e) => onBodyChange(entry.id, e.target.value)}
-              onFocus={(e) => onBodyFocus(e.currentTarget, entry.id)}
-              onBlur={onBodyBlur}
-              placeholder={t('section_body_ph')}
-              spellCheck={false}
-              rows={1}
-              data-section-id={entry.id}
-              className="w-full resize-none overflow-hidden outline-none block font-mono text-sm text-chr-primary leading-relaxed bg-transparent border-0 focus:outline-none focus:ring-0 placeholder:text-chr-muted/30"
-              onInput={(e) => {
-                const el = e.currentTarget
-                el.style.height = 'auto'
-                el.style.height = el.scrollHeight + 'px'
-              }}
-            />
           </div>
         ))}
 
@@ -1149,16 +1302,23 @@ function MarkdownToolbar({
   )
 }
 
-// ── useMarkdownComponents ─────────────────────────────────────────────────────
+// ── MarkdownBody ──────────────────────────────────────────────────────────────
 
-function useMarkdownComponents(eventFilePath: string) {
-  return {
+const REMARK_PLUGINS = [remarkGfm, remarkBreaks]
+
+/**
+ * Markdown renderizado. Memoizado: sem isso o documento inteiro era re-parseado
+ * a cada render da página (ex: a cada tecla na busca, a cada mudança de store).
+ */
+const MarkdownBody = React.memo(function MarkdownBody({ body, eventFilePath }: { body: string; eventFilePath: string }) {
+  const components = useMemo(() => ({
     img: ({ src, alt, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => {
       const resolved = src ? window.electronAPI.resolveAssetPath(eventFilePath, src) : ''
       return <img {...props} src={resolved} alt={alt ?? ''} className="max-w-full rounded border border-chr-subtle my-4" />
     },
-  }
-}
+  }), [eventFilePath])
+  return <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={components}>{body}</ReactMarkdown>
+})
 
 // ── ConfirmModal ───────────────────────────────────────────────────────────────
 
@@ -1378,6 +1538,7 @@ export default function EventView(): React.ReactElement {
     loadEvent,
     saveEvent,
     reloadTimeline,
+    refreshTimeline,
     enterSubtimeline,
     openInEditor,
     deleteEvent,
@@ -1397,6 +1558,7 @@ export default function EventView(): React.ReactElement {
 
   // Auto-save infrastructure
   const isSavingRef = useRef(false)
+  const resaveRef = useRef(false) // um save foi pedido enquanto outro estava em andamento
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const preEditRawRef = useRef<string | null>(null) // snapshot of raw content when editing started
 
@@ -1417,14 +1579,13 @@ export default function EventView(): React.ReactElement {
   const [focusedSectionId, setFocusedSectionId] = useState<string | null>(null)
   const skipDirtyRef = useRef(false)
   const editInitializedRef = useRef(false)
-  const reSelectRef = useRef<string | null>(null)
+  const reSelectRef = useRef<{ filePath: string; slug: string; anchor?: string } | null>(null)
   const [isInsertingImage, setIsInsertingImage] = useState(false)
   const [showPdfModal, setShowPdfModal] = useState(false)
   const [isPdfExporting, setIsPdfExporting] = useState(false)
   const [pdfError, setPdfError] = useState<string | null>(null)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const editScrollRef = useRef<HTMLDivElement>(null)
-  const savedScrollRef = useRef(0)
 
   // ── Unified edit state ────────────────────────────────────────────────────
   const [editFm, setEditFm] = useState<EditFm>(defaultEditFm())
@@ -1480,9 +1641,13 @@ export default function EventView(): React.ReactElement {
   // ── Re-select event after save reload ────────────────────────────────────
   useEffect(() => {
     if (!reSelectRef.current || !currentTimeline) return
-    const filePath = reSelectRef.current
+    const sel = reSelectRef.current
     reSelectRef.current = null
-    const event = currentTimeline.events.find((e) => e.filePath === filePath)
+    // Chronicles geram vários eventos no mesmo arquivo: mantém a mesma entrada
+    const sameFile = currentTimeline.events.filter((e) => e.filePath === sel.filePath)
+    const event = (sel.anchor && sameFile.find((e) => e.chronicle?.anchor === sel.anchor))
+      || sameFile.find((e) => e.slug === sel.slug)
+      || sameFile[0]
     if (event) loadEvent(event)
   }, [currentTimeline, loadEvent])
 
@@ -1499,14 +1664,7 @@ export default function EventView(): React.ReactElement {
     const isChronicle = !!selectedEvent?.chronicle
     if (isChronicle) {
       const parsed = parseChronicleRaw(selectedEventRaw ?? '')
-      const fm = defaultEditFm()
-      fm.title = parsed.meta.title
-      fm.category = (parsed.meta.extra['category'] ?? '').replace(/^["']|["']$/g, '')
-      fm.importance = parseInt(parsed.meta.extra['importance'] ?? '3') || 3
-      fm.tags = parsed.meta.extra['tags'] ? parseTagsValue(parsed.meta.extra['tags']) : []
-      const { category: _c, importance: _i, tags: _t, ...restExtra } = parsed.meta.extra
-      fm.extra = restExtra
-      setEditFm(fm)
+      setEditFm(chronicleEditFm(parsed))
       setEditChrDesc(parsed.meta.description)
       setEditEntries(parsed.entries)
       setEditBody(parsed.body)
@@ -1589,14 +1747,7 @@ export default function EventView(): React.ReactElement {
     const isChronicle = !!selectedEvent?.chronicle
     if (isChronicle) {
       const parsed = parseChronicleRaw(rawSnapshot)
-      const fm = defaultEditFm()
-      fm.title = parsed.meta.title
-      fm.category = (parsed.meta.extra['category'] ?? '').replace(/^["']|["']$/g, '')
-      fm.importance = parseInt(parsed.meta.extra['importance'] ?? '3') || 3
-      fm.tags = parsed.meta.extra['tags'] ? parseTagsValue(parsed.meta.extra['tags']) : []
-      const { category: _c, importance: _i, tags: _t, ...restExtra } = parsed.meta.extra
-      fm.extra = restExtra
-      setEditFm(fm)
+      setEditFm(chronicleEditFm(parsed))
       setEditChrDesc(parsed.meta.description)
       setEditEntries(parsed.entries)
       setEditBody(parsed.body)
@@ -1639,14 +1790,7 @@ export default function EventView(): React.ReactElement {
       const isRawChronicle = /^---\r?\n[\s\S]*?^type:\s*chronicle/m.test(editContent)
       if (isRawChronicle) {
         const parsed = parseChronicleRaw(editContent)
-        const fm = defaultEditFm()
-        fm.title = parsed.meta.title
-        fm.category = (parsed.meta.extra['category'] ?? '').replace(/^["']|["']$/g, '')
-        fm.importance = parseInt(parsed.meta.extra['importance'] ?? '3') || 3
-        fm.tags = parsed.meta.extra['tags'] ? parseTagsValue(parsed.meta.extra['tags']) : []
-        const { category: _c, importance: _i, tags: _t, ...restExtra } = parsed.meta.extra
-        fm.extra = restExtra
-        setEditFm(fm)
+        setEditFm(chronicleEditFm(parsed))
         setEditChrDesc(parsed.meta.description)
         setEditEntries(parsed.entries)
         setEditBody(parsed.body)
@@ -1794,35 +1938,31 @@ export default function EventView(): React.ReactElement {
 
   // ── performSave: reads latest values from ref, called by auto-save & Ctrl+S ──
   const performSave = useCallback(async () => {
-    if (isSavingRef.current) return
+    if (isSavingRef.current) { resaveRef.current = true; return }
     const vals = editValuesRef.current
     if (!vals.selectedEvent) return
     isSavingRef.current = true
-    savedScrollRef.current = editScrollRef.current?.scrollTop ?? 0
     setSaveStatus('saving')
     setSaveError(null)
     try {
-      const body = (!vals.editIsRaw && vals.editEntries.length > 0)
-        ? buildBodyFromSections(vals.editEntries, vals.editSectionBodies)
-        : vals.editBody
-      const rawContent = vals.editIsRaw
-        ? vals.editContent
-        : buildSaveContent(vals.editFm, body, vals.editEntries, vals.editChrDesc)
+      const rawContent = buildRawFromEditValues(vals)
       const ok = await saveEvent(vals.selectedEvent.filePath, rawContent)
       if (ok) {
         preEditRawRef.current = rawContent // update snapshot to latest saved
-        skipDirtyRef.current = true
-        setIsDirty(false)
-        setSaveStatus('saved')
-        requestAnimationFrame(() => {
-          if (editScrollRef.current) editScrollRef.current.scrollTop = savedScrollRef.current
-        })
+        // Se o usuário digitou durante o save, continua "sujo" — o timer de
+        // auto-save já agendado (ou o resave abaixo) grava o restante.
+        const upToDate = buildRawFromEditValues(editValuesRef.current) === rawContent
+        if (upToDate) setIsDirty(false)
+        setSaveStatus(upToDate ? 'saved' : 'pending')
         setTimeout(() => setSaveStatus((s) => s === 'saved' ? 'idle' : s), 2500)
-        // Reload timeline in background so position/date changes are reflected
-        // immediately when the user navigates back — no need to await.
-        // Set reSelectRef so the navigate guard doesn't fire while selectedEvent is null during reload.
-        reSelectRef.current = vals.selectedEvent.filePath
-        reloadTimeline()
+        // Atualiza a timeline em segundo plano (posição/data refletidas ao voltar),
+        // sem limpar a seleção nem desmontar o editor.
+        reSelectRef.current = {
+          filePath: vals.selectedEvent.filePath,
+          slug: vals.selectedEvent.slug,
+          anchor: vals.selectedEvent.chronicle?.anchor,
+        }
+        refreshTimeline()
       } else {
         setSaveStatus('error')
         setSaveError(t('save_error'))
@@ -1832,8 +1972,12 @@ export default function EventView(): React.ReactElement {
       setSaveError(t('save_error_unexpected'))
     } finally {
       isSavingRef.current = false
+      if (resaveRef.current) {
+        resaveRef.current = false
+        performSaveRef.current()
+      }
     }
-  }, [saveEvent, reloadTimeline, t]) // intentionally reads edit state from editValuesRef
+  }, [saveEvent, refreshTimeline, t]) // intentionally reads edit state from editValuesRef
   // Always keep ref in sync so the unmount cleanup can call the latest version
   performSaveRef.current = performSave
 
@@ -1986,7 +2130,7 @@ export default function EventView(): React.ReactElement {
   const events = currentTimeline.events
   const currentIdx = events.findIndex((e) => e.slug === selectedEvent.slug)
   const categorySuggestions = [...new Set(
-    events.map((e) => e.frontmatter.category).filter((c): c is string => Boolean(c))
+    events.map((e) => e.frontmatter.category).filter((c): c is NonNullable<typeof c> => Boolean(c))
   )].sort()
   const prevEvent = currentIdx > 0 ? events[currentIdx - 1] : null
   const nextEvent = currentIdx < events.length - 1 ? events[currentIdx + 1] : null
@@ -2033,7 +2177,6 @@ export default function EventView(): React.ReactElement {
         : editFm)
     : fm
   const viewBody = showFullBody && chr ? null : trechoBody
-  const markdownComponents = useMarkdownComponents(selectedEvent.filePath)
 
   // Textarea value routing
   const textareaValue = editIsRaw ? editContent : editBody
@@ -2336,7 +2479,7 @@ export default function EventView(): React.ReactElement {
                     <h2 className="font-serif text-2xl text-chr-primary leading-tight mb-4">{entry.title}</h2>
                     {entry.body ? (
                       <div className="markdown-content">
-                        <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]} components={markdownComponents}>{entry.body}</ReactMarkdown>
+                        <MarkdownBody body={entry.body} eventFilePath={selectedEvent.filePath} />
                       </div>
                     ) : (
                       <p className="font-mono text-sm text-chr-muted italic">{t('no_content')}</p>
@@ -2346,7 +2489,7 @@ export default function EventView(): React.ReactElement {
               </div>
             ) : viewBody ? (
               <div className="markdown-content">
-                <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]} components={markdownComponents}>{viewBody}</ReactMarkdown>
+                <MarkdownBody body={viewBody} eventFilePath={selectedEvent.filePath} />
               </div>
             ) : !isLoadingEvent ? (
               <p className="font-mono text-sm text-chr-muted italic">

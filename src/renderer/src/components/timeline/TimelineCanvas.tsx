@@ -143,9 +143,11 @@ export function TimelineCanvas({
   onContextMenu,
   filterPaths,
 }: TimelineCanvasProps) {
-  const activeEvents = filterPaths
-    ? timeline.events.filter((e) => filterPaths.includes(e.filePath))
-    : timeline.events
+  // Memoizado: sem isso, com filtro ativo, pixelGroups era recalculado a cada scroll
+  const activeEvents = useMemo(
+    () => (filterPaths ? timeline.events.filter((e) => filterPaths.includes(e.filePath)) : timeline.events),
+    [timeline.events, filterPaths]
+  )
   const scrollRef = useRef<HTMLDivElement>(null)
   const [zoom, setZoom] = useState(1)
   const maxZoomRef = useRef(5)  // atualizado a cada render com o valor dinâmico
@@ -207,14 +209,10 @@ export function TimelineCanvas({
   }, [])
 
   const { min: minDate, max: maxDate } = timeline.dateRange
-
-  if (!minDate || !maxDate || activeEvents.length === 0) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <p className="font-mono text-xs text-chr-muted">Nenhum evento nesta timeline</p>
-      </div>
-    )
-  }
+  // O early return do estado vazio fica DEPOIS de todos os hooks (regras dos hooks):
+  // trocar entre uma timeline vazia e outra com eventos sem desmontar o componente
+  // (timeline em cache) quebrava o React ("Rendered more hooks than...").
+  const hasEvents = Boolean(minDate && maxDate) && activeEvents.length > 0
 
   // ── SortKeys proporcionais ─────────────────────────────────────────────────
   // O sortKey nativo (YYYYMMDD) distribui 12 meses em apenas 12% do espaço do ano
@@ -224,8 +222,8 @@ export function TimelineCanvas({
   // Usamos propSortKey() que distribui meses uniformemente ao longo do ano inteiro,
   // mantendo o mesmo espaço de coordenadas (year × 10000) mas com distribuição correta.
   // Todos os cálculos de posição — eventos E régua — usam esta escala.
-  const propMin = propSortKey(minDate.year, minDate.month, minDate.day)
-  const propMax = propSortKey(maxDate.year, maxDate.month, maxDate.day)
+  const propMin = minDate ? propSortKey(minDate.year, minDate.month, minDate.day) : 0
+  const propMax = maxDate ? propSortKey(maxDate.year, maxDate.month, maxDate.day) : 0
 
   // Zoom máximo dinâmico: garante ~65px por dia no canvas a zoom máximo.
   // Esse valor permite que step=1 seja atingido (requer dayPx ≥ 45),
@@ -298,6 +296,14 @@ export function TimelineCanvas({
       ),
     [pixelGroups, viewLeft, viewWidth, buffer]
   )
+
+  if (!hasEvents || !minDate || !maxDate) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <p className="font-mono text-xs text-chr-muted">Nenhum evento nesta timeline</p>
+      </div>
+    )
+  }
 
   // Datas com padding para o eixo — usa sortKeys proporcionais para consistência
   const rangeSpan = propMax - propMin || 1

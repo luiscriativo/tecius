@@ -1,3 +1,4 @@
+import { useCallback } from 'react'
 import { useAppStore } from '@/stores/useAppStore'
 import { translations } from '@/i18n/translations'
 import type { TranslationKey } from '@/i18n/translations'
@@ -12,16 +13,16 @@ type Params = Record<string, string | number>
  */
 export function useI18n() {
   const language = useAppStore((s) => s.language)
-  const dict = translations[language]
 
-  function t(key: TranslationKey, params?: Params): string {
-    const template: string = (dict as Record<string, string>)[key] ?? key
+  // Estável por idioma: vários useMemo usam `t` como dependência
+  const t = useCallback((key: TranslationKey, params?: Params): string => {
+    const template: string = (translations[language] as Record<string, string>)[key] ?? key
     if (!params) return template
     return Object.entries(params).reduce(
       (str, [k, v]) => str.replaceAll(`{${k}}`, String(v)),
       template
     )
-  }
+  }, [language])
 
   /** Convenience: singular or plural based on count */
   function nEvents(count: number): string {

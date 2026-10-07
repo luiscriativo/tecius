@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import { useVaultStore } from '../stores/useVaultStore'
 import { useNavigationStore } from '../stores/useNavigationStore'
+import { useTimelineStore } from '../stores/useTimelineStore'
 import type { RawVault, RawTrashItem } from '../types/ipc'
 import type { VaultInfo, TimelineRef, TrashItem } from '../types/chronicler'
 
@@ -145,6 +146,8 @@ export function useVault() {
     const result = await window.electronAPI.invoke<{ success: boolean; error?: string }>(
       'fs:rename-timeline', dirPath, newTitle
     )
+    // A timeline em cache ficaria com título/conteúdo antigos
+    if (result.success) useTimelineStore.getState().deleteCached(dirPath)
     if (result.success) await reloadVault()
     return result.success
   }, [reloadVault])
@@ -161,6 +164,8 @@ export function useVault() {
     const result = await window.electronAPI.invoke<{ success: boolean; error?: string }>(
       'fs:trash-timeline', dirPath
     )
+    // A timeline em cache ficaria com título/conteúdo antigos
+    if (result.success) useTimelineStore.getState().deleteCached(dirPath)
     if (result.success) await reloadVault()
     return result.success
   }, [reloadVault])
@@ -173,12 +178,12 @@ export function useVault() {
     return []
   }, [])
 
-  const restoreFromTrash = useCallback(async (dirPath: string): Promise<boolean> => {
+  const restoreFromTrash = useCallback(async (dirPath: string): Promise<{ success: boolean; error?: string }> => {
     const result = await window.electronAPI.invoke<{ success: boolean; error?: string }>(
       'fs:restore-from-trash', dirPath
     )
     if (result.success) await reloadVault()
-    return result.success
+    return result
   }, [reloadVault])
 
   const deleteFromTrash = useCallback(async (dirPath: string): Promise<boolean> => {
@@ -201,6 +206,8 @@ export function useVault() {
     const result = await window.electronAPI.invoke<{ success: boolean; error?: string }>(
       'fs:delete-timeline', dirPath
     )
+    // A timeline em cache ficaria com título/conteúdo antigos
+    if (result.success) useTimelineStore.getState().deleteCached(dirPath)
     if (result.success) await reloadVault()
     return result.success
   }, [reloadVault])

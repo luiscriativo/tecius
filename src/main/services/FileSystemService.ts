@@ -88,6 +88,43 @@ function sanitizeFrontmatter(data: Record<string, unknown>): Record<string, unkn
   return result
 }
 
+/**
+ * Formata um valor como escalar YAML seguro para uso em templates
+ * (`title: ${...}`). Valores com caracteres especiais (ex: "Guerra: início")
+ * gerariam YAML inválido e o arquivo seria ignorado na leitura.
+ */
+function yamlScalar(value: string): string {
+  const needsQuotes =
+    value === '' ||
+    /[:#[\]{}&*!|>'"%@`]/.test(value) ||
+    /^[\s\-?,]/.test(value) ||
+    /\s$/.test(value) ||
+    /[\r\n]/.test(value) ||
+    /^(true|false|yes|no|on|off|null|~)$/i.test(value)
+  return needsQuotes ? JSON.stringify(value) : value
+}
+
+/**
+ * Wrapper do gray-matter. Sem `options` o gray-matter guarda em cache o
+ * conteúdo integral de cada arquivo lido, sem limite — com o auto-save
+ * relendo a timeline a cada edição, a memória cresce indefinidamente.
+ * Mantemos o cache (acelera releituras de timelines inteiras) mas limitamos o
+ * volume de texto guardado: ao passar do limite, o cache é esvaziado.
+ */
+const MATTER_CACHE_MAX_CHARS = 8 * 1024 * 1024
+let matterCachedChars = 0
+function parseMatter(content: string): matter.GrayMatterFile<string> {
+  const m = matter as unknown as { cache?: Record<string, unknown>; clearCache?: () => void }
+  if (m.cache && m.clearCache && m.cache[content] === undefined) {
+    matterCachedChars += content.length
+    if (matterCachedChars > MATTER_CACHE_MAX_CHARS) {
+      m.clearCache()
+      matterCachedChars = content.length
+    }
+  }
+  return matter(content)
+}
+
 export class FileSystemService {
   private vaultPath: string | null = null
   private watcher: fs.FSWatcher | null = null
@@ -138,7 +175,7 @@ export class FileSystemService {
     if (!fs.existsSync(metaPath)) return {}
     try {
       const content = fs.readFileSync(metaPath, 'utf-8')
-      const { data } = matter(content)
+      const { data } = parseMatter(content)
       return sanitizeFrontmatter(data as Record<string, unknown>)
     } catch {
       return {}
@@ -192,7 +229,7 @@ export class FileSystemService {
     const vaultMetaPath = path.join(vaultPath, '_vault.md')
     if (fs.existsSync(vaultMetaPath)) {
       try {
-        const { data } = matter(fs.readFileSync(vaultMetaPath, 'utf-8'))
+        const { data } = parseMatter(fs.readFileSync(vaultMetaPath, 'utf-8'))
         if (data.title) vaultTitle = String(data.title)
       } catch {
         // ignore
@@ -241,7 +278,7 @@ export class FileSystemService {
 
       try {
         const content = fs.readFileSync(filePath, 'utf-8')
-        const { data: frontmatter } = matter(content)
+        const { data: frontmatter } = parseMatter(content)
         const sanitized = sanitizeFrontmatter(frontmatter as Record<string, unknown>)
 
         // ── Chronicle: um .md com várias datas → vários eventos ──────────────
@@ -345,7 +382,7 @@ export class FileSystemService {
    */
   readEvent(eventPath: string): { frontmatter: Record<string, unknown>; body: string; filePath: string; raw: string } {
     const content = fs.readFileSync(eventPath, 'utf-8')
-    const { data, content: body } = matter(content)
+    const { data, content: body } = parseMatter(content)
     return {
       frontmatter: sanitizeFrontmatter(data as Record<string, unknown>),
       body: body.trim(),
@@ -461,7 +498,16 @@ export class FileSystemService {
       let size = 0
       try { size = fs.statSync(filePath).size } catch { /* skip */ }
       const relativePath = `_assets/${entry.name}`
-      const isOrphaned = !mdContents.some((c) => c.includes(relativePath))
+      // Conservador: considera também links URL-encoded (espaços → %20),
+      // separador do Windows e embeds estilo Obsidian (![[nome.png]]).
+      // Um falso "órfão" pode levar à exclusão de uma imagem em uso.
+      const refs = [
+        relativePath,
+        encodeURI(relativePath),
+        `_assets\\${entry.name}`,
+        `[[${entry.name}`,
+      ]
+      const isOrphaned = !mdContents.some((c) => refs.some((r) => c.includes(r)))
       results.push({
         filePath,
         filename: entry.name,
@@ -600,16 +646,26 @@ export class FileSystemService {
     let isEventItem = false
     let originalPath: string | undefined
 
+    // Os metadados só são removidos depois que a restauração der certo —
+    // se o destino não existir mais, o item continua intacto na lixeira.
     if (fs.existsSync(metaPath)) {
       try {
         const raw = JSON.parse(fs.readFileSync(metaPath, 'utf-8'))
         if (raw.type === 'event') isEventItem = true
         if (raw.originalPath) originalPath = raw.originalPath
-        fs.unlinkSync(metaPath) // Remove metadata before restoring
       } catch { /* ignore */ }
     }
 
+    // Destino precisa estar dentro do vault atual e a pasta-pai precisa existir
+    const isValidDest = (dest: string): boolean => {
+      try { this.assertWithinVault(dest) } catch { return false }
+      return fs.existsSync(path.dirname(dest))
+    }
+
     if (isEventItem && originalPath) {
+      if (!isValidDest(originalPath)) {
+        throw new Error('A pasta original deste evento não existe mais. Restaure primeiro a timeline de origem.')
+      }
       // Find the .md file inside the wrapper folder
       let mdFile: string | null = null
       try {
@@ -635,8 +691,10 @@ export class FileSystemService {
       return
     }
 
-    // Original timeline folder restore
-    let destPath = originalPath ?? path.join(this.vaultPath!, path.basename(trashItemPath))
+    // Original timeline folder restore (cai para a raiz do vault se o local original não existe mais)
+    let destPath = originalPath && isValidDest(originalPath)
+      ? originalPath
+      : path.join(this.vaultPath!, path.basename(trashItemPath))
 
     // Resolve collision on destination
     if (fs.existsSync(destPath)) {
@@ -648,6 +706,8 @@ export class FileSystemService {
     }
 
     fs.renameSync(trashItemPath, destPath)
+    const restoredMeta = path.join(destPath, '_trash_meta.json')
+    if (fs.existsSync(restoredMeta)) fs.unlinkSync(restoredMeta)
   }
 
   /**
@@ -693,7 +753,7 @@ export class FileSystemService {
       dirPath = path.join(parentDir, `${slug}-${i}`)
     }
     fs.mkdirSync(dirPath, { recursive: true })
-    fs.writeFileSync(path.join(dirPath, '_timeline.md'), `---\ntitle: ${name}\n---\n`, 'utf-8')
+    fs.writeFileSync(path.join(dirPath, '_timeline.md'), `---\ntitle: ${yamlScalar(name)}\n---\n`, 'utf-8')
   }
 
   /**
@@ -703,11 +763,11 @@ export class FileSystemService {
     this.assertWithinVault(dirPath)
     const metaPath = path.join(dirPath, '_timeline.md')
     if (!fs.existsSync(metaPath)) {
-      fs.writeFileSync(metaPath, `---\ntitle: ${newTitle}\n---\n`, 'utf-8')
+      fs.writeFileSync(metaPath, `---\ntitle: ${yamlScalar(newTitle)}\n---\n`, 'utf-8')
       return
     }
     const raw = fs.readFileSync(metaPath, 'utf-8')
-    const { data, content: body } = matter(raw)
+    const { data, content: body } = matter(raw, {})
     data.title = newTitle
     fs.writeFileSync(metaPath, matter.stringify(body, data), 'utf-8')
   }
@@ -719,11 +779,11 @@ export class FileSystemService {
     if (!this.vaultPath) throw new Error('Vault não configurado')
     const metaPath = path.join(this.vaultPath, '_vault.md')
     if (!fs.existsSync(metaPath)) {
-      fs.writeFileSync(metaPath, `---\ntitle: ${newTitle}\n---\n`, 'utf-8')
+      fs.writeFileSync(metaPath, `---\ntitle: ${yamlScalar(newTitle)}\n---\n`, 'utf-8')
       return
     }
     const raw = fs.readFileSync(metaPath, 'utf-8')
-    const { data, content: body } = matter(raw)
+    const { data, content: body } = matter(raw, {})
     data.title = newTitle
     fs.writeFileSync(metaPath, matter.stringify(body, data), 'utf-8')
   }
@@ -758,14 +818,14 @@ export class FileSystemService {
 
     // Usa a data fornecida pelo usuário; cai para hoje se não informada ou inválida.
     // Aceita os mesmos formatos que parseChroniclerDate: "1789", "1789-07", "1789-07-14"
-    const dateStr = date && /^\d{4}(-\d{2}(-\d{2})?)?$/.test(date.trim())
+    const dateStr = date && /^\d{1,4}(-\d{2}(-\d{2})?)?$/.test(date.trim())
       ? date.trim()
       : (() => {
           const today = new Date()
           return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
         })()
 
-    const template = `---\ntitle: ${title}\ndate: ${dateStr}\nimportance: 3\n---\n\n`
+    const template = `---\ntitle: ${yamlScalar(title)}\ndate: ${dateStr}\nimportance: 3\n---\n\n`
     fs.writeFileSync(filePath, template, 'utf-8')
     return { filePath, slug }
   }
@@ -791,7 +851,7 @@ export class FileSystemService {
     let displayName = slug
     try {
       const content = fs.readFileSync(eventFilePath, 'utf-8')
-      const { data } = matter(content)
+      const { data } = parseMatter(content)
       if (data.title) displayName = String(data.title)
     } catch { /* use slug */ }
 

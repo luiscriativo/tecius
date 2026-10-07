@@ -103,7 +103,11 @@ const electronAPI = {
     const base = eventFilePath.replace(/\\/g, '/')
     // Extrai o diretório removendo o último segmento (nome do arquivo)
     const dir = base.substring(0, base.lastIndexOf('/'))
-    const rel = assetRelativePath.replace(/\\/g, '/')
+    // O link no markdown pode vir URL-encoded (ex: "a%20b.png") ou não ("a b.png"):
+    // decodifica com segurança e recodifica cada segmento abaixo. Sem isso, nomes
+    // com '#', '?' ou '%' viravam fragmento/query da URL e a imagem não carregava.
+    let rel = assetRelativePath.replace(/\\/g, '/')
+    try { rel = decodeURIComponent(rel) } catch { /* '%' literal no nome */ }
     const abs = `${dir}/${rel}`
     // Formato: asset://local/<caminho absoluto>
     // O host fixo "local" evita que o Chromium interprete a letra do drive Windows
@@ -112,7 +116,7 @@ const electronAPI = {
     //   Windows: abs = "C:/path/..." → "asset://local/C:/path/..."
     //   Unix:    abs = "/home/..."   → "asset://local/home/..."
     const pathPart = abs.startsWith('/') ? abs.slice(1) : abs
-    return `asset://local/${pathPart}`
+    return `asset://local/${pathPart.split('/').map(encodeURIComponent).join('/')}`
   },
 
   /**

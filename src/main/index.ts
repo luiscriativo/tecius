@@ -11,6 +11,7 @@
 
 import { app, BrowserWindow, shell, nativeTheme, protocol, net, ipcMain, Menu } from 'electron'
 import { join } from 'path'
+import { pathToFileURL } from 'url'
 import { autoUpdater } from 'electron-updater'
 import { registerIpcHandlers } from './ipc'
 
@@ -184,7 +185,9 @@ app.whenReady().then(() => {
   // do drive como host). O formato preferido é "asset://local/C:/path".
   protocol.handle('asset', (request) => {
     const url = new URL(request.url)
-    let filePath = decodeURIComponent(url.pathname)
+    // decodeURIComponent lança URIError com '%' solto no nome do arquivo
+    let filePath: string
+    try { filePath = decodeURIComponent(url.pathname) } catch { filePath = url.pathname }
 
     if (process.platform === 'win32') {
       // Formato novo: asset://local/C:/path → host='local', pathname='/C:/path'
@@ -198,13 +201,10 @@ app.whenReady().then(() => {
       }
     }
 
-    // Monta URL file://:
+    // Monta URL file:// (pathToFileURL codifica '#', '?', '%' e espaços do nome):
     //   Windows: "C:/..."    → "file:///C:/..."
     //   Unix:    "/home/..." → "file:///home/..."
-    const fileUrl = filePath.startsWith('/')
-      ? `file://${filePath}`
-      : `file:///${filePath}`
-    return net.fetch(fileUrl)
+    return net.fetch(pathToFileURL(filePath).toString())
   })
 
   // Register all IPC handlers before creating the window

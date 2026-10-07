@@ -225,6 +225,24 @@ export function useTimeline() {
     await loadTimeline(currentTimeline.dirPath, currentTimeline.meta.title, false)
   }, [currentTimeline, deleteCached, loadTimeline])
 
+  // Relê a timeline atual sem estado de loading e sem limpar a seleção.
+  // Usado pelo auto-save do editor: reloadTimeline() limpa o evento selecionado,
+  // o que desmonta a tela de edição e tira o foco do textarea enquanto o usuário digita.
+  const refreshTimeline = useCallback(async () => {
+    if (!currentTimeline) return
+    const dirPath = currentTimeline.dirPath
+    const result = await window.electronAPI.invoke<{
+      success: boolean
+      data?: RawTimeline
+      error?: string
+    }>('fs:read-timeline', dirPath)
+    if (!result.success || !result.data) return
+    const data = toTimelineData(result.data)
+    cacheTimeline(dirPath, data)
+    // Não sobrescreve se o usuário já navegou para outra timeline nesse meio-tempo
+    if (useTimelineStore.getState().currentTimeline?.dirPath === dirPath) setCurrentTimeline(data)
+  }, [currentTimeline, cacheTimeline, setCurrentTimeline])
+
   const createEvent = useCallback(
     async (timelineDirPath: string, title: string, filename?: string, date?: string): Promise<{ filePath: string; slug: string } | null> => {
       const result = await window.electronAPI.invoke<{
@@ -290,6 +308,7 @@ export function useTimeline() {
     openInEditor,
     clearSelection,
     reloadTimeline,
+    refreshTimeline,
     createEvent,
     deleteEvent,
     renameEventFile,

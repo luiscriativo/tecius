@@ -5,6 +5,7 @@ import { cn } from '../../utils/cn'
 
 export function BreadcrumbBar() {
   const stack = useNavigationStore((s) => s.stack)
+  const truncate = useNavigationStore((s) => s.truncate)
   const { loadTimeline } = useTimeline()
 
   if (stack.length === 0) return null
@@ -18,7 +19,7 @@ export function BreadcrumbBar() {
             {i > 0 && <ChevronRight size={12} className="text-chr-muted shrink-0" strokeWidth={1.5} />}
             <button
               disabled={isLast}
-              onClick={() => !isLast && loadTimeline(item.dirPath, item.title, false)}
+              onClick={() => { if (!isLast) { truncate(i + 1); loadTimeline(item.dirPath, item.title, false) } }}
               className={cn(
                 'font-mono text-xs tracking-wide transition-colors duration-150 whitespace-nowrap',
                 isLast

@@ -497,4 +497,4 @@ const en = {
 } as const
 
 export type TranslationKey = keyof typeof pt
-export const translations: Record<Language, typeof pt> = { pt, en }
+export const translations: Record<Language, Record<TranslationKey, string>> = { pt, en }

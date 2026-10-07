@@ -59,7 +59,8 @@ function formatSize(bytes: number): string {
 function assetUrl(filePath: string): string {
   const forward = filePath.replace(/\\/g, '/')
   const pathPart = forward.startsWith('/') ? forward.slice(1) : forward
-  return `asset://local/${pathPart}`
+  // Codifica cada segmento: nomes com '#', '?' ou '%' quebravam a URL
+  return `asset://local/${pathPart.split('/').map(encodeURIComponent).join('/')}`
 }
 
 function applySort(list: AssetInfo[], sort: SortKey): AssetInfo[] {
@@ -485,8 +486,21 @@ export default function AssetManager(): React.ReactElement {
     }
   }, [])
 
+  // A exclusão de imagens é permanente (não vai para a lixeira) — sempre confirma
+  const confirmAndDelete = useCallback((filePath: string) => {
+    const name = filePath.replace(/\\/g, '/').split('/').pop() ?? filePath
+    if (window.confirm(`Excluir permanentemente "${name}"?\n\nEsta ação não pode ser desfeita.`)) {
+      handleDelete(filePath)
+    }
+  }, [handleDelete])
+
   const handleDeleteAllOrphaned = useCallback(async () => {
     const orphaned = assets.filter((a) => a.isOrphaned)
+    const confirmed = window.confirm(
+      `Excluir permanentemente ${orphaned.length} imagem(ns) órfã(s)?\n\n` +
+      'Órfã = nenhum .md da mesma pasta a referencia. Esta ação não pode ser desfeita.'
+    )
+    if (!confirmed) return
     for (const asset of orphaned) {
       await handleDelete(asset.filePath)
     }
@@ -715,7 +729,7 @@ export default function AssetManager(): React.ReactElement {
                 <AssetCard
                   key={asset.filePath}
                   asset={asset}
-                  onDelete={handleDelete}
+                  onDelete={confirmAndDelete}
                   onRename={handleRename}
                   deleting={deletingPaths.has(asset.filePath)}
                 />
@@ -737,7 +751,7 @@ export default function AssetManager(): React.ReactElement {
                 key={folder}
                 folder={folder}
                 assets={folderAssets}
-                onDelete={handleDelete}
+                onDelete={confirmAndDelete}
                 onRename={handleRename}
                 deletingPaths={deletingPaths}
                 defaultOpen={idx === 0} /* Abre a primeira pasta por padrão */

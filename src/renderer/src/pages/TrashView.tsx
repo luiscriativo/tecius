@@ -12,6 +12,7 @@ import { Trash2, RotateCcw, X, BookOpen, AlertTriangle } from 'lucide-react'
 import { useVault } from '@/hooks/useVault'
 import { useVaultStore } from '@/stores/useVaultStore'
 import { useTimelineStore } from '@/stores/useTimelineStore'
+import { useAppStore } from '@/stores/useAppStore'
 import { useI18n } from '@/hooks/useI18n'
 import { cn } from '@/utils/cn'
 import type { TrashItem } from '@/types/chronicler'
@@ -90,6 +91,7 @@ function ConfirmModal({ title, description, confirmLabel, isDanger = false, isLo
 export default function TrashView(): React.ReactElement {
   const { listTrash, restoreFromTrash, deleteFromTrash, emptyTrash } = useVault()
   const deleteCached = useTimelineStore((s) => s.deleteCached)
+  const addNotification = useAppStore((s) => s.addNotification)
   const trashCount = useVaultStore((s) => s.vaultInfo?.trashCount ?? 0)
   const { t, language, nEvents, nItems } = useI18n()
 
@@ -120,6 +122,7 @@ export default function TrashView(): React.ReactElement {
       const timer = setTimeout(() => load(), 300)
       return () => clearTimeout(timer)
     }
+    return undefined
   }, [isLoading, items.length, trashCount, load])
 
   // ── Ações ─────────────────────────────────────────────────────────────────
@@ -127,7 +130,11 @@ export default function TrashView(): React.ReactElement {
   const handleRestore = async (item: TrashItem) => {
     setProcessing(item.dirPath)
     try {
-      await restoreFromTrash(item.dirPath)
+      const result = await restoreFromTrash(item.dirPath)
+      if (!result.success) {
+        addNotification('error', t('restore'), (result.error ?? '').replace(/^Error:\s*/, ''))
+        return
+      }
       // Invalidate timeline cache so the restored content appears immediately.
       // For event items, originalPath is the event .md file — invalidate its parent dir.
       // For timeline items, originalPath is the dir itself.
