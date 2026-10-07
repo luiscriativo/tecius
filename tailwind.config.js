@@ -18,6 +18,7 @@ module.exports = {
       colors: {
         vault:    'rgb(var(--bg-vault) / <alpha-value>)',
         surface:  'rgb(var(--bg-surface) / <alpha-value>)',
+        sidebar:  'rgb(var(--bg-sidebar) / <alpha-value>)',
         subtle:   'rgb(var(--bg-subtle) / <alpha-value>)',
         hover:    'rgb(var(--bg-hover) / <alpha-value>)',
         active:   'rgb(var(--bg-active) / <alpha-value>)',
@@ -50,6 +51,7 @@ module.exports = {
           tick:      'rgb(var(--timeline-tick) / <alpha-value>)',
           dot:       'rgb(var(--event-dot) / <alpha-value>)',
           chronicle: 'rgb(var(--chronicle-dot) / <alpha-value>)',
+          'chronicle-text': 'rgb(var(--chronicle-text) / <alpha-value>)',
         },
       },
 

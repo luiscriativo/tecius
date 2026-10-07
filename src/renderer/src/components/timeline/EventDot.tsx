@@ -1,5 +1,6 @@
 import { cn } from '../../utils/cn'
 import type { ChroniclerEvent } from '../../types/chronicler'
+import { isMultiPart } from '../../utils/events'
 
 interface EventDotProps {
   event: ChroniclerEvent
@@ -24,7 +25,7 @@ const IMPORTANCE_SIZE: Record<number, string> = {
 export function EventDot({ event, isSelected, onClick, onDoubleClick, onContextMenu, style, tooltipAlign = 'center' }: EventDotProps) {
   const importance = event.frontmatter.importance ?? 3
   const hasSubtimeline = event.hasSubtimeline
-  const isChronicle = !!event.chronicle
+  const isChronicle = isMultiPart(event)
   const sizeClass = IMPORTANCE_SIZE[importance] ?? IMPORTANCE_SIZE[3]
 
   // Classes de posição do tooltip: evita sair para fora da área visível
@@ -96,7 +97,7 @@ export function EventDot({ event, isSelected, onClick, onDoubleClick, onContextM
           </p>
           <p className="chr-date mt-0.5">{event.date.display}</p>
           {isChronicle && (
-            <p className="text-2xs text-timeline-chronicle mt-0.5 font-mono truncate max-w-48">
+            <p className="text-2xs text-timeline-chronicle-text mt-0.5 font-mono truncate max-w-48">
               ◆ {event.chronicle!.title}
             </p>
           )}

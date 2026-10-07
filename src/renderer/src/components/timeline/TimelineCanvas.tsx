@@ -71,7 +71,7 @@ function TimelineMinimap({ pixelGroups, canvasWidth, viewLeft, viewWidth, scroll
       {/* Linha central de referência */}
       <div
         className="absolute inset-x-0 pointer-events-none"
-        style={{ height: 1, top: '50%', backgroundColor: 'rgba(255,255,255,0.04)' }}
+        style={{ height: 1, top: '50%', backgroundColor: 'var(--minimap-center)' }}
       />
 
       {/* Marcas de eventos */}
@@ -92,9 +92,7 @@ function TimelineMinimap({ pixelGroups, canvasWidth, viewLeft, viewWidth, scroll
               top: `${(100 - heightPct) / 2}%`,
               transform: 'translateX(-50%)',
               borderRadius: 1,
-              backgroundColor: isCluster
-                ? 'rgba(220, 150, 70, 0.8)'
-                : 'rgba(160, 160, 185, 0.6)',
+              backgroundColor: isCluster ? 'var(--minimap-cluster)' : 'var(--minimap-mark)',
             }}
           />
         )
@@ -106,9 +104,9 @@ function TimelineMinimap({ pixelGroups, canvasWidth, viewLeft, viewWidth, scroll
         style={{
           left: `${winL}%`,
           width: `${winW}%`,
-          backgroundColor: 'rgba(110, 110, 190, 0.08)',
-          borderLeft: '1.5px solid rgba(140, 140, 220, 0.45)',
-          borderRight: '1.5px solid rgba(140, 140, 220, 0.45)',
+          backgroundColor: 'var(--minimap-window)',
+          borderLeft: '1.5px solid var(--minimap-window-border)',
+          borderRight: '1.5px solid var(--minimap-window-border)',
         }}
       />
     </div>

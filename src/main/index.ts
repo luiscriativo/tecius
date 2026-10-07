@@ -65,7 +65,7 @@ function createWindow(): void {
     show: false, // Hidden until 'ready-to-show' to avoid visual flash
     backgroundColor: '#09090b', // Matches the dark theme background
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
-    trafficLightPosition: { x: 16, y: 16 },
+    trafficLightPosition: { x: 18, y: 21 }, // centralizado no cabeçalho de 56px da sidebar
 
     // ── Security: WebPreferences ──────────────────────────────────────────────
     webPreferences: {

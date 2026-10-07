@@ -165,15 +165,15 @@ export function TimelineAxis({
 
   return (
     <div
-      className="relative shrink-0 border-t border-zinc-700/40 overflow-hidden"
-      style={{ height: rulerHeight, backgroundColor: 'transparent' }}
+      className="relative shrink-0 border-t overflow-hidden"
+      style={{ height: rulerHeight, backgroundColor: 'transparent', borderColor: 'var(--axis-line)' }}
     >
       {/* ── Anos ──────────────────────────────────────────────────────────── */}
       {yearMarkers.map(({ year, sortKey }) => {
         const left    = toLeft(sortKey)
         const isCent  = year % 100 === 0
-        const tickColor = isCent ? 'rgba(245,158,11,0.75)' : 'rgb(63,63,70)'   // amber-500 : zinc-700
-        const labelColor = isCent ? '#f59e0b' : '#a1a1aa'                       // amber-500 : zinc-400
+        const tickColor = isCent ? 'var(--axis-century-tick)' : 'var(--axis-tick)'
+        const labelColor = isCent ? 'var(--axis-century)' : 'var(--axis-label)'
 
         return [
           // Tick do ano (altura total da zona de ticks)
@@ -184,7 +184,7 @@ export function TimelineAxis({
               left,
               height: yearTickH,
               backgroundColor: tickColor,
-              boxShadow: isCent ? '0 0 8px rgba(245,158,11,0.25)' : 'none',
+              boxShadow: isCent ? 'var(--axis-century-glow)' : 'none',
             }}
           />,
 
@@ -212,7 +212,7 @@ export function TimelineAxis({
                 left,
                 top: monthTickTop,
                 height: monthTickH,
-                backgroundColor: 'rgba(245,158,11,0.70)',  // amber-500/70
+                backgroundColor: 'var(--axis-month)',
               }}
             />
           ),
@@ -229,19 +229,19 @@ export function TimelineAxis({
                 height: 20,
                 marginLeft: -10,
                 borderRadius: '50%',
-                border: '1px solid rgb(63,63,70)',          // zinc-700
-                backgroundColor: '#060606',
+                border: '1px solid var(--axis-tick)',
+                backgroundColor: 'var(--axis-jan-bg)',
               }}
             >
-              <span className="font-mono text-[9px] font-bold text-zinc-400 leading-none select-none">
+              <span className="font-mono text-[9px] font-bold leading-none select-none" style={{ color: 'var(--axis-label)' }}>
                 {label}
               </span>
             </div>
           ) : (
             <span
               key={`ml-${year}-${month}`}
-              className="absolute font-mono text-[10px] font-bold text-zinc-400 select-none leading-none pointer-events-none"
-              style={{ left, top: labelZoneTop + 3, marginLeft: 2 }}
+              className="absolute font-mono text-[10px] font-bold select-none leading-none pointer-events-none"
+              style={{ left, top: labelZoneTop + 3, marginLeft: 2, color: 'var(--axis-label)' }}
             >
               {label}
             </span>
@@ -261,7 +261,7 @@ export function TimelineAxis({
               left,
               top: dayTickTop,
               height: dayTickH,
-              backgroundColor: 'rgb(63,63,70)',   // zinc-700
+              backgroundColor: 'var(--axis-tick)',
             }}
           />,
 
@@ -269,8 +269,8 @@ export function TimelineAxis({
           showLabel && (
             <span
               key={`dl-${sortKey}`}
-              className="absolute font-mono text-[9px] text-zinc-500 select-none leading-none pointer-events-none"
-              style={{ left, top: labelZoneTop + 3, marginLeft: 1 }}
+              className="absolute font-mono text-[9px] select-none leading-none pointer-events-none"
+              style={{ left, top: labelZoneTop + 3, marginLeft: 1, color: 'var(--axis-label)', opacity: 0.85 }}
             >
               {day}
             </span>

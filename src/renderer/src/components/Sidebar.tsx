@@ -417,7 +417,7 @@ export function Sidebar(): React.ReactElement {
   return (
     <aside
       className={cn(
-        'flex flex-col h-full border-r border-chr-subtle bg-surface text-chr-primary',
+        'flex flex-col h-full border-r border-chr-subtle bg-sidebar text-chr-primary',
         'transition-all duration-200 ease-in-out shrink-0',
         isSidebarCollapsed ? 'w-16' : 'w-60'
       )}
@@ -425,8 +425,8 @@ export function Sidebar(): React.ReactElement {
       {/* ── Logo / App name ────────────────────────────────────────────── */}
       <div
         className={cn(
-          'flex items-center h-14 px-4 border-b border-chr-subtle bg-surface shrink-0',
-          isSidebarCollapsed ? 'justify-center' : 'justify-between'
+          'app-titlebar flex items-center h-14 px-4 border-b border-chr-subtle bg-sidebar shrink-0',
+          isSidebarCollapsed ? 'justify-center sidebar-header-collapsed' : 'justify-between sidebar-header'
         )}
       >
         {!isSidebarCollapsed && (

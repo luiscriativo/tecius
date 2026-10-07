@@ -98,7 +98,7 @@ export function UpdateBanner(): React.ReactElement | null {
         {/* Ícone de estado */}
         <div className="shrink-0">
           {isReady ? (
-            <CheckCircle2 size={13} className="text-timeline-chronicle" strokeWidth={1.5} />
+            <CheckCircle2 size={13} className="text-timeline-chronicle-text" strokeWidth={1.5} />
           ) : isDownloading ? (
             <Loader2 size={13} className="text-chr-muted animate-spin" strokeWidth={1.5} />
           ) : (

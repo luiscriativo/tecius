@@ -63,8 +63,8 @@ export function EventPanel({ event, body, isLoading, onClose, onOpenInEditor, on
       {/* Banner de origem do chronicle */}
       {chr && (
         <div className="shrink-0 px-5 py-2 border-b border-chr-subtle flex items-center gap-2 bg-subtle">
-          <BookOpen size={11} strokeWidth={1.5} className="text-timeline-chronicle shrink-0" />
-          <span className="font-mono text-2xs text-timeline-chronicle truncate flex-1">
+          <BookOpen size={11} strokeWidth={1.5} className="text-timeline-chronicle-text shrink-0" />
+          <span className="font-mono text-2xs text-timeline-chronicle-text truncate flex-1">
             {chr.title}
           </span>
           <span className="font-mono text-2xs text-chr-muted shrink-0 mr-2">

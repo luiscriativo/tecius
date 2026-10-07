@@ -11,6 +11,7 @@
 
 import { cn } from '../../utils/cn'
 import type { ChroniclerEvent } from '../../types/chronicler'
+import { isMultiPart } from '../../utils/events'
 
 interface ClusterDotProps {
   events: ChroniclerEvent[]
@@ -31,8 +32,8 @@ export function ClusterDot({ events, hasSelected, onClusterClick, style, tooltip
     : tooltipAlign === 'right' ? 'right-0'
     : 'left-1/2 -translate-x-1/2'
 
-  const allChronicle = events.every((e) => !!e.chronicle)
-  const hasChronicle  = events.some((e) => !!e.chronicle)
+  const allChronicle = events.every(isMultiPart)
+  const hasChronicle  = events.some(isMultiPart)
 
   return (
     <div
@@ -57,7 +58,7 @@ export function ClusterDot({ events, hasSelected, onClusterClick, style, tooltip
           <span
             className={cn(
               'font-mono text-[9px] font-bold leading-none select-none -rotate-45',
-              hasSelected ? 'text-surface' : 'text-timeline-chronicle group-hover:text-surface'
+              hasSelected ? 'text-surface' : 'text-timeline-chronicle-text group-hover:text-surface'
             )}
           >
             {events.length}
@@ -102,8 +103,8 @@ export function ClusterDot({ events, hasSelected, onClusterClick, style, tooltip
           </p>
           {events.slice(0, 5).map((e) => (
             <p key={e.slug} className="font-sans text-xs text-chr-secondary leading-snug flex items-center gap-1.5">
-              {e.chronicle
-                ? <span className="text-timeline-chronicle text-[9px]">◆</span>
+              {isMultiPart(e)
+                ? <span className="text-timeline-chronicle-text text-[9px]">◆</span>
                 : <span className="text-chr-muted text-[9px]">●</span>
               }
               {e.frontmatter.title}

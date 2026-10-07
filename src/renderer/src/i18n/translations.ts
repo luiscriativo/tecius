@@ -59,8 +59,8 @@ const pt = {
   events_one:            '1 evento',
   events_other:          '{count} eventos',
   sections_none:         'Nenhuma',
-  sections_one:          '1 seção',
-  sections_other:        '{count} seções',
+  sections_one:          '1 trecho',
+  sections_other:        '{count} trechos',
   results_one:           '1 resultado',
   results_other:         '{count} resultados',
   items_one:             '1 item',
@@ -68,25 +68,26 @@ const pt = {
 
   // ── Metadata panel ─────────────────────────────────────────────────────
   metadata:              'Metadados',
-  dates_in_sections:     'As datas ficam em cada seção abaixo',
+  dates_in_sections:     'As datas ficam em cada trecho abaixo',
   chronicle_desc_placeholder: 'Descrição opcional do chronicle...',
   event_title_placeholder: 'Título do evento...',
 
   // ── Sections panel ─────────────────────────────────────────────────────
-  sections:              'Seções',
-  add_section:           'Adicionar seção',
-  section_title_ph:      'Título da seção...',
+  sections:              'Trechos',
+  add_section:           'Adicionar trecho',
+  section_title_ph:      'Título do trecho...',
   section_anchor:        'Âncora ^id',
   section_anchor_hint:   'ID da âncora — deve corresponder ao ^id no corpo do texto',
-  remove_section:        'Remover seção',
-  sections_empty_hint:   'Adicione seções para dividir este conteúdo em múltiplos eventos na timeline.',
-  section_body_ph:       'Escreva o conteúdo desta seção em Markdown...',
-  add_first_section:     'Dividir em seções',
+  remove_section:        'Remover trecho',
+  remove_part_confirm:   'Remover o trecho "{title}"?',
+  sections_empty_hint:   'Adicione trechos para dividir este conteúdo em múltiplos eventos na timeline.',
+  section_body_ph:       'Escreva o conteúdo deste trecho em Markdown...',
+  add_first_section:     'Adicionar trecho',
 
   // ── Toolbar ────────────────────────────────────────────────────────────
   raw_mode_label:        'Raw',
   form_mode_label:       'Formulário',
-  insert_anchor_title:   'Inserir âncora de bloco — escolha uma seção',
+  insert_anchor_title:   'Inserir âncora de bloco — escolha um trecho',
   insert_anchor_header:  'Inserir âncora',
   raw_mode_banner:       'Modo raw — Use o botão {button} para voltar à edição estruturada.',
 
@@ -100,7 +101,7 @@ const pt = {
   save_error_unexpected: 'Erro inesperado ao salvar.',
   importance_badge:      'importância {n}',
   textarea_ph:           'Escreva aqui o conteúdo do evento em Markdown...',
-  textarea_chronicle_ph: 'Corpo do chronicle — escreva o texto e marque cada seção com ^ancora-id...',
+  textarea_chronicle_ph: 'Corpo do chronicle — escreva o texto e marque cada trecho com ^ancora-id...',
   textarea_raw_ph:       'Arquivo .md completo (YAML + corpo)...',
 
   // ── TimelineView / NewEventModal ───────────────────────────────────────
@@ -305,8 +306,8 @@ const en = {
   events_one:            '1 event',
   events_other:          '{count} events',
   sections_none:         'None',
-  sections_one:          '1 section',
-  sections_other:        '{count} sections',
+  sections_one:          '1 part',
+  sections_other:        '{count} parts',
   results_one:           '1 result',
   results_other:         '{count} results',
   items_one:             '1 item',
@@ -314,25 +315,26 @@ const en = {
 
   // ── Metadata panel ─────────────────────────────────────────────────────
   metadata:              'Metadata',
-  dates_in_sections:     'Dates are defined in each section below',
+  dates_in_sections:     'Dates are defined in each part below',
   chronicle_desc_placeholder: 'Optional chronicle description...',
   event_title_placeholder: 'Event title...',
 
   // ── Sections panel ─────────────────────────────────────────────────────
-  sections:              'Sections',
-  add_section:           'Add section',
-  section_title_ph:      'Section title...',
+  sections:              'Parts',
+  add_section:           'Add part',
+  section_title_ph:      'Part title...',
   section_anchor:        'Anchor ^id',
   section_anchor_hint:   'Anchor ID — must match the ^id in the text body',
-  remove_section:        'Remove section',
-  sections_empty_hint:   'Add sections to split this content into multiple events in the timeline.',
-  section_body_ph:       "Write this section's content in Markdown...",
-  add_first_section:     'Split into sections',
+  remove_section:        'Remove part',
+  remove_part_confirm:   'Remove the part "{title}"?',
+  sections_empty_hint:   'Add parts to split this content into multiple events in the timeline.',
+  section_body_ph:       "Write this part's content in Markdown...",
+  add_first_section:     'Add part',
 
   // ── Toolbar ────────────────────────────────────────────────────────────
   raw_mode_label:        'Raw',
   form_mode_label:       'Form',
-  insert_anchor_title:   'Insert block anchor — choose a section',
+  insert_anchor_title:   'Insert block anchor — choose a part',
   insert_anchor_header:  'Insert anchor',
   raw_mode_banner:       'Raw mode — Use the {button} button to return to structured editing.',
 
@@ -346,7 +348,7 @@ const en = {
   save_error_unexpected: 'Unexpected error while saving.',
   importance_badge:      'importance {n}',
   textarea_ph:           'Write the event content in Markdown here...',
-  textarea_chronicle_ph: 'Chronicle body — write text and mark each section with ^anchor-id...',
+  textarea_chronicle_ph: 'Chronicle body — write text and mark each part with ^anchor-id...',
   textarea_raw_ph:       'Full .md file (YAML + body)...',
 
   // ── TimelineView / NewEventModal ───────────────────────────────────────

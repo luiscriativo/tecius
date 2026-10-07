@@ -20,6 +20,9 @@ import '@fontsource/jetbrains-mono/500.css'
 
 import './index.css'
 
+// Plataforma no <html> para estilos específicos (ex: semáforos do macOS sobre o app)
+if (window.electronAPI?.platform) document.documentElement.dataset.platform = window.electronAPI.platform
+
 // ── Strict Mode ───────────────────────────────────────────────────────────────
 // React.StrictMode intentionally double-invokes certain lifecycle methods in
 // development to help detect side effects. Remove for production performance

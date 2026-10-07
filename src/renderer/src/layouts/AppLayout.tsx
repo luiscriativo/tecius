@@ -33,6 +33,9 @@ export function AppLayout(): React.ReactElement {
         {/* Banner de atualização — visível apenas quando há update disponível */}
         <UpdateBanner />
 
+        {/* macOS sem sidebar: faixa para arrastar a janela (escondida nas outras plataformas) */}
+        {!hasVault && <div className="app-titlebar mac-only h-10 shrink-0" />}
+
         {hasVault ? <Outlet /> : <VaultSetup />}
       </main>
 

@@ -9,6 +9,7 @@ import { useI18n } from '../hooks/useI18n'
 import { cn } from '../utils/cn'
 import { DateInput } from '../components/DateInput'
 import type { ChroniclerEvent, TimelineData } from '../types/chronicler'
+import { isMultiPart } from '../utils/events'
 
 // ── NewEventModal ──────────────────────────────────────────────────────────────
 
@@ -164,8 +165,8 @@ interface ClusterPanelProps {
 }
 
 function ClusterPanel({ events, onEventClick, onContextMenu, onClose }: ClusterPanelProps) {
-  const allChronicle = events.every((e) => !!e.chronicle)
-  const hasChronicle  = events.some((e) => !!e.chronicle)
+  const allChronicle = events.every(isMultiPart)
+  const hasChronicle  = events.some(isMultiPart)
 
   // Calcula o range de datas do cluster
   const sorted = [...events].sort((a, b) => a.date.sortKey - b.date.sortKey)
@@ -217,7 +218,7 @@ function ClusterPanel({ events, onEventClick, onContextMenu, onClose }: ClusterP
               'hover:bg-hover transition-colors duration-100'
             )}
           >
-            {e.chronicle ? (
+            {isMultiPart(e) ? (
               <div className="w-2 h-2 border border-timeline-chronicle rotate-45 shrink-0 mt-1 opacity-80" />
             ) : (
               <div className="w-1.5 h-1.5 rounded-full bg-timeline-dot shrink-0 mt-1.5 opacity-60" />
@@ -226,9 +227,9 @@ function ClusterPanel({ events, onEventClick, onContextMenu, onClose }: ClusterP
               <span className="text-sm text-chr-secondary block leading-snug truncate">
                 {e.frontmatter.title}
               </span>
-              {e.chronicle && (
-                <span className="font-mono text-2xs text-timeline-chronicle opacity-70 block truncate mt-0.5">
-                  {e.chronicle.title}
+              {isMultiPart(e) && (
+                <span className="font-mono text-2xs text-timeline-chronicle-text opacity-70 block truncate mt-0.5">
+                  {e.chronicle!.title}
                 </span>
               )}
               {e.frontmatter.category && (
@@ -913,8 +914,9 @@ export default function TimelineView({ initialPath, initialTitle }: TimelineView
               onClick={() => setShowNewEvent(true)}
               className={cn(
                 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-sm text-xs font-mono',
-                'border border-chr-subtle text-chr-muted',
-                'hover:border-chr hover:text-chr-primary hover:bg-hover',
+                // Ação principal da tela: âmbar do sistema (mesmo token das datas/chronicles)
+                'border border-timeline-chronicle bg-timeline-chronicle text-surface',
+                'hover:bg-timeline-chronicle/85',
                 'transition-colors duration-150'
               )}
               title={t('create_event_hint')}

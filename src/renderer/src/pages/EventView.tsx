@@ -27,6 +27,7 @@ import { useNavigationStore } from '@/stores/useNavigationStore'
 import { useI18n } from '@/hooks/useI18n'
 import { cn } from '@/utils/cn'
 import { DateInput } from '@/components/DateInput'
+import { isMultiPart } from '@/utils/events'
 import type { ChroniclerEvent } from '@/types/chronicler'
 
 // ── Utilitários de anchor ──────────────────────────────────────────────────────
@@ -88,6 +89,20 @@ function extractChronicleEntry(body: string, anchorId: string): string | null {
   const contentStart = targetIdx > 0 ? markers[targetIdx - 1].end : 0
   const contentEnd = markers[targetIdx].start
   return normalized.substring(contentStart, contentEnd).trim() || null
+}
+
+/**
+ * Conteúdo de uma entrada para exibição. A última entrada inclui o texto que vem
+ * depois do último marcador (o editor também o trata como parte do último trecho).
+ */
+function chronicleEntryBody(body: string, anchorId: string): string | null {
+  const own = extractChronicleEntry(body, anchorId)
+  const normalized = body.replace(/\r\n/g, '\n')
+  const markers = [...normalized.matchAll(/\^([\w-]+)\s*$/gm)]
+  const last = markers[markers.length - 1]
+  if (!last || last[1] !== anchorId) return own
+  const trailing = normalized.slice((last.index ?? 0) + last[0].length).trim()
+  return [own, trailing].filter(Boolean).join('\n\n') || null
 }
 
 /**
@@ -394,6 +409,73 @@ function chronicleEditFm(parsed: ChronicleEdit): EditFm {
   return fm
 }
 
+// ── Estado de edição: evento = 1 ou mais trechos ───────────────────────────────
+// Para o usuário só existe "evento com trechos". O formato do arquivo é derivado:
+// 1 trecho → .md simples · 2+ trechos → chronicle (type: chronicle + entries).
+
+interface EditState {
+  fm: EditFm
+  body: string
+  entries: EntryEdit[]
+  chrDesc: string
+  sectionBodies: Record<string, string>
+}
+
+/** Converte o único trecho restante em evento simples (dados do trecho passam ao evento) */
+function collapseToSingle(fm: EditFm, entry: EntryEdit, entryBody: string, chrDesc: string): EditState {
+  const next: EditFm = { ...fm, title: entry.title || fm.title, date: entry.date || fm.date, extra: { ...fm.extra } }
+  const { importance, category, tags, ...entryExtra } = entry.extra
+  if (importance) next.importance = parseInt(importance) || next.importance
+  if (category) next.category = unquoteYaml(category)
+  if (tags) next.tags = tagsFromRaw(tags)
+  for (const [k, v] of Object.entries(entryExtra)) if (!(k in next.extra)) next.extra[k] = v
+  if (chrDesc && !('description' in next.extra)) next.extra['description'] = yamlStr(chrDesc)
+  return { fm: next, body: entryBody, entries: [], chrDesc: '', sectionBodies: {} }
+}
+
+/**
+ * Corpo de cada trecho. O texto após o último marcador ^âncora não pertence a
+ * nenhum trecho e era descartado ao salvar — passa a integrar o último trecho.
+ */
+function sectionBodiesFor(entries: EntryEdit[], body: string): Record<string, string> {
+  const bodies: Record<string, string> = {}
+  for (const entry of entries) bodies[entry.id] = extractSectionBody(body, entry.anchor)
+  const normalized = body.replace(/\r\n/g, '\n')
+  const markers = [...normalized.matchAll(/\^([\w-]+)\s*$/gm)]
+  const lastMarker = markers[markers.length - 1]
+  if (lastMarker && entries.length > 0) {
+    const trailing = normalized.slice((lastMarker.index ?? 0) + lastMarker[0].length).trim()
+    if (trailing) {
+      const owner = entries.find((e) => e.anchor === lastMarker[1]) ?? entries[entries.length - 1]
+      bodies[owner.id] = [bodies[owner.id], trailing].filter(Boolean).join('\n\n')
+    }
+  }
+  return bodies
+}
+
+/** O frontmatter declara `type: chronicle`? (olha só o bloco YAML, não o corpo) */
+function isChronicleRaw(raw: string): boolean {
+  const fmBlock = raw.match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1] ?? ''
+  return /^type:\s*["']?chronicle["']?\s*$/m.test(fmBlock)
+}
+
+/** Estado de edição a partir do conteúdo bruto do arquivo */
+function editStateFromRaw(raw: string, isChronicle: boolean): EditState {
+  if (!isChronicle) {
+    const { fm, body } = parseEventRaw(raw)
+    return { fm, body, entries: [], chrDesc: '', sectionBodies: {} }
+  }
+  const parsed = parseChronicleRaw(raw)
+  const fm = chronicleEditFm(parsed)
+  const sectionBodies = sectionBodiesFor(parsed.entries, parsed.body)
+  // Chronicle com um único trecho é, para o usuário, um evento comum
+  if (parsed.entries.length === 1) {
+    const only = parsed.entries[0]
+    return collapseToSingle(fm, only, sectionBodies[only.id] ?? '', parsed.meta.description)
+  }
+  return { fm, body: parsed.body, entries: parsed.entries, chrDesc: parsed.meta.description, sectionBodies }
+}
+
 function buildChronicleRaw(edit: ChronicleEdit): string {
   const lines: string[] = ['---', 'type: chronicle']
   if (edit.meta.title)       lines.push(`title: ${yamlStr(edit.meta.title)}`)
@@ -646,7 +728,7 @@ function EditHeader({ fm, onChange, hasEntries, chrDescription, onChrDescChange,
           <DateInput
             value={fm.date}
             onChange={(v) => set('date', v)}
-            className="font-mono text-sm text-timeline-chronicle bg-transparent outline-none border-0 w-28 placeholder:text-chr-muted/30"
+            className="font-mono text-sm text-timeline-chronicle-text bg-transparent outline-none border-0 w-28 placeholder:text-chr-muted/30"
           />
           <label className="flex items-center gap-1.5 cursor-pointer">
             <input type="checkbox" checked={fm.circa} onChange={(e) => set('circa', e.target.checked)} className="w-3 h-3 accent-chr-primary" />
@@ -906,9 +988,9 @@ function SectionsPanel({ entries, collapsed, onToggleCollapse, onChange, onAddSe
     <>
     {pendingDeleteId && (
       <ConfirmModal
-        message={`Remover a sessão "${pendingEntry?.title?.trim() || 'sem título'}"?`}
+        message={t('remove_part_confirm', { title: pendingEntry?.title?.trim() || '—' })}
         onConfirm={confirmRemove}
-        confirmLabel="Remover"
+        confirmLabel={t('remove_section')}
         onCancel={() => setPendingDeleteId(null)}
       />
     )}
@@ -999,6 +1081,27 @@ function SectionsPanel({ entries, collapsed, onToggleCollapse, onChange, onAddSe
   )
 }
 
+// ── AddPartButton ──────────────────────────────────────────────────────────────
+
+/** "+ Adicionar trecho" — sempre no fim do editor, com 1 ou vários trechos */
+function AddPartButton({ onClick, className }: { onClick: () => void; className?: string }) {
+  const { t } = useI18n()
+  return (
+    <div className={cn('flex flex-col items-center gap-3', className)}>
+      <button
+        type="button"
+        onClick={onClick}
+        className="w-10 h-10 rounded-full border border-chr-subtle flex items-center justify-center text-chr-muted hover:text-chr-primary hover:border-chr transition-colors"
+      >
+        <Plus size={14} strokeWidth={1.5} />
+      </button>
+      <span className="font-mono text-2xs tracking-widest uppercase text-chr-muted/60 select-none">
+        {t('add_section')}
+      </span>
+    </div>
+  )
+}
+
 // ── SectionBlocksEditor ────────────────────────────────────────────────────────
 
 interface SectionBlocksEditorProps {
@@ -1065,9 +1168,9 @@ function SectionBlocksEditor({ entries, sectionBodies, onEntriesChange, onBodyCh
     <>
     {pendingDeleteId && (
       <ConfirmModal
-        message={`Remover a sessão "${pendingEntry?.title?.trim() || 'sem título'}"?`}
+        message={t('remove_part_confirm', { title: pendingEntry?.title?.trim() || '—' })}
         onConfirm={confirmRemove}
-        confirmLabel="Remover"
+        confirmLabel={t('remove_section')}
         onCancel={() => setPendingDeleteId(null)}
       />
     )}
@@ -1093,7 +1196,7 @@ function SectionBlocksEditor({ entries, sectionBodies, onEntriesChange, onBodyCh
                   onChange={(v) => updateEntry(entry.id, { date: v })}
                   onFocus={() => setFrozenOrder(sorted.map((e) => e.id))}
                   onBlur={(e) => handleDateBlur(entry.id, e)}
-                  className="font-mono text-sm text-timeline-chronicle bg-transparent border-0 outline-none focus:outline-none placeholder:text-chr-muted/30 w-32"
+                  className="font-mono text-sm text-timeline-chronicle-text bg-transparent border-0 outline-none focus:outline-none placeholder:text-chr-muted/30 w-32"
                 />
                 <div className="flex items-center gap-3">
                   <span className="font-mono text-xs text-chr-muted/30 select-none tabular-nums">
@@ -1149,19 +1252,7 @@ function SectionBlocksEditor({ entries, sectionBodies, onEntriesChange, onBodyCh
           </div>
         ))}
 
-        {/* Add section — centered circle */}
-        <div className={cn('flex flex-col items-center gap-3', entries.length > 0 ? 'mt-12' : 'mt-4')}>
-          <button
-            type="button"
-            onClick={onAddSection}
-            className="w-10 h-10 rounded-full border border-chr-subtle flex items-center justify-center text-chr-muted hover:text-chr-primary hover:border-chr transition-colors"
-          >
-            <Plus size={14} strokeWidth={1.5} />
-          </button>
-          <span className="font-mono text-2xs tracking-widest uppercase text-chr-muted/60 select-none">
-            {t('add_section')}
-          </span>
-        </div>
+        <AddPartButton onClick={onAddSection} className={entries.length > 0 ? 'mt-12' : 'mt-4'} />
 
       </div>
     </div>
@@ -1598,7 +1689,6 @@ export default function EventView(): React.ReactElement {
 
   // ── Panel collapse state — default collapsed ───────────────────────────────
 
-  const [sectionsCollapsed, setSectionsCollapsed] = useState(true)
 
   // ── Search ────────────────────────────────────────────────────────────────
   const [searchOpen, setSearchOpen] = useState(false)
@@ -1623,9 +1713,12 @@ export default function EventView(): React.ReactElement {
   // anchorBlock  = último bloco da entrada (trecho/excerpt)
   const anchorBlock = chr?.anchor && selectedEventBody ? extractBlock(selectedEventBody, chr.anchor) : null
   // fullEntryContent = todo o conteúdo da entrada entre dois anchors consecutivos
-  const fullEntryContent = chr?.anchor && selectedEventBody ? extractChronicleEntry(selectedEventBody, chr.anchor) : null
+  // Só é "evento com trechos" (losango, Trecho/Completo) com 2+ trechos; um
+  // chronicle de 1 entrada é exibido como evento comum
+  const multi = selectedEvent ? isMultiPart(selectedEvent) : false
+  const fullEntryContent = chr?.anchor && selectedEventBody ? chronicleEntryBody(selectedEventBody, chr.anchor) : null
   const displayBody = selectedEventBody
-    ? (chr
+    ? (chr && multi
       // Chronicle: Trecho = só esta entrada; Completo = chronicle inteiro (todos os trechos)
       ? (showFullBody ? stripAnchors(selectedEventBody) : (fullEntryContent ?? anchorBlock))
       // Evento normal: body completo sem markers
@@ -1655,39 +1748,27 @@ export default function EventView(): React.ReactElement {
   const editValuesRef = useRef({ editFm, editBody, editEntries, editSectionBodies, editChrDesc, editContent, editIsRaw, selectedEvent: selectedEvent as typeof selectedEvent | null })
   editValuesRef.current = { editFm, editBody, editEntries, editSectionBodies, editChrDesc, editContent, editIsRaw, selectedEvent }
 
+  // ── Aplica um estado de edição completo (início, reverter, sair do modo raw) ──
+  const applyEditState = useCallback((st: EditState) => {
+    setEditFm(st.fm)
+    setEditBody(st.body)
+    setEditEntries(st.entries)
+    setEditChrDesc(st.chrDesc)
+    setEditSectionBodies(st.sectionBodies)
+  }, [])
+
   // ── Start editing ─────────────────────────────────────────────────────────
   const handleStartEdit = useCallback(() => {
     setSaveError(null)
     skipDirtyRef.current = true
     setIsDirty(false)
     setEditIsRaw(false)
-    const isChronicle = !!selectedEvent?.chronicle
-    if (isChronicle) {
-      const parsed = parseChronicleRaw(selectedEventRaw ?? '')
-      setEditFm(chronicleEditFm(parsed))
-      setEditChrDesc(parsed.meta.description)
-      setEditEntries(parsed.entries)
-      setEditBody(parsed.body)
-      setSectionsCollapsed(parsed.entries.length === 0)
-      // Initialize per-section bodies
-      const bodies: Record<string, string> = {}
-      for (const entry of parsed.entries) {
-        bodies[entry.id] = extractSectionBody(parsed.body, entry.anchor)
-      }
-      setEditSectionBodies(bodies)
-    } else {
-      const { fm, body } = parseEventRaw(selectedEventRaw ?? '')
-      setEditFm(fm)
-      setEditBody(body)
-      setEditEntries([])
-      setEditChrDesc('')
-      setEditSectionBodies({})
-    }
+    applyEditState(editStateFromRaw(selectedEventRaw ?? '', isChronicleRaw(selectedEventRaw ?? '')))
     preEditRawRef.current = selectedEventRaw ?? null
     editInitializedRef.current = true
     setIsEditing(true)
     setTimeout(() => textareaRef.current?.focus(), 50)
-  }, [selectedEvent, selectedEventRaw])
+  }, [selectedEvent, selectedEventRaw, applyEditState])
 
   // ── Cancel editing ────────────────────────────────────────────────────────
   const handleCancelEdit = useCallback(() => {
@@ -1744,27 +1825,8 @@ export default function EventView(): React.ReactElement {
     setIsDirty(false)
     setEditIsRaw(false)
     const rawSnapshot = preEditRawRef.current ?? selectedEventRaw ?? ''
-    const isChronicle = !!selectedEvent?.chronicle
-    if (isChronicle) {
-      const parsed = parseChronicleRaw(rawSnapshot)
-      setEditFm(chronicleEditFm(parsed))
-      setEditChrDesc(parsed.meta.description)
-      setEditEntries(parsed.entries)
-      setEditBody(parsed.body)
-      const bodies: Record<string, string> = {}
-      for (const entry of parsed.entries) {
-        bodies[entry.id] = extractSectionBody(parsed.body, entry.anchor)
-      }
-      setEditSectionBodies(bodies)
-    } else {
-      const { fm, body } = parseEventRaw(rawSnapshot)
-      setEditFm(fm)
-      setEditBody(body)
-      setEditEntries([])
-      setEditChrDesc('')
-      setEditSectionBodies({})
-    }
-  }, [selectedEvent, selectedEventRaw])
+    applyEditState(editStateFromRaw(rawSnapshot, isChronicleRaw(rawSnapshot)))
+  }, [selectedEventRaw, applyEditState])
 
   // ── Body change handler ───────────────────────────────────────────────────
   const handleBodyChange = useCallback((v: string) => {
@@ -1787,29 +1849,10 @@ export default function EventView(): React.ReactElement {
       setEditIsRaw(true)
     } else {
       skipDirtyRef.current = true
-      const isRawChronicle = /^---\r?\n[\s\S]*?^type:\s*chronicle/m.test(editContent)
-      if (isRawChronicle) {
-        const parsed = parseChronicleRaw(editContent)
-        setEditFm(chronicleEditFm(parsed))
-        setEditChrDesc(parsed.meta.description)
-        setEditEntries(parsed.entries)
-        setEditBody(parsed.body)
-        const bodies: Record<string, string> = {}
-        for (const entry of parsed.entries) {
-          bodies[entry.id] = extractSectionBody(parsed.body, entry.anchor)
-        }
-        setEditSectionBodies(bodies)
-      } else {
-        const { fm, body } = parseEventRaw(editContent)
-        setEditFm(fm)
-        setEditBody(body)
-        setEditEntries([])
-        setEditChrDesc('')
-        setEditSectionBodies({})
-      }
+      applyEditState(editStateFromRaw(editContent, isChronicleRaw(editContent)))
       setEditIsRaw(false)
     }
-  }, [editIsRaw, editFm, editBody, editEntries, editSectionBodies, editChrDesc, editContent])
+  }, [editIsRaw, editFm, editBody, editEntries, editSectionBodies, editChrDesc, editContent, applyEditState])
 
   // ── Search: open / close ──────────────────────────────────────────────────
   const openSearch = useCallback(() => {
@@ -1920,20 +1963,31 @@ export default function EventView(): React.ReactElement {
     // The keydown handler (capture phase) intercepts typing and redirects to search query.
   }, [searchOpen, searchQuery, searchMatchIdx, isEditing, editIsRaw, editEntries, editBody])
 
+  // Textarea do evento de 1 trecho cresce com o conteúdo (o botão de adicionar fica logo abaixo)
+  useEffect(() => {
+    const el = textareaRef.current
+    if (!el || !isEditing || editIsRaw || editEntries.length > 0) return
+    el.style.height = 'auto'
+    el.style.height = el.scrollHeight + 'px'
+  }, [editBody, isEditing, editIsRaw, editEntries.length, wideLayout])
+
   // ── Add section ───────────────────────────────────────────────────────────
   const handleAddSection = useCallback(() => {
     const newEntry = defaultEntry()
     if (editEntries.length === 0) {
-      // Converting from regular event to chronicle: move body to first section
-      newEntry.title = editFm.title
-      newEntry.date = editFm.date
-      newEntry.anchor = slugify(editFm.title || 'secao')
-      setEditSectionBodies({ [newEntry.id]: editBody })
+      // 1 → 2 trechos: o conteúdo atual vira o 1º trecho e o 2º já é criado vazio.
+      // O título atual continua como título do evento (editável no topo).
+      const first = defaultEntry()
+      first.title = editFm.title
+      first.date = editFm.date
+      first.anchor = slugify(editFm.title || 'trecho')
+      setEditSectionBodies({ [first.id]: editBody, [newEntry.id]: '' })
       setEditBody('')
+      setEditEntries([first, newEntry])
     } else {
       setEditSectionBodies((prev) => ({ ...prev, [newEntry.id]: '' }))
+      setEditEntries((prev) => [...prev, newEntry])
     }
-    setEditEntries((prev) => [...prev, newEntry])
   }, [editEntries, editFm, editBody])
 
   // ── performSave: reads latest values from ref, called by auto-save & Ctrl+S ──
@@ -2166,17 +2220,17 @@ export default function EventView(): React.ReactElement {
                 key: e.slug,
                 date: e.date.display,
                 title: e.frontmatter.title,
-                body: e.chronicle?.anchor ? extractChronicleEntry(selectedEventBody ?? '', e.chronicle.anchor) : null,
+                body: e.chronicle?.anchor ? chronicleEntryBody(selectedEventBody ?? '', e.chronicle.anchor) : null,
               })))
       : []
   const viewFm = isDraftActive
-    ? (chr
+    ? (chr && editEntries.length > 0
         // Chronicle em draft: usa metadata do editFm mas título e importância da entrada atual
         // (editFm reflete o nível do arquivo chronicle, não da seção individual)
         ? { ...editFm, title: editEntries.find((e) => e.anchor === chr.anchor)?.title ?? fm.title, importance: fm.importance }
         : editFm)
     : fm
-  const viewBody = showFullBody && chr ? null : trechoBody
+  const viewBody = showFullBody && chr && multi ? null : trechoBody
 
   // Textarea value routing
   const textareaValue = editIsRaw ? editContent : editBody
@@ -2354,9 +2408,11 @@ export default function EventView(): React.ReactElement {
                   entries={editEntries}
                   sectionBodies={editSectionBodies}
                   onEntriesChange={(entries) => {
-                    if (entries.length === 0 && editEntries.length === 1) {
-                      setEditFm((prev) => ({ ...prev, date: editEntries[0].date || prev.date }))
-                      setEditBody(editSectionBodies[editEntries[0].id] || '')
+                    // Sobrou 1 trecho: volta a ser evento simples (dados do trecho passam ao evento)
+                    if (entries.length === 1 && editEntries.length > 1) {
+                      const only = entries[0]
+                      applyEditState(collapseToSingle(editFm, only, editSectionBodies[only.id] || '', editChrDesc))
+                      return
                     }
                     setEditEntries(entries)
                   }}
@@ -2367,17 +2423,7 @@ export default function EventView(): React.ReactElement {
                   wideLayout={wideLayout}
                 />
               ) : (
-                <div className={wideLayout ? 'max-w-5xl mx-auto px-8 pb-20' : 'max-w-2xl mx-auto px-12 pb-20'}>
-                  <div className="flex items-center justify-end mb-3">
-                    <button
-                      type="button"
-                      onClick={handleAddSection}
-                      className="flex items-center gap-1 font-mono text-2xs text-chr-muted hover:text-chr-primary transition-colors"
-                    >
-                      <Plus size={9} strokeWidth={1.5} />
-                      {t('add_first_section')}
-                    </button>
-                  </div>
+                <div className={wideLayout ? 'max-w-5xl mx-auto px-8 pt-2 pb-20' : 'max-w-2xl mx-auto px-12 pt-2 pb-20'}>
                   <textarea
                     ref={textareaRef}
                     value={textareaValue}
@@ -2387,9 +2433,10 @@ export default function EventView(): React.ReactElement {
                     onFocus={() => setBodyFocused(true)}
                     onBlur={() => setBodyFocused(false)}
                     spellCheck={false}
-                    className="w-full min-h-[60vh] resize-none outline-none font-mono text-sm text-chr-primary leading-relaxed bg-transparent border-0 focus:outline-none focus:ring-0"
+                    className="w-full min-h-[30vh] resize-none overflow-hidden outline-none font-mono text-sm text-chr-primary leading-relaxed bg-transparent border-0 focus:outline-none focus:ring-0"
                     placeholder={t('textarea_ph')}
                   />
+                  <AddPartButton onClick={handleAddSection} className="mt-12" />
                 </div>
               )}
             </div>
@@ -2447,10 +2494,10 @@ export default function EventView(): React.ReactElement {
               </div>
             )}
 
-            {chr && (
+            {chr && multi && (
               <div className="flex items-center gap-3 mb-8 pb-6 border-b border-chr-subtle">
-                <BookOpen size={13} strokeWidth={1.5} className="text-timeline-chronicle shrink-0" />
-                <span className="font-mono text-xs text-timeline-chronicle flex-1 truncate">{chr.title}</span>
+                <BookOpen size={13} strokeWidth={1.5} className="text-timeline-chronicle-text shrink-0" />
+                <span className="font-mono text-xs text-timeline-chronicle-text flex-1 truncate">{chr.title}</span>
                 <span className="font-mono text-2xs text-chr-muted shrink-0">{chr.entryIndex + 1} / {chr.totalEntries}</span>
                 {chr.anchor && (
                   <div className="flex items-center rounded-sm overflow-hidden border border-chr-subtle shrink-0">
@@ -2473,7 +2520,7 @@ export default function EventView(): React.ReactElement {
                 {chronicleAllEntries.map((entry, i) => (
                   <div key={entry.key} className="pb-10 border-b border-chr-subtle last:border-0">
                     <div className="flex items-baseline justify-between mb-1">
-                      <span className="font-mono text-sm text-timeline-chronicle">{entry.date}</span>
+                      <span className="font-mono text-sm text-timeline-chronicle-text">{entry.date}</span>
                       <span className="font-mono text-2xs text-chr-muted">#{String(i + 1).padStart(2, '0')}</span>
                     </div>
                     <h2 className="font-serif text-2xl text-chr-primary leading-tight mb-4">{entry.title}</h2>

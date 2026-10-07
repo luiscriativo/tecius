@@ -38,34 +38,51 @@
 @layer base {
   :root {
     /* ── Superficies ── */
-    --bg-vault:          249 249 247;   /* #F9F9F7 — fundo do vault */
-    --bg-surface:        255 255 255;   /* #FFFFFF — cards e paineis */
+    --bg-vault:          255 255 255;   /* #FFFFFF — área de conteúdo */
+    --bg-surface:        255 255 255;   /* #FFFFFF — cards, paineis e cabeçalhos */
+    --bg-sidebar:        246 246 244;   /* #F6F6F4 — menu lateral (separado do conteúdo branco) */
     --bg-subtle:         245 244 240;   /* #F5F4F0 — areas secundarias */
-    --bg-hover:          240 239 234;   /* #F0EFEA — hover state */
-    --bg-active:         232 230 224;   /* #E8E6E0 — active/selected */
+    --bg-hover:          236 235 230;   /* #ECEBE6 — hover state (visível também na sidebar cinza) */
+    --bg-active:         224 222 214;   /* #E0DED6 — active/selected (item selecionado sem azul) */
 
     /* ── Texto ── */
     --text-primary:      10 10 8;       /* #0A0A08 — preto quase total */
     --text-secondary:    92 90 82;      /* #5C5A52 — metadados, labels */
-    --text-muted:        160 158 150;   /* #A09E96 — datas, placeholders */
-    --text-disabled:     200 198 192;   /* #C8C6C0 — desabilitado */
+    --text-muted:        110 108 100;   /* #6E6C64 — datas, rótulos (≥ 4.5:1 sobre o fundo) */
+    --text-disabled:     176 173 164;   /* #B0ADA4 — desabilitado */
     --text-inverse:      249 249 247;   /* #F9F9F7 — texto sobre fundo escuro */
 
     /* ── Bordas ── */
     --border-strong:     26 26 24;      /* #1A1A18 — bordas de destaque */
-    --border-default:    226 224 218;   /* #E2E0DA — bordas padrao */
-    --border-subtle:     240 238 232;   /* #F0EEE8 — divisorias sutis */
+    --border-default:    214 211 203;   /* #D6D3CB — bordas padrao */
+    --border-subtle:     226 224 217;   /* #E2E0D9 — divisorias sutis (visíveis sobre branco) */
     --border-focus:      26 26 24;      /* #1A1A18 — foco de input */
 
     /* ── Timeline ── */
     --timeline-line:     26 26 24;      /* a linha principal */
-    --timeline-tick:     160 158 150;   /* tracados dos anos */
+    --timeline-tick:     176 173 164;   /* tracados dos anos */
     --event-dot:         26 26 24;      /* pontos dos eventos */
     --event-dot-hover:   92 90 82;
     --event-dot-sub:     92 90 82;      /* dot de evento com sub-timeline */
 
     /* ── Chronicle (documento multi-evento) ── */
-    --chronicle-dot:     130 90 38;     /* âmbar quente — distingue do dot padrão */
+    --chronicle-dot:     211 84 0;      /* #D35400 — preenchimentos de destaque (losango, botão) */
+    --chronicle-text:    184 74 0;      /* #B84A00 — texto de destaque (datas): 5.2:1 sobre branco */
+
+    /* ── Régua e minimapa da timeline ── */
+    --axis-line:         rgb(176 173 164);
+    --axis-tick:         rgb(176 173 164);
+    --axis-label:        rgb(92 90 82);
+    --axis-century:      rgb(184 74 0);           /* rótulos de século: mesmo tom do texto de destaque */
+    --axis-century-tick: rgb(211 84 0);
+    --axis-century-glow: none;
+    --axis-month:        rgb(211 84 0 / 0.6);
+    --axis-jan-bg:       rgb(255 255 255);
+    --minimap-center:    rgb(0 0 0 / 0.06);
+    --minimap-mark:      rgb(110 108 100 / 0.7);
+    --minimap-cluster:   rgb(211 84 0 / 0.85);
+    --minimap-window:    rgb(26 26 24 / 0.05);
+    --minimap-window-border: rgb(26 26 24 / 0.35);
 
     /* ── Acento funcional (uso minimo) ── */
     --accent:            26 26 24;      /* selecao ativa */
@@ -100,6 +117,7 @@
   .dark {
     --bg-vault:          15 15 13;      /* #0F0F0D */
     --bg-surface:        23 23 20;      /* #171714 */
+    --bg-sidebar:        23 23 20;      /* igual à surface: escuro inalterado */
     --bg-subtle:         30 30 26;      /* #1E1E1A */
     --bg-hover:          38 38 33;      /* #262621 */
     --bg-active:         46 46 40;      /* #2E2E28 */
@@ -121,6 +139,21 @@
     --event-dot-hover:   255 255 255;
     --event-dot-sub:     160 158 150;
     --chronicle-dot:     200 160 80;    /* âmbar claro no modo escuro */
+    --chronicle-text:    200 160 80;
+
+    --axis-line:         rgb(63 63 70 / 0.4);
+    --axis-tick:         rgb(63 63 70);
+    --axis-label:        rgb(161 161 170);
+    --axis-century:      rgb(245 158 11);
+    --axis-century-tick: rgba(245, 158, 11, 0.75);
+    --axis-century-glow: 0 0 8px rgba(245, 158, 11, 0.25);
+    --axis-month:        rgba(245, 158, 11, 0.7);
+    --axis-jan-bg:       #060606;
+    --minimap-center:    rgba(255, 255, 255, 0.04);
+    --minimap-mark:      rgba(160, 160, 185, 0.6);
+    --minimap-cluster:   rgba(220, 150, 70, 0.8);
+    --minimap-window:    rgba(110, 110, 190, 0.08);
+    --minimap-window-border: rgba(140, 140, 220, 0.45);
 
     --accent:            226 224 218;
     --accent-fg:         10 10 8;
@@ -386,4 +419,27 @@
     from { opacity: 0; transform: scale(0.96); }
     to   { opacity: 1; transform: scale(1); }
   }
+}
+
+/* ── macOS: barra de título oculta (titleBarStyle: hiddenInset) ───────────────
+   Os semáforos são desenhados sobre o app: reserva espaço para eles e define
+   regiões arrastáveis (topo da sidebar e cabeçalhos das páginas). */
+.mac-only { display: none; }
+html[data-platform='darwin'] .mac-only { display: block; }
+
+html[data-platform='darwin'] .app-titlebar,
+html[data-platform='darwin'] main header {
+  -webkit-app-region: drag;
+}
+html[data-platform='darwin'] .app-titlebar :is(button, input, textarea, select, a, label),
+html[data-platform='darwin'] main header :is(button, input, textarea, select, a, label) {
+  -webkit-app-region: no-drag;
+}
+/* Logo começa depois dos semáforos (~70px) */
+html[data-platform='darwin'] .sidebar-header { padding-left: 84px; }
+/* Recolhida (64px) os semáforos não cabem ao lado do botão: botão desce abaixo deles */
+html[data-platform='darwin'] .sidebar-header-collapsed {
+  height: 5.5rem;
+  align-items: flex-end;
+  padding-bottom: 0.625rem;
 }

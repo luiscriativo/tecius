@@ -83,6 +83,9 @@ const electronAPI = {
    * Versões do runtime — lidas aqui no preload onde process está disponível.
    * O renderer não pode acessar process diretamente (sandbox + contextIsolation).
    */
+  /** Plataforma do SO ('darwin' | 'win32' | 'linux') — síncrono, para ajustes de layout */
+  platform: process.platform as string,
+
   versions: {
     node:     process.versions.node,
     chrome:   process.versions.chrome,
