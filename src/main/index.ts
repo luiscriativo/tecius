@@ -172,9 +172,13 @@ app.on('second-instance', () => {
 // ── App lifecycle ─────────────────────────────────────────────────────────────
 
 app.whenReady().then(() => {
-  // Remove the native application menu in production (no File/Edit/View/DevTools exposure)
+  // Em produção, sem menu de Ver/DevTools. No macOS os atalhos de edição
+  // (Cmd+C/V/X/Z/A) passam pelo menu Editar: sem ele, copiar, colar e desfazer
+  // pelo teclado não funcionam — então o Mac fica só com App, Editar e Janela.
   if (!isDev) {
-    Menu.setApplicationMenu(null)
+    Menu.setApplicationMenu(process.platform === 'darwin'
+      ? Menu.buildFromTemplate([{ role: 'appMenu' }, { role: 'editMenu' }, { role: 'windowMenu' }])
+      : null)
   }
 
   // Sync Electron's native theme with the OS preference

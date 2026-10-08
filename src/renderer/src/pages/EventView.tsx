@@ -33,6 +33,7 @@ import { parseLocationRaw, locationToRaw } from '@/utils/location'
 import { LocationPicker } from '@/components/map/LocationPicker'
 import { stripAnchors } from '@/utils/anchors'
 import { imageMarkdown } from '@/utils/markdown'
+import { continueList, diffRange, insertBlock, insertLink, toggleBlock, toggleHeading, toggleInline, type TextEdit } from '@/utils/markdownEdit'
 import { usePref } from '@/hooks/usePref'
 import type { ChroniclerEvent, EventLocation } from '@/types/chronicler'
 
@@ -579,37 +580,27 @@ function buildBodyFromSections(entries: EntryEdit[], sectionBodies: Record<strin
     .join('\n\n')
 }
 
-// ── Toolbar text-manipulation helpers ─────────────────────────────────────────
+// ── Edição pela barra e pelos atalhos ────────────────────────────────────────
 
-interface TextEdit { value: string; selStart: number; selEnd: number }
-
-function applyInline(v: string, s: number, e: number, pre: string, suf: string, ph = 'texto'): TextEdit {
-  const sel = v.slice(s, e)
-  if (sel) {
-    return { value: v.slice(0, s) + pre + sel + suf + v.slice(e), selStart: s + pre.length, selEnd: s + pre.length + sel.length }
+/**
+ * Aplica a edição como se fosse digitada (só o trecho que mudou, via insertText):
+ * assim ela entra no histórico do Ctrl/Cmd+Z. Se o navegador recusar, cai no
+ * `fallback`, que troca o texto inteiro (sem desfazer).
+ */
+function applyTextEdit(ta: HTMLTextAreaElement, r: TextEdit, fallback: (v: string) => void) {
+  const d = diffRange(ta.value, r.value)
+  if (d.start !== d.endA || d.insert) {
+    ta.focus()
+    ta.setSelectionRange(d.start, d.endA)
+    const ok = d.insert ? document.execCommand('insertText', false, d.insert) : document.execCommand('delete')
+    if (!ok || ta.value !== r.value) fallback(r.value)
   }
-  const ins = pre + ph + suf
-  return { value: v.slice(0, s) + ins + v.slice(e), selStart: s + pre.length, selEnd: s + pre.length + ph.length }
+  ta.setSelectionRange(r.selStart, r.selEnd)
+  requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(r.selStart, r.selEnd) })
 }
 
-function applyHeading(v: string, s: number, prefix: string): TextEdit {
-  const lineStart = v.lastIndexOf('\n', s - 1) + 1
-  const lineEnd = v.indexOf('\n', s)
-  const line = v.slice(lineStart, lineEnd < 0 ? undefined : lineEnd)
-  const clean = line.replace(/^#{1,6}\s*/, '')
-  const newLine = prefix + clean
-  const tail = lineEnd < 0 ? '' : v.slice(lineEnd)
-  return { value: v.slice(0, lineStart) + newLine + tail, selStart: lineStart + prefix.length, selEnd: lineStart + prefix.length + clean.length }
-}
-
-function applyLinePrefix(v: string, s: number, prefix: string): TextEdit {
-  const lineStart = v.lastIndexOf('\n', s - 1) + 1
-  return { value: v.slice(0, lineStart) + prefix + v.slice(lineStart), selStart: s + prefix.length, selEnd: s + prefix.length }
-}
-
-function insertAtCursor(v: string, s: number, text: string): TextEdit {
-  return { value: v.slice(0, s) + text + v.slice(s), selStart: s + text.length, selEnd: s + text.length }
-}
+/** Rótulo do modificador dos atalhos: ⌘ no Mac, Ctrl no resto */
+const MOD = window.electronAPI?.platform === 'darwin' ? '⌘' : 'Ctrl+'
 
 // ── ImportanceSelector ─────────────────────────────────────────────────────────
 
@@ -860,9 +851,11 @@ interface SectionBlocksEditorProps {
   onBodyPaste: (e: React.ClipboardEvent<HTMLTextAreaElement>) => void
   onBodyDrop: (e: React.DragEvent<HTMLTextAreaElement>) => void
   onBodyDragOver: (e: React.DragEvent<HTMLTextAreaElement>) => void
+  /** Atalhos do texto (salvar, negrito, itálico, Tab, listas) — os mesmos do campo principal */
+  onBodyKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void
 }
 
-function SectionBlocksEditor({ entries, sectionBodies, onEntriesChange, onBodyChange, onAddSection, onBodyFocus, onBodyBlur, wideLayout, onEditEntryLocation, onBodyPaste, onBodyDrop, onBodyDragOver }: SectionBlocksEditorProps) {
+function SectionBlocksEditor({ entries, sectionBodies, onEntriesChange, onBodyChange, onAddSection, onBodyFocus, onBodyBlur, wideLayout, onEditEntryLocation, onBodyPaste, onBodyDrop, onBodyDragOver, onBodyKeyDown }: SectionBlocksEditorProps) {
   const { t } = useI18n()
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
 
@@ -990,6 +983,7 @@ function SectionBlocksEditor({ entries, sectionBodies, onEntriesChange, onBodyCh
                 onPaste={onBodyPaste}
                 onDrop={onBodyDrop}
                 onDragOver={onBodyDragOver}
+                onKeyDown={onBodyKeyDown}
                 placeholder={t('section_body_ph')}
                 spellCheck={false}
                 rows={1}
@@ -1036,10 +1030,9 @@ function MarkdownToolbar({
   const apply = (fn: (v: string, s: number, e: number) => TextEdit) => {
     const ta = textareaRef.current
     if (!ta) return
-    const r = fn(ta.value, ta.selectionStart, ta.selectionEnd)
-    onBodyChange(r.value)
-    requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(r.selStart, r.selEnd) })
+    applyTextEdit(ta, fn(ta.value, ta.selectionStart, ta.selectionEnd), onBodyChange)
   }
+  const ph = t('md_link_ph')
 
   const col = t('md_table_col'), cell = t('md_table_cell')
   const TABLE_TPL = `| ${col} 1 | ${col} 2 | ${col} 3 |\n|----------|----------|----------|\n| ${cell} 1 | ${cell} 2 | ${cell} 3 |`
@@ -1059,42 +1052,42 @@ function MarkdownToolbar({
       onMouseDown={(e) => e.preventDefault()}
     >
       {/* Headings */}
-      <button type="button" title={t('md_h2')} disabled={!showFormatting} className={btnCls} onClick={() => apply((v, s) => applyHeading(v, s, '## '))}>H2</button>
-      <button type="button" title={t('md_h3')} disabled={!showFormatting} className={btnCls} onClick={() => apply((v, s) => applyHeading(v, s, '### '))}>H3</button>
+      <button type="button" title={t('md_h2')} disabled={!showFormatting} className={btnCls} onClick={() => apply((v, s) => toggleHeading(v, s, 2))}>H2</button>
+      <button type="button" title={t('md_h3')} disabled={!showFormatting} className={btnCls} onClick={() => apply((v, s) => toggleHeading(v, s, 3))}>H3</button>
 
       {sep}
 
       {/* Inline formatting */}
-      <button type="button" title={t('md_bold')} disabled={!showFormatting} className={cn(btnCls, 'font-bold')} onClick={() => apply((v, s, e) => applyInline(v, s, e, '**', '**'))}>B</button>
-      <button type="button" title={t('md_italic')} disabled={!showFormatting} className={cn(btnCls, 'italic')} onClick={() => apply((v, s, e) => applyInline(v, s, e, '*', '*'))}>I</button>
-      <button type="button" title={t('md_strike')} disabled={!showFormatting} className={cn(btnCls, 'line-through')} onClick={() => apply((v, s, e) => applyInline(v, s, e, '~~', '~~'))}>S</button>
-      <button type="button" title={t('md_code')} disabled={!showFormatting} className={btnCls} onClick={() => apply((v, s, e) => applyInline(v, s, e, '`', '`', t('md_code_ph')))}>
+      <button type="button" title={`${t('md_bold')} (${MOD}B)`} disabled={!showFormatting} className={cn(btnCls, 'font-bold')} onClick={() => apply((v, s, e) => toggleInline(v, s, e, '**', ph))}>B</button>
+      <button type="button" title={`${t('md_italic')} (${MOD}I)`} disabled={!showFormatting} className={cn(btnCls, 'italic')} onClick={() => apply((v, s, e) => toggleInline(v, s, e, '*', ph))}>I</button>
+      <button type="button" title={t('md_strike')} disabled={!showFormatting} className={cn(btnCls, 'line-through')} onClick={() => apply((v, s, e) => toggleInline(v, s, e, '~~', ph))}>S</button>
+      <button type="button" title={t('md_code')} disabled={!showFormatting} className={btnCls} onClick={() => apply((v, s, e) => toggleInline(v, s, e, '`', t('md_code_ph')))}>
         <Code size={12} strokeWidth={1.5} />
       </button>
 
       {sep}
 
       {/* Block formatting */}
-      <button type="button" title={t('md_quote')} disabled={!showFormatting} className={btnCls} onClick={() => apply((v, s) => applyLinePrefix(v, s, '> '))}>
+      <button type="button" title={t('md_quote')} disabled={!showFormatting} className={btnCls} onClick={() => apply((v, s, e) => toggleBlock(v, s, e, 'quote'))}>
         <Quote size={12} strokeWidth={1.5} />
       </button>
-      <button type="button" title={t('md_bullets')} disabled={!showFormatting} className={btnCls} onClick={() => apply((v, s) => applyLinePrefix(v, s, '- '))}>
+      <button type="button" title={t('md_bullets')} disabled={!showFormatting} className={btnCls} onClick={() => apply((v, s, e) => toggleBlock(v, s, e, 'bullet'))}>
         <List size={12} strokeWidth={1.5} />
       </button>
-      <button type="button" title={t('md_numbered')} disabled={!showFormatting} className={btnCls} onClick={() => apply((v, s) => applyLinePrefix(v, s, '1. '))}>
+      <button type="button" title={t('md_numbered')} disabled={!showFormatting} className={btnCls} onClick={() => apply((v, s, e) => toggleBlock(v, s, e, 'numbered'))}>
         <ListOrdered size={12} strokeWidth={1.5} />
       </button>
-      <button type="button" title={t('md_tasks')} disabled={!showFormatting} className={btnCls} onClick={() => apply((v, s) => applyLinePrefix(v, s, '- [ ] '))}>
+      <button type="button" title={t('md_tasks')} disabled={!showFormatting} className={btnCls} onClick={() => apply((v, s, e) => toggleBlock(v, s, e, 'task'))}>
         <CheckSquare size={12} strokeWidth={1.5} />
       </button>
 
       {sep}
 
       {/* Inserts */}
-      <button type="button" title={t('md_table')} disabled={!showFormatting} className={btnCls} onClick={() => apply((v, s) => insertAtCursor(v, s, '\n' + TABLE_TPL + '\n'))}>
+      <button type="button" title={t('md_table')} disabled={!showFormatting} className={btnCls} onClick={() => apply((v, s, e) => insertBlock(v, s, e, TABLE_TPL, `${col} 1`))}>
         <Table size={12} strokeWidth={1.5} />
       </button>
-      <button type="button" title={t('md_link')} disabled={!showFormatting} className={btnCls} onClick={() => apply((v, s, e) => applyInline(v, s, e, '[', '](url)', t('md_link_ph')))}>
+      <button type="button" title={t('md_link')} disabled={!showFormatting} className={btnCls} onClick={() => apply((v, s, e) => insertLink(v, s, e, ph))}>
         <Link size={12} strokeWidth={1.5} />
       </button>
       <button
@@ -1794,22 +1787,33 @@ export default function EventView(): React.ReactElement {
   }, [editFm, editBody, editEntries, editSectionBodies, editChrDesc, editContent, isDirty, selectedEvent, performSave])
 
   // ── Keyboard shortcuts ────────────────────────────────────────────────────
+  // Atalhos do texto (campo principal e trechos de chronicle): salvar, negrito,
+  // itálico, Tab e Enter continuando listas. As edições entram no Ctrl/Cmd+Z.
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    const ta = e.currentTarget
+    const mod = e.ctrlKey || e.metaKey
+    const key = e.key.toLowerCase()
+    if (mod && key === 's') {
       e.preventDefault()
       if (autoSaveTimerRef.current) { clearTimeout(autoSaveTimerRef.current); autoSaveTimerRef.current = null }
       performSave()
+      return
     }
-    if (e.key === 'Tab') {
+    if (mod && !e.shiftKey && !e.altKey && (key === 'b' || key === 'i')) {
       e.preventDefault()
-      const ta = e.currentTarget
-      const s = ta.selectionStart
-      const v = ta.value
-      const newVal = v.slice(0, s) + '  ' + v.slice(ta.selectionEnd)
-      activeBodyChange(newVal)
-      requestAnimationFrame(() => { ta.selectionStart = ta.selectionEnd = s + 2 })
+      applyTextEdit(ta, toggleInline(ta.value, ta.selectionStart, ta.selectionEnd, key === 'b' ? '**' : '*', t('md_link_ph')), activeBodyChange)
+      return
     }
-  }, [performSave, activeBodyChange])
+    if (e.key === 'Tab' && !mod && !e.shiftKey) {
+      e.preventDefault()
+      applyTextEdit(ta, { value: ta.value.slice(0, ta.selectionStart) + '  ' + ta.value.slice(ta.selectionEnd), selStart: ta.selectionStart + 2, selEnd: ta.selectionStart + 2 }, activeBodyChange)
+      return
+    }
+    if (e.key === 'Enter' && !mod && !e.shiftKey && !e.altKey && !e.nativeEvent.isComposing) {
+      const r = continueList(ta.value, ta.selectionStart, ta.selectionEnd)
+      if (r) { e.preventDefault(); applyTextEdit(ta, r, activeBodyChange) }
+    }
+  }, [performSave, activeBodyChange, t])
 
   // ── Image insertion ───────────────────────────────────────────────────────
   /**
@@ -2218,6 +2222,7 @@ export default function EventView(): React.ReactElement {
                   onBodyPaste={handlePaste}
                   onBodyDrop={handleDrop}
                   onBodyDragOver={handleDragOver}
+                  onBodyKeyDown={handleKeyDown}
                 />
               ) : (
                 <div className={wideLayout ? 'max-w-5xl mx-auto px-8 pt-2 pb-20' : 'max-w-2xl mx-auto px-12 pt-2 pb-20'}>
