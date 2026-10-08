@@ -84,6 +84,12 @@
     --minimap-window:    rgb(26 26 24 / 0.05);
     --minimap-window-border: rgb(26 26 24 / 0.35);
 
+    /* ── Mapa ── */
+    --map-ocean:         255 255 255;
+    --map-land:          245 244 240;
+    --map-border:        214 211 203;
+    --map-grid:          226 224 217;
+
     /* ── Acento funcional (uso minimo) ── */
     --accent:            26 26 24;      /* selecao ativa */
     --accent-fg:         249 249 247;   /* texto sobre acento */
@@ -115,22 +121,23 @@
 
   /* ── Modo Escuro ── */
   .dark {
-    --bg-vault:          15 15 13;      /* #0F0F0D */
-    --bg-surface:        23 23 20;      /* #171714 */
-    --bg-sidebar:        23 23 20;      /* igual à surface: escuro inalterado */
-    --bg-subtle:         30 30 26;      /* #1E1E1A */
-    --bg-hover:          38 38 33;      /* #262621 */
-    --bg-active:         46 46 40;      /* #2E2E28 */
+    /* Cinzas neutros: menu um tom abaixo do conteúdo (como no claro, onde o menu é cinza e o conteúdo branco) */
+    --bg-vault:          31 31 31;      /* #1F1F1F — área de conteúdo */
+    --bg-surface:        31 31 31;      /* #1F1F1F — cards, painéis e cabeçalhos (destacados pela borda, como no claro) */
+    --bg-sidebar:        26 26 26;      /* #1A1A1A — menu lateral */
+    --bg-subtle:         38 38 38;      /* #262626 — áreas secundárias */
+    --bg-hover:          44 44 44;      /* #2C2C2C — hover (visível no menu e no conteúdo) */
+    --bg-active:         51 51 51;      /* #333333 — selecionado */
 
-    --text-primary:      240 238 232;   /* #F0EEE8 */
-    --text-secondary:    160 158 150;   /* #A09E96 */
-    --text-muted:        138 136 128;   /* #888680 — datas, rótulos: 5.4:1 no fundo, 5.1:1 nos painéis (como no claro) */
-    --text-disabled:     90 88 82;      /* #5A5852 — desabilitado (antes quase invisível: 1.9:1) */
+    --text-primary:      240 238 232;   /* #F0EEE8 — 14:1 no conteúdo */
+    --text-secondary:    176 174 166;   /* #B0AEA6 — 7.4:1 no conteúdo */
+    --text-muted:        150 148 140;   /* #96948C — datas, rótulos: 5.4:1 no conteúdo, 4.6:1 no hover */
+    --text-disabled:     100 98 92;     /* #64625C — desabilitado */
     --text-inverse:      10 10 8;       /* #0A0A08 */
 
     --border-strong:     226 224 218;   /* #E2E0DA */
-    --border-default:    42 42 38;      /* #2A2A26 */
-    --border-subtle:     34 34 30;      /* #22221E */
+    --border-default:    49 49 49;      /* #313131 — bordas e divisória do menu */
+    --border-subtle:     42 42 42;      /* #2A2A2A — divisórias sutis */
     --border-focus:      226 224 218;
 
     --timeline-line:     226 224 218;
@@ -141,26 +148,33 @@
     --chronicle-dot:     200 160 80;    /* âmbar claro no modo escuro */
     --chronicle-text:    200 160 80;
 
-    --axis-line:         rgb(63 63 70 / 0.4);
-    --axis-tick:         rgb(63 63 70);
-    --axis-label:        rgb(161 161 170);
+    --axis-line:         rgb(78 78 78 / 0.5);
+    --axis-tick:         rgb(78 78 78);
+    --axis-label:        rgb(176 174 166);   /* = text-secondary */
     --axis-century:      rgb(245 158 11);
     --axis-century-tick: rgba(245, 158, 11, 0.75);
     --axis-century-glow: 0 0 8px rgba(245, 158, 11, 0.25);
     --axis-month:        rgba(245, 158, 11, 0.7);
-    --axis-jan-bg:       #060606;
+    --axis-jan-bg:       rgb(31 31 31);   /* = fundo do conteúdo */
+    /* Minimapa em cinza neutro, como os fundos (antes azulado) */
     --minimap-center:    rgba(255, 255, 255, 0.04);
-    --minimap-mark:      rgba(160, 160, 185, 0.6);
+    --minimap-mark:      rgba(176, 174, 166, 0.6);
     --minimap-cluster:   rgba(220, 150, 70, 0.8);
-    --minimap-window:    rgba(110, 110, 190, 0.08);
-    --minimap-window-border: rgba(140, 140, 220, 0.45);
+    --minimap-window:    rgba(255, 255, 255, 0.05);
+    --minimap-window-border: rgba(226, 224, 218, 0.35);
 
     --accent:            226 224 218;
     --accent-fg:         10 10 8;
 
+    /* Mapa: oceano abaixo do conteúdo e continentes claros o bastante para se destacarem */
+    --map-ocean:         24 24 24;
+    --map-land:          48 48 48;
+    --map-border:        78 78 78;
+    --map-grid:          40 40 40;
+
     --shadow-card:       2px 2px 0px rgb(0 0 0 / 0.4);
     --shadow-card-hover: 3px 3px 0px rgb(0 0 0 / 0.6);
-    --shadow-panel:      -1px 0px 0px rgb(42 42 38);
+    --shadow-panel:      -1px 0px 0px rgb(49 49 49);
   }
 
   /* ── Reset base ── */

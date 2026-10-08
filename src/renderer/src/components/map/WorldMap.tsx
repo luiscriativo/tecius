@@ -150,10 +150,10 @@ const MAX_K = 400
 const FOCUS_MAX_K = 8
 
 const css = {
-  ocean: 'rgb(var(--bg-vault))',
-  land: 'rgb(var(--bg-subtle))',
-  border: 'rgb(var(--border-default))',
-  grid: 'rgb(var(--border-subtle))',
+  ocean: 'rgb(var(--map-ocean))',
+  land: 'rgb(var(--map-land))',
+  border: 'rgb(var(--map-border))',
+  grid: 'rgb(var(--map-grid))',
   accent: 'rgb(var(--chronicle-dot))',
   dot: 'rgb(var(--event-dot))',
   surface: 'rgb(var(--bg-surface))',
