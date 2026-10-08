@@ -1,6 +1,6 @@
 {
   "name": "tecius",
-  "version": "1.4.2",
+  "version": "1.5.0",
   "description": "Tecius — Sistema pessoal de timelines visuais",
   "license": "GPL-3.0-or-later",
   "main": "./out/main/index.js",
