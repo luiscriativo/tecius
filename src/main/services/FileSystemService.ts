@@ -6,6 +6,7 @@
  */
 
 import path from 'path'
+import { tm } from '../i18n'
 import fs from 'fs'
 import matter from 'gray-matter'
 
@@ -24,6 +25,20 @@ export interface RawEvent {
     totalEntries: number
     anchor?: string
   }
+}
+
+/** Um evento como entra na busca global do vault */
+export interface SearchDoc {
+  filePath: string
+  slug: string
+  title: string
+  date: string
+  category: string
+  tags: string[]
+  /** Texto do corpo (só no 1º trecho de um chronicle, para não repetir) */
+  body: string
+  timelineDir: string
+  timelineTitle: string
 }
 
 export interface RawTimeline {
@@ -66,6 +81,8 @@ export interface AssetInfo {
   relativePath: string  // always "_assets/filename"
   size: number
   isOrphaned: boolean
+  /** Quantos .md da pasta referenciam a imagem */
+  usedBy: number
 }
 
 /**
@@ -141,11 +158,11 @@ export class FileSystemService {
    * Valida que um caminho esta dentro do vault (seguranca anti path-traversal).
    */
   assertWithinVault(filePath: string): void {
-    if (!this.vaultPath) throw new Error('Vault nao configurado')
+    if (!this.vaultPath) throw new Error(tm('err_no_vault'))
     const resolved = path.resolve(filePath)
     const vault = path.resolve(this.vaultPath)
     if (!resolved.startsWith(vault + path.sep) && resolved !== vault) {
-      throw new Error('Acesso negado: caminho fora do vault')
+      throw new Error(tm('err_outside_vault'))
     }
   }
 
@@ -185,16 +202,23 @@ export class FileSystemService {
   /**
    * Conta eventos (.md exceto _timeline.md) recursivamente numa pasta.
    */
-  countEvents(dirPath: string): number {
+  /**
+   * Conta eventos como a timeline os mostra: um chronicle conta um por trecho.
+   * `recursive`: inclui sub-timelines (total do vault, itens da lixeira); sem ele,
+   * só os eventos da própria timeline — o mesmo número que aparece ao abri-la.
+   */
+  countEvents(dirPath: string, recursive = true): number {
     if (!fs.existsSync(dirPath)) return 0
     let count = 0
     try {
       const entries = fs.readdirSync(dirPath, { withFileTypes: true })
       for (const entry of entries) {
+        const full = path.join(dirPath, entry.name)
+        // Mesma regra de readTimeline: .md da própria pasta, exceto _timeline.md
         if (entry.isFile() && entry.name.endsWith('.md') && entry.name !== '_timeline.md') {
-          count++
-        } else if (entry.isDirectory()) {
-          count += this.countEvents(path.join(dirPath, entry.name))
+          count += this.eventsInFile(full)
+        } else if (recursive && entry.isDirectory() && this.isTimeline(full)) {
+          count += this.countEvents(full, true)
         }
       }
     } catch {
@@ -203,11 +227,23 @@ export class FileSystemService {
     return count
   }
 
+  /** Quantos eventos um .md gera: trechos de um chronicle, ou 1 */
+  private eventsInFile(filePath: string): number {
+    try {
+      const { data } = parseMatter(fs.readFileSync(filePath, 'utf-8'))
+      if (String(data.type ?? '') === 'chronicle') {
+        const list = Array.isArray(data.entries) ? data.entries : Array.isArray(data.events) ? data.events : []
+        return Math.max(list.length, 1)
+      }
+    } catch { /* arquivo ilegível: conta como 1 */ }
+    return 1
+  }
+
   /**
    * Le o vault completo: retorna arvore de timelines de nivel 1.
    */
   readVault(): RawVault {
-    if (!this.vaultPath) throw new Error('Vault nao configurado')
+    if (!this.vaultPath) throw new Error(tm('err_no_vault'))
     const vaultPath = this.vaultPath
 
     const timelineDirs = this.listTimelineDirs(vaultPath)
@@ -217,15 +253,17 @@ export class FileSystemService {
       const title = meta.title ? String(meta.title) : path.basename(dirPath)
       const icon = meta.icon ? String(meta.icon) : undefined
       const relativePath = path.relative(vaultPath, dirPath)
-      const eventCount = this.countEvents(dirPath)
+      const eventCount = this.countEvents(dirPath, false)
 
       return { title, dirPath, relativePath, icon, eventCount }
     })
 
-    const totalEvents = timelines.reduce((sum, t) => sum + t.eventCount, 0)
+    // Total do vault inclui as sub-timelines
+    const totalEvents = timelineDirs.reduce((sum, dir) => sum + this.countEvents(dir), 0)
 
     // Tenta ler titulo do vault de um eventual _vault.md na raiz
-    let vaultTitle = 'Meu Vault'
+    // Sem _vault.md com título: o nome da pasta (como descrito no guia)
+    let vaultTitle = path.basename(vaultPath)
     const vaultMetaPath = path.join(vaultPath, '_vault.md')
     if (fs.existsSync(vaultMetaPath)) {
       try {
@@ -252,10 +290,48 @@ export class FileSystemService {
   }
 
   /**
+   * Todos os eventos do vault (timelines e sub-timelines) para a busca global.
+   */
+  buildSearchIndex(): SearchDoc[] {
+    if (!this.vaultPath) throw new Error(tm('err_no_vault'))
+    const docs: SearchDoc[] = []
+    const visit = (dir: string, depth: number): void => {
+      if (depth > 12) return
+      const tl = this.readTimeline(dir)
+      const timelineTitle = tl.meta.title ? String(tl.meta.title) : path.basename(dir)
+      const bodies = new Map<string, string>()
+      for (const ev of tl.events) {
+        const fm = ev.frontmatter
+        let body = ''
+        if (!ev.chronicle || ev.chronicle.entryIndex === 0) {
+          if (!bodies.has(ev.filePath)) {
+            try { bodies.set(ev.filePath, parseMatter(fs.readFileSync(ev.filePath, 'utf-8')).content) } catch { bodies.set(ev.filePath, '') }
+          }
+          body = (bodies.get(ev.filePath) ?? '').slice(0, 8000)
+        }
+        docs.push({
+          filePath: ev.filePath,
+          slug: ev.slug,
+          title: String(fm.title ?? ev.slug),
+          date: fm.date !== undefined && fm.date !== null ? String(fm.date) : '',
+          category: fm.category ? String(fm.category) : '',
+          tags: Array.isArray(fm.tags) ? fm.tags.map(String) : [],
+          body,
+          timelineDir: dir,
+          timelineTitle,
+        })
+      }
+      for (const sub of tl.subtimelines) visit(sub.dirPath, depth + 1)
+    }
+    for (const dir of this.listTimelineDirs(this.vaultPath)) visit(dir, 0)
+    return docs
+  }
+
+  /**
    * Le uma timeline: parseia todos os .md de uma pasta, retorna eventos ordenados.
    */
   readTimeline(timelinePath: string): RawTimeline {
-    if (!this.vaultPath) throw new Error('Vault nao configurado')
+    if (!this.vaultPath) throw new Error(tm('err_no_vault'))
     const vaultPath = this.vaultPath
 
     const meta = this.readTimelineMeta(timelinePath)
@@ -311,13 +387,15 @@ export class FileSystemService {
               slug: `${slug}__chr${i}`,
               frontmatter: {
                 type: 'event',
-                title: String(entry.title ?? entry.label ?? `Evento ${i + 1}`),
+                title: String(entry.title ?? entry.label ?? tm('default_entry_title', { n: i + 1 })),
                 date: dateStr,
                 category: entry.category ?? sanitized.category,
                 importance: entry.importance ?? sanitized.importance ?? 3,
                 tags: Array.isArray(entry.tags) ? entry.tags
                   : Array.isArray(sanitized.tags) ? sanitized.tags
                   : undefined,
+                // Local do trecho; sem local próprio, herda o do evento
+                location: entry.location ?? sanitized.location,
               },
               hasSubtimeline: false,
               subtimelinePath: undefined,
@@ -364,7 +442,7 @@ export class FileSystemService {
       const title = subMeta.title ? String(subMeta.title) : path.basename(dirPath)
       const icon = subMeta.icon ? String(subMeta.icon) : undefined
       const subRelativePath = path.relative(vaultPath, dirPath)
-      const eventCount = this.countEvents(dirPath)
+      const eventCount = this.countEvents(dirPath, false)
       return { title, dirPath, relativePath: subRelativePath, icon, eventCount }
     })
 
@@ -413,8 +491,10 @@ export class FileSystemService {
     const assetsDir = path.join(dir, '_assets')
     if (!fs.existsSync(assetsDir)) fs.mkdirSync(assetsDir, { recursive: true })
     const ext = path.extname(filename) || '.png'
-    const base = path.basename(filename, ext)
-    const uniqueName = `${base}-${Date.now()}${ext}`
+    // Sem caracteres inválidos em nome de arquivo; mantém o nome original se estiver livre
+    // eslint-disable-next-line no-control-regex -- remove caracteres de controle
+    const base = path.basename(filename, ext).replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').trim() || 'image'
+    const uniqueName = fs.existsSync(path.join(assetsDir, `${base}${ext}`)) ? `${base}-${Date.now()}${ext}` : `${base}${ext}`
     const destPath = path.join(assetsDir, uniqueName)
     fs.writeFileSync(destPath, buffer)
     return { relativePath: `_assets/${uniqueName}`, absolutePath: destPath }
@@ -507,7 +587,8 @@ export class FileSystemService {
         `_assets\\${entry.name}`,
         `[[${entry.name}`,
       ]
-      const isOrphaned = !mdContents.some((c) => refs.some((r) => c.includes(r)))
+      const usedBy = mdContents.filter((c) => refs.some((r) => c.includes(r))).length
+      const isOrphaned = usedBy === 0
       results.push({
         filePath,
         filename: entry.name,
@@ -516,6 +597,7 @@ export class FileSystemService {
         relativePath,
         size,
         isOrphaned,
+        usedBy,
       })
     }
   }
@@ -539,8 +621,9 @@ export class FileSystemService {
     const dir = path.dirname(filePath)
 
     // Sanitiza: remove caracteres inválidos em nomes de arquivo
+    // eslint-disable-next-line no-control-regex -- remove caracteres de controle, inválidos em nomes de arquivo
     let sanitized = newName.trim().replace(/[<>:"/\\|?*\x00-\x1f]/g, '_')
-    if (!sanitized) throw new Error('Nome inválido')
+    if (!sanitized) throw new Error(tm('err_invalid_name'))
 
     // Preserva extensão original se o usuário não incluir nenhuma
     const origExt = path.extname(filePath)
@@ -664,7 +747,7 @@ export class FileSystemService {
 
     if (isEventItem && originalPath) {
       if (!isValidDest(originalPath)) {
-        throw new Error('A pasta original deste evento não existe mais. Restaure primeiro a timeline de origem.')
+        throw new Error(tm('err_original_folder_missing'))
       }
       // Find the .md file inside the wrapper folder
       let mdFile: string | null = null
@@ -776,7 +859,7 @@ export class FileSystemService {
    * Renomeia o vault: escreve/atualiza o titulo em _vault.md na raiz.
    */
   renameVault(newTitle: string): void {
-    if (!this.vaultPath) throw new Error('Vault não configurado')
+    if (!this.vaultPath) throw new Error(tm('err_no_vault'))
     const metaPath = path.join(this.vaultPath, '_vault.md')
     if (!fs.existsSync(metaPath)) {
       fs.writeFileSync(metaPath, `---\ntitle: ${yamlScalar(newTitle)}\n---\n`, 'utf-8')
@@ -817,8 +900,9 @@ export class FileSystemService {
     }
 
     // Usa a data fornecida pelo usuário; cai para hoje se não informada ou inválida.
-    // Aceita os mesmos formatos que parseChroniclerDate: "1789", "1789-07", "1789-07-14"
-    const dateStr = date && /^\d{1,4}(-\d{2}(-\d{2})?)?$/.test(date.trim())
+    // Aceita os mesmos formatos que parseChroniclerDate: "1789", "1789-07", "1789-07-14",
+    // antes de Cristo ("-500", "-44-03-15") e tempo profundo ("12 ka", "66 Ma", "1.2 Ga")
+    const dateStr = date && /^(-?\d{1,9}(-\d{2}(-\d{2})?)?|\d+(\.\d+)?\s(ka|Ma|Ga))$/.test(date.trim())
       ? date.trim()
       : (() => {
           const today = new Date()
@@ -869,17 +953,18 @@ export class FileSystemService {
     this.assertWithinVault(eventFilePath)
     const dir = path.dirname(eventFilePath)
 
-    let sanitized = newFilename.trim()
+    const sanitized = newFilename.trim()
+      // eslint-disable-next-line no-control-regex -- remove caracteres de controle, inválidos em nomes de arquivo
       .replace(/[<>:"/\\|?*\x00-\x1f]/g, '_')
       .replace(/\.md$/i, '')
-    if (!sanitized) throw new Error('Nome inválido')
+    if (!sanitized) throw new Error(tm('err_invalid_name'))
 
     const newFilePath = path.join(dir, `${sanitized}.md`)
     if (newFilePath === eventFilePath) {
       return { newFilePath: eventFilePath, newSlug: sanitized }
     }
     if (fs.existsSync(newFilePath)) {
-      throw new Error(`Já existe um evento com o nome "${sanitized}.md"`)
+      throw new Error(tm('err_event_exists', { name: `${sanitized}.md` }))
     }
     fs.renameSync(eventFilePath, newFilePath)
     return { newFilePath, newSlug: sanitized }

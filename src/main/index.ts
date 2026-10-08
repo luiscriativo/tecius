@@ -299,7 +299,7 @@ function setupAutoUpdater(): void {
   ipcMain.handle('update:check', async () => {
     try {
       return await autoUpdater.checkForUpdates()
-    } catch (err) {
+    } catch {
       return null
     }
   })

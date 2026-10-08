@@ -16,10 +16,11 @@
 8. [Categories & Importance](#8-categories--importance)
 9. [Assets](#9-assets)
 10. [Trash](#10-trash)
-11. [PDF Export](#11-pdf-export)
-12. [Settings](#12-settings)
-13. [Keyboard Shortcuts](#13-keyboard-shortcuts)
-14. [Frontmatter Reference](#14-frontmatter-reference)
+11. [Export](#11-export)
+12. [Search](#12-search)
+13. [Settings](#13-settings)
+14. [Keyboard Shortcuts](#14-keyboard-shortcuts)
+15. [Frontmatter Reference](#15-frontmatter-reference)
 
 ---
 
@@ -142,11 +143,13 @@ the most remarkable buildings in South America.
 | `category` | string | No | See [Categories](#8-categories--importance) |
 | `importance` | 1–5 | No | Visual weight on the canvas (default: 3) |
 | `tags` | string[] | No | Free-form tags |
-| `cover-image` | string | No | Relative path to an image shown in the event panel |
-| `has-subtimeline` | boolean | No | Marks this event as having a sub-timeline |
-| `subtimeline-path` | string | No | Relative path to the sub-timeline folder |
-| `links` | array | No | Internal links to other events |
-| `references` | array | No | External reference URLs |
+| `cover-image` | string | No | Relative path to an image shown at the top of the event page |
+| `has-subtimeline` | boolean | No | Reserved — sub-timelines are detected automatically (see [Sub-timelines](#6-sub-timelines)) |
+| `subtimeline-path` | string | No | Reserved — see above |
+| `links` | array | No | Internal links to other events, shown at the bottom of the event page (click to open) |
+| `references` | array | No | External reference URLs, shown at the bottom of the event page (open in the browser) |
+
+An event without a `date`, or with a date Tecius cannot read, is not placed on the axis (it would distort the scale). It appears in a **No date** group at the end of the list, and a notice above the timeline and the map names it so you can open it and fix the date.
 
 ### Date formats
 
@@ -158,8 +161,37 @@ Tecius does **not** use JavaScript's `Date` object internally, so historical dat
 | Year + month | `1789-07` | month |
 | Full date | `1789-07-14` | day |
 | Full date + time | `1789-07-14` + `time: "10:30"` | hour |
+| Before Christ | `-500`, `-44-03-15`, `500 a.C.`, `44 BC` | year / day |
+| Thousands of years ago | `12 ka` | year |
+| Millions / billions of years ago | `66 Ma`, `1.2 Ga` | year |
 
 Use `circa: true` to display the date with a `~` prefix indicating approximation.
+
+### Location
+
+Events (and each part of a multi-part event) can record where they happened. Coordinates are always **present-day** positions; the map can reconstruct their position in geological eras (see the Map view).
+
+```yaml
+location:
+  name: "Porto Seguro, Bahia, Brasil"
+  lat: -16.43
+  lng: -39.08
+  precision: city        # point | city | region | country | approx
+  area: BR-BA            # optional — country (ISO3, e.g. BRA) or state (ISO 3166-2) to highlight
+  radius_km: 25          # optional
+```
+
+In a multi-part event, a part without its own `location` inherits the event's. Use the **Map** view (third button next to the timeline/list toggle) to watch your events on a world map through time:
+
+- **Time ruler** — drag the ruler at the bottom (or use ← / → and Home / End) to move through time. The ruler is compressed: long empty stretches (e.g. from Pangaea to 1500) take little space and are marked with `//`, while close dates stay apart. Releasing near a date snaps to it.
+- **Window** — the cursor selects a calendar period (*Automatic*, Day, Month, Year, Decade, Century, Millennium). Every event overlapping it is highlighted, so two events in the same month appear together. *Automatic* uses month for dated events and year otherwise. Events with `date-end` stay visible for their whole duration.
+- **Play** (▶ or the space bar on the ruler) walks through the dates one by one at the chosen speed; in deep time it waits for the era's map to be ready.
+- **Present** (the screen button next to Play) turns the map into a guided narrative: full screen, with a side panel showing the date, title, place and text of the events of each moment, advancing slowly through every dated event (also the ones without a location). Space pauses, ← → move, Esc exits.
+- The map remembers where you left the ruler (when switching views or opening an event). If you select another event in the timeline or list, the map opens on that event's date, with it highlighted. Going the other way, switching from the map to the horizontal timeline zooms and scrolls the timeline to the moment the ruler was on (in timelines that span deep time, the linear timeline can only zoom so far); switching to the list opens the right group, scrolls to the first event of that moment and briefly highlights it.
+- **Borders** — in human history (from 123,000 BC to 2010), the map shows the political borders in force at the cursor's moment, taken from the latest available snapshot (e.g. in 1510, the 1500 map), with territory names (in Portuguese when the app is in Portuguese) and a cross-fade between eras. Dashed borders are approximate. Data: [historical-basemaps](https://github.com/aourednik/historical-basemaps) (GPL-3.0); borders are simplified for a world-scale map and should be checked against other sources for academic use.
+- **Trail** shows past events faded (fainter the further back); **Follow** smoothly frames the events of the moment; **All** turns the time filter off.
+- **Many events in one place** — points closer than a few pixels merge into a numbered circle. Clicking a group opens a side list (like a cluster on the timeline) in chronological order, with a filter by title, date or place; it scrolls smoothly even with thousands of items — e.g. every event marked only as a country (Esc closes it). Zoom in to separate points that are close but not in the same place. Events with an area (`area` or a radius) that share the same country, state or circle are drawn as one shape, shaded darker the more events it holds.
+- **Deep time** — with *Paleogeographic maps* enabled in Settings, moving the cursor into deep time swaps the map (with a cross-fade) for the coastlines of that era and shows reconstructed event positions, plus a badge with the age, geological period and supercontinent (e.g. *~300 Ma · Carboniferous · Pangaea*). The eras of your events are prepared in the background (GPlates; the first time can take a few minutes per era, then it is cached and works offline). Between two eras the map shows the closest one already prepared. Ages under 1 Ma use the present-day map; beyond 1000 Ma (the plate model's range) positions are present-day.
 
 ### Internal links
 
@@ -185,7 +217,7 @@ references:
 
 ## 5. Chronicles
 
-A chronicle is a single `.md` file that generates **multiple events** on the timeline. It is useful when you want to group related milestones in one document — a biography, a project log, a series of discoveries.
+A chronicle is a single `.md` file that generates **multiple events** on the timeline. You can write it by hand, or create it in the editor with **Add section** (an event with two or more sections is saved as a chronicle). It is useful when you want to group related milestones in one document — a biography, a project log, a series of discoveries.
 
 ### Chronicle file
 
@@ -249,6 +281,8 @@ Prices collapsed, the Teatro Amazonas closed, and Manaus entered
 decades of decline.
 ```
 
+> When Tecius saves a chronicle it writes the entries under `entries:` with a `title:` for each one. The `events:` list with `label:` shown above is still accepted when reading.
+
 ### How anchors work
 
 Each entry in `events` can have an `anchor` key. The corresponding paragraph in the body should end with `^anchor-name`. When the user opens a chronicle event in the panel, Tecius scrolls to and highlights the matching paragraph.
@@ -272,7 +306,7 @@ Any timeline folder can contain subfolders that are themselves timelines. Sub-ti
 
 ### Navigation
 
-When inside a timeline, sub-timelines appear in the event list and on the canvas. Click on a sub-timeline card to navigate into it. The breadcrumb bar at the top of the view shows your current depth and lets you jump back to any ancestor level.
+When a timeline has sub-timelines, they appear as buttons in a bar below the timeline header (in every view), with their event count — click one to open it. If an event's file has the same name as a sub-timeline folder (e.g. `monuments.md` next to `monuments/`), the event page also shows a **View sub-timeline** button. The breadcrumb bar at the top of the view shows your current depth and lets you jump back to any ancestor level.
 
 ### Creating a sub-timeline
 
@@ -299,8 +333,10 @@ The canvas renders events on a horizontal temporal axis. Features:
 - **Zoom** — Ctrl+scroll or the `−` / `+` buttons in the footer
 - **Reset zoom** — click the zoom percentage indicator
 - **Pan** — click and drag, or use the scrollbar
-- **Event dots** — size reflects the importance value; click to open the event panel
+- **Event dots** — size reflects the importance value; click to open the event page
 - **Cluster dots** — when multiple events overlap at the current zoom level, they merge into a cluster dot; click to expand
+- **Scale** — **Linear** (proportional to time) or **Compressed** (switch in the footer). The compressed scale gives each gap between dates with events a length based on the logarithm of its duration, like the map ruler: a timeline that goes from Pangaea to 1960 fits the screen, very long gaps are marked with `//`, and you can still zoom down to days. By default the scale is chosen automatically (compressed when the timeline spans more than 5,000 years); your choice is remembered.
+- **Compare with…** — overlay another timeline (or a sub-timeline) on the same axis, in a second lane, to compare periods. Clicking one of its events opens it inside its own timeline (and the comparison flips to the timeline you came from).
 
 ### List view
 
@@ -347,7 +383,7 @@ Importance ranges from `1` (minimal visual weight) to `5` (maximum). It affects:
 
 ## 9. Assets
 
-Each timeline can have an `_assets/` subfolder for images, PDFs, and other files. Assets stored there can be referenced in event front matter or bodies using relative paths:
+Images live in an `_assets/` folder next to the events that use them, and are referenced with relative paths:
 
 ```yaml
 cover-image: ./_assets/portrait.jpg
@@ -357,7 +393,11 @@ cover-image: ./_assets/portrait.jpg
 ![Battle map](_assets/battle-map.png)
 ```
 
-The Asset Manager panel (accessible from the timeline header) lists all assets in the current timeline and allows uploading new files.
+To add an image while editing an event, use the image button of the editor toolbar, paste it (Ctrl+V) or **drag it from your computer into the text** — Tecius copies it into `_assets/` (keeping its file name when free) and inserts the link.
+
+On the **Images** page you can also add images: choose the destination folder in the header and click **Add images**, or drag image files anywhere onto the page.
+
+The **Images** page (sidebar) lists every image in the vault, grouped by folder or as a paged grid. It shows which images are **orphans** (no `.md` in the same folder references them), lets you copy the Markdown link, rename an image and delete images — deleting is permanent, and Tecius warns you when the image is still used by events.
 
 ---
 
@@ -379,40 +419,53 @@ Select an event and click **Delete permanently**. This removes the file from dis
 
 ---
 
-## 11. PDF Export
+## 11. Export
 
-Any timeline can be exported as a PDF:
+**A whole timeline** — click **Export** in the timeline header and choose:
 
-1. Open the timeline
-2. Click the export button in the timeline header
-3. Choose the output file location
-4. Tecius generates a print-ready PDF with all events and their content
+- **PDF** — a print-ready document with a cover (title, description, period, number of events), a table of contents and one chapter per event (date, place, category, tags and text; a chronicle becomes one chapter listing its entries).
+- **Web page (.html)** — the same document as a single self-contained file (images embedded, follows the reader's light/dark preference), easy to share or publish.
+
+**A single event** — open it and click **Export PDF** at the bottom of the page; choose page size, orientation, margins, scale and whether to include tags.
 
 ---
 
-## 12. Settings
+## 12. Search
 
-Accessible via the sidebar. Available options:
+Press `Ctrl` + `K` (`⌘K` on macOS) or click **Search** in the sidebar to search the whole vault — every timeline and sub-timeline. It matches titles, text, tags, categories and timeline names, ignores accents and finds words by their beginning as you type. Titles that match come first; each result shows the date, the timeline and a snippet of the text. Use ↑ ↓ and Enter to open an event.
+
+---
+
+## 13. Settings
+
+Accessible via the sidebar. Every option applies immediately and is saved automatically.
 
 | Setting | Description |
 |---|---|
-| **Language** | Switch between Portuguese (PT) and English (EN) |
-| **Theme** | Light or Dark mode |
+| **Appearance** | Light, Dark or System theme |
+| **Language** | Portuguese or English — interface, dates, native dialogs and historical border names |
+| **Online address search** | Searches addresses on OpenStreetMap when picking an event location (off by default) |
+| **Paleogeographic maps** | Shows the continents of geological eras on the Map view (GPlates, off by default) |
 
 ---
 
-## 13. Keyboard Shortcuts
+## 14. Keyboard Shortcuts
 
 | Shortcut | Action |
 |---|---|
 | `Ctrl` + `Scroll` | Zoom in / out on the canvas |
-| `←` `→` | Navigate slides on the onboarding carousel |
+| `←` `→` | Previous / next event on the event page; previous / next date on the map ruler; slides on the onboarding carousel |
+| `Home` `End` | First / last date on the map ruler |
+| `Space` | Play / pause on the map ruler and in the presentation |
+| `Ctrl` + `K` | Search the whole vault |
+| `Ctrl` + `F` | Search the event content |
+| `Ctrl` + `S` | Save the event while editing |
 | `Enter` | Confirm inline rename |
-| `Escape` | Cancel inline rename |
+| `Escape` | Cancel inline rename; close panels, popovers and search |
 
 ---
 
-## 14. Frontmatter Reference
+## 15. Frontmatter Reference
 
 ### `_vault.md`
 

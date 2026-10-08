@@ -1,6 +1,6 @@
-import { useEffect, useState, useRef, useMemo } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Plus, X, Filter, Search, ChevronDown, ChevronRight, Pencil, Trash2, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, Plus, X, Filter, ChevronRight, Pencil, Trash2, AlertTriangle, GitBranch, Download } from 'lucide-react'
 import { BreadcrumbBar, TimelineCanvas, TimelineList, ViewToggle } from '../components/timeline'
 import { useTimeline } from '../hooks/useTimeline'
 import { useVault } from '../hooks/useVault'
@@ -8,8 +8,16 @@ import { useNavigationStore } from '../stores/useNavigationStore'
 import { useI18n } from '../hooks/useI18n'
 import { cn } from '../utils/cn'
 import { DateInput } from '../components/DateInput'
-import type { ChroniclerEvent, TimelineData } from '../types/chronicler'
+import type { ChroniclerEvent } from '../types/chronicler'
 import { isMultiPart } from '../utils/events'
+import { MapView } from '../components/map/MapView'
+import { useTimelineStore } from '../stores/useTimelineStore'
+import { useVaultStore } from '../stores/useVaultStore'
+import { toTimelineData } from '../hooks/useTimeline'
+import type { TimelineData } from '../types/chronicler'
+import type { RawTimeline } from '../types/ipc'
+import { useNotifications } from '../hooks/useNotifications'
+import { buildTimelineExportHtml } from '../utils/exportTimeline'
 
 // ── NewEventModal ──────────────────────────────────────────────────────────────
 
@@ -45,7 +53,7 @@ function NewEventModal({ timelineDirPath: _timelineDirPath, onConfirm, onCancel,
     .replace(/[^a-z0-9\s]/g, '')
     .trim()
     .replace(/\s+/g, '-')
-    .replace(/-+/g, '-') || 'novo-evento'
+    .replace(/-+/g, '-') || t('default_event_slug')
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -165,6 +173,7 @@ interface ClusterPanelProps {
 }
 
 function ClusterPanel({ events, onEventClick, onContextMenu, onClose }: ClusterPanelProps) {
+  const { t } = useI18n()
   const allChronicle = events.every(isMultiPart)
   const hasChronicle  = events.some(isMultiPart)
 
@@ -174,7 +183,6 @@ function ClusterPanel({ events, onEventClick, onContextMenu, onClose }: ClusterP
   const lastDate  = sorted[sorted.length - 1]?.date.display ?? ''
   const sameDate  = firstDate === lastDate
   const dateLabel = sameDate ? firstDate : `${firstDate} – ${lastDate}`
-  const dateHint  = sameDate ? 'nesta data' : 'neste período'
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -190,16 +198,16 @@ function ClusterPanel({ events, onEventClick, onContextMenu, onClose }: ClusterP
         <div className="min-w-0">
           <p className="font-mono text-2xs text-chr-muted truncate">{dateLabel}</p>
           <p className="font-mono text-xs text-chr-secondary mt-0.5">
-            {events.length} evento{events.length !== 1 ? 's' : ''} {dateHint}
+            {t(sameDate ? (events.length === 1 ? 'cluster_date_one' : 'cluster_date_other') : (events.length === 1 ? 'cluster_period_one' : 'cluster_period_other'), { count: events.length })}
           </p>
           {hasChronicle && !allChronicle && (
-            <p className="font-mono text-2xs text-chr-muted mt-1 opacity-50">◆ chronicle · ● evento</p>
+            <p className="font-mono text-2xs text-chr-muted mt-1 opacity-50">{t('legend_chronicle_event')}</p>
           )}
         </div>
         <button
           onClick={onClose}
           className="shrink-0 text-chr-muted hover:text-chr-primary transition-colors mt-0.5"
-          aria-label="Fechar"
+          aria-label={t('close')}
         >
           <X size={13} strokeWidth={1.5} />
         </button>
@@ -240,350 +248,6 @@ function ClusterPanel({ events, onEventClick, onContextMenu, onClose }: ClusterP
             </div>
           </button>
         ))}
-      </div>
-    </div>
-  )
-}
-
-// ── FilesView helpers ──────────────────────────────────────────────────────────
-
-type FilesGroupBy    = 'auto' | 'year' | 'decade' | 'century' | 'category' | 'importance'
-type FilesGroupLevel = 'year' | 'decade' | 'century'
-type FileEntry       = { rep: ChroniclerEvent; count: number; slug: string }
-
-function fGroupLevel(span: number): FilesGroupLevel {
-  if (span <= 100) return 'year'
-  if (span <= 1000) return 'decade'
-  return 'century'
-}
-function fPeriodKey(year: number, level: FilesGroupLevel): number {
-  if (level === 'decade')  return Math.floor(year / 10) * 10
-  if (level === 'century') return Math.floor(year / 100) * 100
-  return year
-}
-function fPeriodLabel(key: number, level: FilesGroupLevel): string {
-  return level === 'year' ? String(key) : `${key}s`
-}
-
-// ── FileItemRow ────────────────────────────────────────────────────────────────
-
-interface FileItemRowProps {
-  entry: FileEntry
-  isChecked: boolean
-  onToggle: (filePath: string) => void
-}
-function FileItemRow({ entry: { rep: event, count: sectionCount, slug }, isChecked, onToggle }: FileItemRowProps) {
-  return (
-    <label
-      className={cn(
-        'flex items-center gap-3 px-3 py-2.5 rounded-sm cursor-pointer',
-        'border-l-2 transition-all duration-150',
-        isChecked ? 'bg-active border-chr-strong' : 'border-transparent hover:bg-hover hover:border-chr-subtle'
-      )}
-    >
-      <input type="checkbox" checked={isChecked} onChange={() => onToggle(event.filePath)} className="shrink-0 accent-[var(--color-chr)]" />
-      <span className="chr-date w-20 shrink-0 text-right">{event.date.displayShort}</span>
-      <div className={cn('w-1.5 h-1.5 rounded-full shrink-0 bg-timeline-dot transition-opacity', isChecked ? 'opacity-100' : 'opacity-40')} />
-      <span className={cn('flex-1 text-sm leading-snug truncate transition-colors', isChecked ? 'text-chr-primary font-medium' : 'text-chr-secondary')}>
-        {event.frontmatter.title}
-      </span>
-      {sectionCount > 1 && <span className="font-mono text-2xs text-chr-muted shrink-0">{sectionCount} seções</span>}
-      <span className="font-mono text-2xs text-chr-muted shrink-0 hidden md:block">{slug}.md</span>
-      {event.frontmatter.category && <span className="chr-badge hidden md:block">{event.frontmatter.category}</span>}
-    </label>
-  )
-}
-
-// ── FilesCollapsibleGroup ──────────────────────────────────────────────────────
-
-interface FilesCollapsibleGroupProps {
-  label: string
-  entries: FileEntry[]
-  pickedFiles: Set<string>
-  onToggle: (filePath: string) => void
-  defaultOpen: boolean
-}
-function FilesCollapsibleGroup({ label, entries, pickedFiles, onToggle, defaultOpen }: FilesCollapsibleGroupProps) {
-  const [open, setOpen] = useState(defaultOpen)
-  const { nEvents } = useI18n()
-
-  const byYear = useMemo(() => {
-    const map = new Map<number, FileEntry[]>()
-    for (const entry of entries) {
-      const y = entry.rep.date.year
-      if (!map.has(y)) map.set(y, [])
-      map.get(y)!.push(entry)
-    }
-    return Array.from(map.entries()).sort(([a], [b]) => a - b)
-  }, [entries])
-
-  return (
-    <div className="mb-1">
-      <button
-        onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center gap-2 px-2 py-2 rounded-sm text-left hover:bg-hover transition-colors"
-      >
-        <span className="text-chr-muted shrink-0">
-          {open ? <ChevronDown size={12} strokeWidth={2} /> : <ChevronRight size={12} strokeWidth={2} />}
-        </span>
-        <span className="font-mono text-xs font-medium text-chr-muted tracking-wider uppercase flex-1">{label}</span>
-        <span className="font-mono text-2xs text-chr-muted shrink-0">{nEvents(entries.length)}</span>
-      </button>
-      <div className="h-px bg-chr-subtle mx-2 mb-1" />
-      {open && (
-        <div className="ml-4 mb-6">
-          {byYear.map(([year, yearEntries]) => (
-            <div
-              key={year}
-              className="mb-4"
-              style={{ contentVisibility: 'auto', containIntrinsicSize: `0 auto ${28 + yearEntries.length * 44}px` } as React.CSSProperties}
-            >
-              <div className="flex items-center gap-2 mb-1">
-                <span className="font-mono text-2xs text-chr-muted">{year}</span>
-                <div className="flex-1 h-px bg-chr-subtle opacity-50" />
-              </div>
-              <div className="space-y-px ml-2">
-                {yearEntries.map(entry => (
-                  <FileItemRow key={entry.rep.filePath} entry={entry} isChecked={pickedFiles.has(entry.rep.filePath)} onToggle={onToggle} />
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── FilesView ──────────────────────────────────────────────────────────────────
-
-interface FilesViewProps {
-  timeline: TimelineData
-  pickedFiles: Set<string>
-  onToggle: (filePath: string) => void
-  onApply: () => void
-  onSelectAll: () => void
-  onClearAll: () => void
-}
-
-function FilesView({ timeline, pickedFiles, onToggle, onApply, onSelectAll, onClearAll }: FilesViewProps) {
-  const { t } = useI18n()
-  const [search,  setSearch]  = useState('')
-  const [groupBy, setGroupBy] = useState<FilesGroupBy>('auto')
-
-  const FILE_GROUP_OPTIONS: { value: FilesGroupBy; label: string }[] = [
-    { value: 'auto',       label: t('group_auto')      },
-    { value: 'year',       label: t('group_year')      },
-    { value: 'decade',     label: t('group_decade')    },
-    { value: 'century',    label: t('group_century')   },
-    { value: 'category',   label: t('group_category')  },
-    { value: 'importance', label: t('group_importance')},
-  ]
-
-  const IMPORTANCE_LABEL: Record<number, string> = {
-    5: t('importance_max'), 4: t('importance_high'), 3: t('importance_mid'),
-    2: t('importance_low'), 1: t('importance_min'),
-  }
-
-  // Dedup por filePath e pré-calcula slug — O(N) uma vez
-  const uniqueFiles = useMemo(() => {
-    const seen = new Map<string, FileEntry>()
-    for (const ev of timeline.events) {
-      const slug = ev.filePath.replace(/\\/g, '/').split('/').pop()?.replace(/\.md$/i, '') ?? ev.slug
-      if (!seen.has(ev.filePath)) seen.set(ev.filePath, { rep: ev, count: 1, slug })
-      else seen.get(ev.filePath)!.count++
-    }
-    return Array.from(seen.values())
-  }, [timeline.events])
-
-  // Filtro de busca (título · slug · categoria)
-  const filteredFiles = useMemo(() => {
-    if (!search.trim()) return uniqueFiles
-    const q = search.trim().toLowerCase()
-    return uniqueFiles.filter(({ rep: ev, slug }) =>
-      String(ev.frontmatter.title    ?? '').toLowerCase().includes(q) ||
-      slug.toLowerCase().includes(q) ||
-      String(ev.frontmatter.category ?? '').toLowerCase().includes(q)
-    )
-  }, [uniqueFiles, search])
-
-  // Agrupamento (mesma lógica do TimelineList mas sobre FileEntry)
-  const spanYears       = timeline.dateRange.spanYears
-  const effectiveGroupBy = groupBy === 'auto' ? fGroupLevel(spanYears) : groupBy
-  const useFlat          = effectiveGroupBy === 'year'
-
-  const groupedEntries = useMemo((): [string, FileEntry[]][] => {
-    const noCat = t('no_category')
-
-    if (effectiveGroupBy === 'category') {
-      const map = new Map<string, FileEntry[]>()
-      for (const e of filteredFiles) {
-        const k = e.rep.frontmatter.category ?? noCat
-        if (!map.has(k)) map.set(k, [])
-        map.get(k)!.push(e)
-      }
-      return Array.from(map.entries()).sort(([a], [b]) => {
-        if (a === noCat) return 1; if (b === noCat) return -1
-        return a.localeCompare(b, 'pt')
-      })
-    }
-
-    if (effectiveGroupBy === 'importance') {
-      const map = new Map<number, FileEntry[]>()
-      for (const e of filteredFiles) {
-        const k = e.rep.frontmatter.importance ?? 3
-        if (!map.has(k)) map.set(k, [])
-        map.get(k)!.push(e)
-      }
-      return Array.from(map.entries())
-        .sort(([a], [b]) => b - a)
-        .map(([k, es]) => [IMPORTANCE_LABEL[k] ?? `${t('grouped_importance_label')} ${k}`, es])
-    }
-
-    const level = effectiveGroupBy as FilesGroupLevel
-    const map = new Map<number, FileEntry[]>()
-    for (const e of filteredFiles) {
-      const k = fPeriodKey(e.rep.date.year, level)
-      if (!map.has(k)) map.set(k, [])
-      map.get(k)!.push(e)
-    }
-    return Array.from(map.entries())
-      .sort(([a], [b]) => a - b)
-      .map(([k, es]) => [fPeriodLabel(k, level), es])
-  }, [filteredFiles, effectiveGroupBy, t])
-
-  const footerGroupLabel = (() => {
-    if (groupBy === 'auto') {
-      const l = fGroupLevel(spanYears)
-      if (l === 'year') return null
-      return l === 'decade' ? t('grouped_decades_auto') : t('grouped_centuries_auto')
-    }
-    const labels: Partial<Record<FilesGroupBy, string>> = {
-      decade: t('grouped_decades'), century: t('grouped_centuries'),
-      category: t('grouped_categories'), importance: t('grouped_importance_label'),
-    }
-    return labels[groupBy] ?? null
-  })()
-
-  const count = pickedFiles.size
-  const selectedLabel = count === 0
-    ? t('files_view_hint')
-    : t('files_selected_count').replace('{count}', String(count)).replace('{s}', count === 1 ? '' : 's')
-
-  return (
-    <div className="flex-1 flex flex-col overflow-hidden">
-
-      {/* ── Toolbar ───────────────────────────────────────────────────── */}
-      <div className="shrink-0 px-8 pt-4 pb-3 flex items-center justify-between gap-4 border-b border-chr-subtle">
-        <span className="font-mono text-xs text-chr-muted">{selectedLabel}</span>
-        <div className="flex items-center gap-2">
-          <button onClick={onSelectAll} className="font-mono text-2xs text-chr-muted hover:text-chr-secondary transition-colors">
-            {t('files_select_all')}
-          </button>
-          {count > 0 && (
-            <button onClick={onClearAll} className="font-mono text-2xs text-chr-muted hover:text-chr-secondary transition-colors">
-              {t('files_clear_sel')}
-            </button>
-          )}
-          <button
-            onClick={onApply}
-            disabled={count === 0}
-            className={cn(
-              'px-2.5 py-1.5 rounded-sm font-mono text-xs transition-colors',
-              count > 0 ? 'bg-chr-primary text-surface hover:opacity-90' : 'border border-chr-subtle text-chr-muted opacity-40 cursor-not-allowed'
-            )}
-          >
-            {t('files_view_sel')}
-          </button>
-        </div>
-      </div>
-
-      {/* ── Busca ─────────────────────────────────────────────────────── */}
-      <div className="shrink-0 px-8 pt-3 pb-1">
-        <div className="relative max-w-sm">
-          <Search size={12} strokeWidth={1.5} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-chr-muted pointer-events-none" />
-          <input
-            type="text" value={search} onChange={(e) => setSearch(e.target.value)}
-            placeholder={t('search_event_ph')}
-            className={cn(
-              'w-full pl-7 pr-7 py-1.5 rounded-sm bg-vault border border-chr-subtle',
-              'font-mono text-xs text-chr-primary placeholder:text-chr-muted',
-              'focus:outline-none focus:border-chr transition-colors'
-            )}
-          />
-          {search && (
-            <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-chr-muted hover:text-chr-secondary">
-              <X size={11} strokeWidth={2} />
-            </button>
-          )}
-        </div>
-        {search && <p className="font-mono text-2xs text-chr-muted mt-1">{filteredFiles.length} de {uniqueFiles.length}</p>}
-      </div>
-
-      {/* ── Agrupamento ───────────────────────────────────────────────── */}
-      <div className="shrink-0 px-8 py-2 flex items-center gap-2.5">
-        <span className="font-mono text-2xs text-chr-muted select-none">{t('groupby')}</span>
-        <div className="flex items-center gap-1 flex-wrap">
-          {FILE_GROUP_OPTIONS.map(opt => (
-            <button
-              key={opt.value} onClick={() => setGroupBy(opt.value)}
-              className={cn(
-                'px-2 py-0.5 rounded-sm font-mono text-2xs transition-colors',
-                groupBy === opt.value
-                  ? 'bg-active text-chr-primary border border-chr-strong'
-                  : 'text-chr-muted border border-chr-subtle hover:text-chr-secondary hover:border-chr-strong'
-              )}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* ── Lista de arquivos ─────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto px-8 py-2">
-
-        {filteredFiles.length === 0 ? (
-          <p className="font-mono text-xs text-chr-muted text-center py-8">{t('no_events_found')}</p>
-
-        ) : useFlat ? (
-          <>
-            {groupedEntries.map(([label, entries]) => (
-              <div
-                key={label} className="mb-8"
-                style={{ contentVisibility: 'auto', containIntrinsicSize: `0 auto ${28 + entries.length * 44}px` } as React.CSSProperties}
-              >
-                <div className="flex items-center gap-3 mb-3">
-                  <span className="font-mono text-xs font-medium text-chr-muted tracking-wider uppercase">{label}</span>
-                  <div className="flex-1 h-px bg-chr-subtle" />
-                </div>
-                <div className="space-y-px ml-2">
-                  {entries.map(entry => (
-                    <FileItemRow key={entry.rep.filePath} entry={entry} isChecked={pickedFiles.has(entry.rep.filePath)} onToggle={onToggle} />
-                  ))}
-                </div>
-              </div>
-            ))}
-          </>
-
-        ) : (
-          <>
-            {groupedEntries.map(([label, entries], idx) => (
-              <FilesCollapsibleGroup
-                key={label} label={label} entries={entries}
-                pickedFiles={pickedFiles} onToggle={onToggle} defaultOpen={idx === 0}
-              />
-            ))}
-          </>
-        )}
-
-        {/* Rodapé */}
-        <div className="pt-4 border-t border-chr-subtle">
-          <span className="font-mono text-2xs text-chr-muted">
-            {uniqueFiles.length} arquivo{uniqueFiles.length !== 1 ? 's' : ''}
-            {footerGroupLabel && <span className="opacity-60">{' · '}{t('grouped_by')} {footerGroupLabel}</span>}
-          </span>
-        </div>
       </div>
     </div>
   )
@@ -756,7 +420,7 @@ export default function TimelineView({ initialPath, initialTitle }: TimelineView
   const stack = useNavigationStore((s) => s.stack)
   const truncateNav = useNavigationStore((s) => s.truncate)
   const canGoBack = stack.length > 1
-  const { t } = useI18n()
+  const { t, nEvents } = useI18n()
 
   const [showNewEvent, setShowNewEvent] = useState(false)
   const [creatingEvent, setCreatingEvent] = useState(false)
@@ -775,7 +439,7 @@ export default function TimelineView({ initialPath, initialTitle }: TimelineView
   useEffect(() => {
     setFileFilter(null)
     setClusterEvents(null)
-  }, [currentTimeline?.dirPath]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentTimeline?.dirPath])
 
   useEffect(() => {
     if (initialPath && initialTitle) {
@@ -787,7 +451,57 @@ export default function TimelineView({ initialPath, initialTitle }: TimelineView
     setFileFilter(null)
   }
 
-  const handleEventClick = (event: ChroniclerEvent) => {
+  const undatedEvents = currentTimeline?.events.filter((e) => e.undated) ?? []
+
+  // ── Exportar a timeline inteira (PDF ou página web) ──────────────────────
+  const { notify } = useNotifications()
+  const [exportMenu, setExportMenu] = useState(false)
+  const [exporting, setExporting] = useState(false)
+  const handleExport = async (format: 'pdf' | 'html') => {
+    if (!currentTimeline) return
+    setExportMenu(false)
+    setExporting(true)
+    try {
+      const bodyHtml = await buildTimelineExportHtml(currentTimeline, { events: nEvents, noContent: t('no_content') })
+      const r = await window.electronAPI.invoke<{ success: boolean; canceled?: boolean; filePath?: string; error?: string }>(
+        'app:export-timeline', { format, suggestedName: currentTimeline.meta.title, title: currentTimeline.meta.title, bodyHtml })
+      if (r.success) notify.success(t('export_done_title'), r.filePath ?? '')
+      else if (!r.canceled) notify.error(t('export_error'), r.error ?? '')
+    } catch (e) {
+      notify.error(t('export_error'), String(e))
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  // ── Comparar com outra timeline (faixa extra na visão horizontal) ─────────
+  const vaultTimelines = useVaultStore((s) => s.vaultInfo?.timelines ?? [])
+  const [compareDir, setCompareDir] = useState<string | null>(null)
+  const [compareData, setCompareData] = useState<TimelineData | null>(null)
+  const compareOptions = [
+    ...vaultTimelines.map((tl) => ({ dirPath: tl.dirPath, title: tl.title })),
+    ...(currentTimeline?.subtimelines ?? []).map((tl) => ({ dirPath: tl.dirPath, title: tl.title })),
+  ].filter((o, i, arr) => o.dirPath !== currentTimeline?.dirPath && arr.findIndex((x) => x.dirPath === o.dirPath) === i)
+  useEffect(() => {
+    if (!compareDir || compareDir === currentTimeline?.dirPath) { setCompareData(null); return }
+    let alive = true
+    window.electronAPI.invoke<{ success: boolean; data?: RawTimeline }>('fs:read-timeline', compareDir)
+      .then((r) => { if (alive) setCompareData(r.success && r.data ? toTimelineData(r.data) : null) })
+      .catch(() => { if (alive) setCompareData(null) })
+    return () => { alive = false }
+  }, [compareDir, currentTimeline?.dirPath])
+
+  const handleEventClick = async (event: ChroniclerEvent) => {
+    // Evento da timeline comparada: abre a timeline dele primeiro (anterior/próximo
+    // e o caminho no topo passam a ser os dela)
+    const isOther = currentTimeline && !currentTimeline.events.some((e) => e.filePath === event.filePath && e.slug === event.slug)
+    if (isOther && currentTimeline && compareData?.events.some((e) => e.filePath === event.filePath)) {
+      setCompareDir(currentTimeline.dirPath)   // e passa a comparar com a de onde veio
+      await loadTimeline(compareData.dirPath, compareData.meta.title, true)
+      const loaded = useTimelineStore.getState().currentTimeline?.events.find((e) => e.filePath === event.filePath && e.slug === event.slug)
+      if (loaded) { loadEvent(loaded); navigate('/event') }
+      return
+    }
     loadEvent(event)
     navigate('/event')
   }
@@ -804,6 +518,11 @@ export default function TimelineView({ initialPath, initialTitle }: TimelineView
       if (result) {
         setShowNewEvent(false)
         await reloadTimeline()
+        await reloadVault()
+        // Abre o evento recém-criado para escrever o conteúdo (na lista ele podia
+        // cair num grupo recolhido e o usuário não o encontrava)
+        const created = useTimelineStore.getState().currentTimeline?.events.find((e) => e.filePath === result.filePath)
+        if (created) handleEventClick(created)
       }
     } finally {
       setCreatingEvent(false)
@@ -925,6 +644,25 @@ export default function TimelineView({ initialPath, initialTitle }: TimelineView
               {t('new_event_btn')}
             </button>
 
+            {/* Exportar a timeline inteira */}
+            <div className="relative">
+              <button type="button" onClick={() => setExportMenu((v) => !v)} disabled={exporting}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-sm text-xs font-mono border border-chr-subtle text-chr-secondary hover:text-chr-primary hover:border-chr transition-colors disabled:opacity-50"
+                title={t('export_timeline_hint')} data-testid="export-timeline">
+                <Download size={12} strokeWidth={1.5} />
+                {exporting ? t('exporting') : t('export_timeline')}
+              </button>
+              {exportMenu && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setExportMenu(false)} />
+                  <div className="absolute right-0 top-full mt-1 z-50 w-48 chr-card shadow-card-hover py-1" data-testid="export-menu">
+                    <button type="button" onClick={() => void handleExport('pdf')} className="w-full text-left px-3 py-1.5 text-xs font-mono text-chr-secondary hover:bg-hover hover:text-chr-primary">{t('export_as_pdf')}</button>
+                    <button type="button" onClick={() => void handleExport('html')} className="w-full text-left px-3 py-1.5 text-xs font-mono text-chr-secondary hover:bg-hover hover:text-chr-primary">{t('export_as_html')}</button>
+                  </div>
+                </>
+              )}
+            </div>
+
             <ViewToggle mode={viewMode} onChange={setViewMode} />
           </div>
         </div>
@@ -952,6 +690,48 @@ export default function TimelineView({ initialPath, initialTitle }: TimelineView
           </div>
         )}
 
+        {/* Sub-timelines (pastas com _timeline.md dentro desta) e eventos sem data */}
+        {(currentTimeline.subtimelines.length > 0 || (viewMode !== 'list' && undatedEvents.length > 0)
+          || (viewMode === 'horizontal' && compareOptions.length > 0)) && (
+          <div className="shrink-0 px-5 py-2 border-b border-chr-subtle bg-surface flex flex-wrap items-center gap-x-5 gap-y-1.5 font-mono text-2xs" data-testid="timeline-extras">
+            {currentTimeline.subtimelines.length > 0 && (
+              <div className="flex items-center gap-1.5 flex-wrap" data-testid="subtimelines">
+                <span className="text-chr-muted">{t('subtimelines_label')}</span>
+                {currentTimeline.subtimelines.map((sub) => (
+                  <button key={sub.dirPath} type="button" onClick={() => loadTimeline(sub.dirPath, sub.title, true)}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-sm border border-chr-subtle text-chr-secondary hover:text-chr-primary hover:border-chr transition-colors">
+                    <GitBranch size={10} strokeWidth={1.5} />
+                    {sub.title}
+                    <span className="text-chr-muted">· {nEvents(sub.eventCount)}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {viewMode === 'horizontal' && compareOptions.length > 0 && (
+              <label className="flex items-center gap-1.5 text-chr-muted" data-testid="compare-select">
+                {t('compare_with')}
+                <select value={compareDir ?? ''} onChange={(e) => setCompareDir(e.target.value || null)}
+                  className="px-1.5 py-0.5 rounded-sm bg-vault border border-chr-subtle text-chr-primary focus:outline-none focus:border-chr max-w-[16rem]">
+                  <option value="">{t('compare_none')}</option>
+                  {compareOptions.map((o) => <option key={o.dirPath} value={o.dirPath}>{o.title}</option>)}
+                </select>
+              </label>
+            )}
+            {viewMode !== 'list' && undatedEvents.length > 0 && (
+              <div className="flex items-center gap-1.5 flex-wrap text-amber-500" data-testid="undated-notice">
+                <AlertTriangle size={11} strokeWidth={1.5} className="shrink-0" />
+                <span>{t(undatedEvents.length === 1 ? 'undated_notice_one' : 'undated_notice_other', { count: undatedEvents.length })}</span>
+                {undatedEvents.map((ev) => (
+                  <button key={ev.filePath + ev.slug} type="button" onClick={() => handleEventClick(ev)}
+                    className="underline underline-offset-2 decoration-dotted hover:text-chr-primary">
+                    {ev.frontmatter.title}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="flex flex-1 overflow-hidden">
 
           {viewMode === 'horizontal' && (
@@ -963,6 +743,7 @@ export default function TimelineView({ initialPath, initialTitle }: TimelineView
               onClusterClick={setClusterEvents}
               onContextMenu={(event, x, y) => setCanvasCtxMenu({ x, y, event })}
               filterPaths={fileFilter ?? undefined}
+              compare={compareData}
             />
           )}
 
@@ -977,6 +758,10 @@ export default function TimelineView({ initialPath, initialTitle }: TimelineView
               onFilterByFile={handleFilterByFile}
               filterPaths={fileFilter ?? undefined}
             />
+          )}
+
+          {viewMode === 'map' && (
+            <MapView timeline={currentTimeline} onEventClick={handleEventClick} />
           )}
 
           {/* Painel lateral direito — abre ao clicar em cluster */}

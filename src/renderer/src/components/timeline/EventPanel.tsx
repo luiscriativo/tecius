@@ -1,14 +1,12 @@
-import { useState, useEffect } from 'react'
 import { X, ExternalLink, GitBranch, BookOpen } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { ChroniclerEvent } from '../../types/chronicler'
 import { cn } from '../../utils/cn'
+import { useI18n } from '../../hooks/useI18n'
+import { stripAnchors } from '../../utils/anchors'
+import { usePref } from '../../hooks/usePref'
 
-/** Normaliza CRLF e remove marcações `^anchor-id` antes de renderizar. */
-function stripAnchors(body: string): string {
-  return body.replace(/\r\n/g, '\n').replace(/\s*\^[\w-]+\s*$/gm, '')
-}
 
 /**
  * Extrai o bloco (parágrafo) que termina com `^anchorId`.
@@ -16,7 +14,7 @@ function stripAnchors(body: string): string {
  * Remove a marcação `^...` do texto exibido.
  * Retorna null se o anchor não for encontrado.
  */
-function extractBlock(body: string, anchorId: string): string | null {
+export function extractBlock(body: string, anchorId: string): string | null {
   const normalized = body.replace(/\r\n/g, '\n')
   const blocks = normalized.split(/\n{2,}/)
   const re = new RegExp(`\\^${anchorId}\\s*$`)
@@ -39,12 +37,11 @@ interface EventPanelProps {
 }
 
 export function EventPanel({ event, body, isLoading, onClose, onOpenInEditor, onEnterSubtimeline }: EventPanelProps) {
+  const { t } = useI18n()
   const fm = event.frontmatter
   const chr = event.chronicle
-  const [showFullBody, setShowFullBody] = useState(false)
-
-  // Reseta o modo de exibição ao trocar de evento
-  useEffect(() => { setShowFullBody(false) }, [event.slug])
+  // Trecho / Completo: a escolha vale para todos os chronicles e é lembrada
+  const [showFullBody, setShowFullBody] = usePref('chronicle.full', false)
 
   // Determina qual conteúdo renderizar
   const anchor = chr?.anchor
@@ -82,7 +79,7 @@ export function EventPanel({ event, body, isLoading, onClose, onOpenInEditor, on
                     : 'text-chr-muted hover:text-chr-secondary'
                 )}
               >
-                Trecho
+                {t('excerpt')}
               </button>
               <button
                 onClick={() => setShowFullBody(true)}
@@ -93,7 +90,7 @@ export function EventPanel({ event, body, isLoading, onClose, onOpenInEditor, on
                     : 'text-chr-muted hover:text-chr-secondary'
                 )}
               >
-                Completo
+                {t('full_view')}
               </button>
             </div>
           )}
@@ -114,7 +111,7 @@ export function EventPanel({ event, body, isLoading, onClose, onOpenInEditor, on
         <button
           onClick={onClose}
           className="shrink-0 p-1.5 rounded-sm text-chr-muted hover:bg-hover hover:text-chr-primary transition-colors"
-          aria-label="Fechar painel"
+          aria-label={t('close_panel')}
         >
           <X size={14} strokeWidth={1.5} />
         </button>
@@ -148,7 +145,7 @@ export function EventPanel({ event, body, isLoading, onClose, onOpenInEditor, on
             </div>
           </>
         ) : (
-          <p className="font-mono text-xs text-chr-muted italic">Evento sem conteudo.</p>
+          <p className="font-mono text-xs text-chr-muted italic">{t('no_content')}</p>
         )}
       </div>
 
@@ -164,7 +161,7 @@ export function EventPanel({ event, body, isLoading, onClose, onOpenInEditor, on
             )}
           >
             <GitBranch size={12} strokeWidth={1.5} />
-            Ver sub-timeline
+            {t('view_subtimeline')}
           </button>
         )}
         <button

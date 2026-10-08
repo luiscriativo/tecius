@@ -9,6 +9,7 @@ import React from 'react'
 import { useNotifications } from '@/hooks/useNotifications'
 import type { Notification, NotificationType } from '@/types'
 import { cn } from '@/utils/cn'
+import { useI18n } from '@/hooks/useI18n'
 
 // ── Icon per notification type ────────────────────────────────────────────────
 
@@ -56,6 +57,7 @@ function NotificationToast({
   notification: Notification
   onDismiss: (id: string) => void
 }): React.ReactElement {
+  const { t } = useI18n()
   return (
     <div
       role="alert"
@@ -87,7 +89,7 @@ function NotificationToast({
           'hover:text-foreground hover:bg-accent',
           'transition-colors duration-150'
         )}
-        aria-label="Dismiss notification"
+        aria-label={t('dismiss_notification')}
       >
         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -100,13 +102,14 @@ function NotificationToast({
 // ── Stack Component ───────────────────────────────────────────────────────────
 
 export function NotificationStack(): React.ReactElement | null {
+  const { t } = useI18n()
   const { notifications, remove } = useNotifications()
 
   if (notifications.length === 0) return null
 
   return (
     <div
-      aria-label="Notifications"
+      aria-label={t('notifications')}
       className="fixed bottom-4 right-4 z-50 flex flex-col gap-2"
     >
       {notifications.map((notification) => (

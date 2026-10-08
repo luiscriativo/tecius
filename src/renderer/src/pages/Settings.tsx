@@ -5,7 +5,6 @@
 import React from 'react'
 import { SlidersHorizontal } from 'lucide-react'
 import { useTheme } from '@/hooks/useTheme'
-import { useNotifications } from '@/hooks/useNotifications'
 import { useAppStore } from '@/stores/useAppStore'
 import { useI18n } from '@/hooks/useI18n'
 import { cn } from '@/utils/cn'
@@ -47,6 +46,28 @@ function OptionButton<T extends string>({
   )
 }
 
+// ── ToggleRow ─────────────────────────────────────────────────────────────────
+
+function ToggleRow({ label, description, checked, onChange }: {
+  label: string; description: string; checked: boolean; onChange: (v: boolean) => void
+}): React.ReactElement {
+  return (
+    <label className="flex items-start justify-between gap-4 px-4 py-3 rounded-sm border border-chr-subtle hover:bg-hover cursor-pointer transition-colors">
+      <div>
+        <p className="font-serif text-sm leading-none text-chr-primary">{label}</p>
+        <p className="font-mono text-2xs text-chr-muted mt-1 leading-relaxed">{description}</p>
+      </div>
+      <input
+        type="checkbox"
+        role="switch"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="mt-0.5 w-4 h-4 shrink-0 accent-[rgb(var(--chronicle-dot))]"
+      />
+    </label>
+  )
+}
+
 // ── SectionCard ───────────────────────────────────────────────────────────────
 
 function SectionCard({
@@ -75,14 +96,13 @@ function SectionCard({
 
 export function SettingsPage(): React.ReactElement {
   const { theme, setTheme } = useTheme()
-  const { notify } = useNotifications()
   const language = useAppStore((s) => s.language)
   const setLanguage = useAppStore((s) => s.setLanguage)
+  const onlineGeocoding = useAppStore((s) => s.onlineGeocoding)
+  const setOnlineGeocoding = useAppStore((s) => s.setOnlineGeocoding)
+  const paleoMaps = useAppStore((s) => s.paleoMaps)
+  const setPaleoMaps = useAppStore((s) => s.setPaleoMaps)
   const { t } = useI18n()
-
-  const handleSave = (): void => {
-    notify.success(t('settings_saved_title'), t('settings_saved_msg'))
-  }
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-vault">
@@ -98,12 +118,8 @@ export function SettingsPage(): React.ReactElement {
             </div>
           </div>
 
-          <button
-            onClick={handleSave}
-            className="px-3 py-1.5 font-mono text-xs rounded-sm border border-chr-subtle text-chr-muted hover:border-chr hover:text-chr-secondary transition-colors duration-150"
-          >
-            {t('save_settings')}
-          </button>
+          {/* Cada opção vale na hora e fica salva — não há o que confirmar */}
+          <span className="font-mono text-2xs text-chr-muted" data-testid="settings-autosave">{t('settings_autosave')}</span>
         </div>
       </header>
 
@@ -122,6 +138,12 @@ export function SettingsPage(): React.ReactElement {
           <SectionCard title={t('language_section')} description={t('language_section_desc')}>
             <OptionButton<Language> value="pt" current={language} label={t('language_pt')} description={t('language_pt_desc')} onSelect={setLanguage} />
             <OptionButton<Language> value="en" current={language} label={t('language_en')} description={t('language_en_desc')} onSelect={setLanguage} />
+          </SectionCard>
+
+          {/* Mapa e serviços online */}
+          <SectionCard title={t('online_section')} description={t('online_section_desc')}>
+            <ToggleRow label={t('online_geocoding')} description={t('online_geocoding_desc')} checked={onlineGeocoding} onChange={setOnlineGeocoding} />
+            <ToggleRow label={t('paleo_maps')} description={t('paleo_maps_desc')} checked={paleoMaps} onChange={setPaleoMaps} />
           </SectionCard>
 
         </div>

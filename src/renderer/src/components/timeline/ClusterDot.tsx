@@ -12,6 +12,7 @@
 import { cn } from '../../utils/cn'
 import type { ChroniclerEvent } from '../../types/chronicler'
 import { isMultiPart } from '../../utils/events'
+import { useI18n } from '../../hooks/useI18n'
 
 interface ClusterDotProps {
   events: ChroniclerEvent[]
@@ -22,6 +23,7 @@ interface ClusterDotProps {
 }
 
 export function ClusterDot({ events, hasSelected, onClusterClick, style, tooltipAlign = 'center' }: ClusterDotProps) {
+  const { t, nEvents } = useI18n()
   const sorted = [...events].sort((a, b) => a.date.sortKey - b.date.sortKey)
   const firstDate = sorted[0]?.date.display ?? ''
   const lastDate  = sorted[sorted.length - 1]?.date.display ?? ''
@@ -99,7 +101,7 @@ export function ClusterDot({ events, hasSelected, onClusterClick, style, tooltip
       >
         <div className="chr-card px-3 py-2 text-left">
           <p className="font-mono text-2xs text-chr-muted mb-1.5">
-            {dateLabel} · {events.length} eventos
+            {dateLabel} · {nEvents(events.length)}
           </p>
           {events.slice(0, 5).map((e) => (
             <p key={e.slug} className="font-sans text-xs text-chr-secondary leading-snug flex items-center gap-1.5">
@@ -111,10 +113,10 @@ export function ClusterDot({ events, hasSelected, onClusterClick, style, tooltip
             </p>
           ))}
           {events.length > 5 && (
-            <p className="font-mono text-2xs text-chr-muted mt-1 opacity-60">+{events.length - 5} mais</p>
+            <p className="font-mono text-2xs text-chr-muted mt-1 opacity-60">{t('more_count', { count: events.length - 5 })}</p>
           )}
           {hasChronicle && !allChronicle && (
-            <p className="font-mono text-2xs text-chr-muted mt-1.5 opacity-60">◆ chronicle  ● evento</p>
+            <p className="font-mono text-2xs text-chr-muted mt-1.5 opacity-60">{t('legend_chronicle_event')}</p>
           )}
         </div>
       </div>

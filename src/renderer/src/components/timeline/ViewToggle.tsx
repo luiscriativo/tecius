@@ -1,18 +1,21 @@
-import { AlignLeft, GitCommitHorizontal } from 'lucide-react'
+import { AlignLeft, GitCommitHorizontal, Map as MapIcon } from 'lucide-react'
 import { cn } from '../../utils/cn'
+import { useI18n } from '../../hooks/useI18n'
 
 interface ViewToggleProps {
-  mode: 'horizontal' | 'list'
-  onChange: (mode: 'horizontal' | 'list') => void
+  mode: 'horizontal' | 'list' | 'map'
+  onChange: (mode: 'horizontal' | 'list' | 'map') => void
 }
 
 export function ViewToggle({ mode, onChange }: ViewToggleProps) {
+  const { t } = useI18n()
   return (
     <div className="flex items-center border border-chr-subtle rounded-sm overflow-hidden shrink-0">
       {(
         [
-          { value: 'horizontal', icon: GitCommitHorizontal, label: 'Timeline horizontal' },
-          { value: 'list',       icon: AlignLeft,            label: 'Lista cronológica'   },
+          { value: 'horizontal', icon: GitCommitHorizontal, label: t('view_horizontal') },
+          { value: 'list',       icon: AlignLeft,            label: t('view_list')        },
+          { value: 'map',        icon: MapIcon,              label: t('map_view')         },
         ] as const
       ).map(({ value, icon: Icon, label }) => (
         <button

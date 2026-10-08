@@ -20,7 +20,7 @@ import type { TimelineRef } from '@/types/chronicler'
 // ── Card de timeline ──────────────────────────────────────────────────────────
 
 function TimelineCard({ timeline, onClick }: { timeline: TimelineRef; onClick: () => void }) {
-  const { t, nEvents } = useI18n()
+  const { nEvents } = useI18n()
   return (
     <button
       onClick={onClick}
@@ -39,7 +39,7 @@ function TimelineCard({ timeline, onClick }: { timeline: TimelineRef; onClick: (
 
         {/* Textos */}
         <div className="min-w-0">
-          <h3 className="font-serif text-lg text-chr-primary leading-tight group-hover:text-chr-primary truncate">
+          <h3 className="font-serif text-lg text-chr-primary leading-tight group-hover:text-chr-primary line-clamp-2 break-words">
             {timeline.title}
           </h3>
           <p className="chr-date mt-1">
@@ -71,7 +71,7 @@ export function HomePage(): React.ReactElement {
   const { openTimeline } = useTimeline()
   const setCurrentTimeline = useTimelineStore((s) => s.setCurrentTimeline)
   const resetNav = useNavigationStore((s) => s.reset)
-  const { t, nEvents } = useI18n()
+  const { t } = useI18n()
 
   // ── Rename inline ──────────────────────────────────────────────────────────
   const [isRenaming, setIsRenaming] = useState(false)
@@ -80,7 +80,7 @@ export function HomePage(): React.ReactElement {
   const renameInputRef = useRef<HTMLInputElement>(null)
 
   const startRename = () => {
-    setRenameValue(vaultInfo?.title ?? '')
+    setRenameValue(vaultInfo?.title || t('default_vault_title'))
     setIsRenaming(true)
   }
 
@@ -161,7 +161,7 @@ export function HomePage(): React.ReactElement {
                     onClick={confirmRename}
                     disabled={isSavingRename}
                     className="text-chr-muted hover:text-chr-primary transition-colors disabled:opacity-40"
-                    title="Confirmar"
+                    title={t('confirm')}
                   >
                     <Check size={12} strokeWidth={2} />
                   </button>
@@ -169,14 +169,14 @@ export function HomePage(): React.ReactElement {
                     onClick={cancelRename}
                     disabled={isSavingRename}
                     className="text-chr-muted hover:text-chr-primary transition-colors disabled:opacity-40"
-                    title="Cancelar"
+                    title={t('cancel')}
                   >
                     <X size={12} strokeWidth={2} />
                   </button>
                 </div>
               ) : (
                 <h1 className="font-mono text-sm font-medium text-chr-primary leading-none truncate">
-                  {vaultInfo.title}
+                  {vaultInfo.title || t('default_vault_title')}
                 </h1>
               )}
               <p className="font-mono text-2xs text-chr-muted mt-0.5 truncate max-w-xs" title={vaultInfo.rootPath}>
@@ -206,10 +206,10 @@ export function HomePage(): React.ReactElement {
                   'hover:border-chr hover:text-chr-secondary',
                   'transition-colors duration-150'
                 )}
-                title="Renomear vault"
+                title={t('home_rename_vault')}
               >
                 <Pencil size={11} strokeWidth={1.5} />
-                Renomear
+                {t('rename')}
               </button>
             )}
 

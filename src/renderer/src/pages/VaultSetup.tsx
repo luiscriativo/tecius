@@ -15,56 +15,21 @@ import {
 import { cn } from '../lib/utils'
 import { useVault } from '../hooks/useVault'
 import { useI18n } from '../hooks/useI18n'
+import type { TranslationKey } from '../i18n/translations'
 import { useAppStore } from '../stores/useAppStore'
 
 // ── Slides de dica ────────────────────────────────────────────
 const SLIDES = [
-  {
-    icon: FolderOpen,
-    title: 'Vault = uma pasta',
-    desc: 'Escolha qualquer pasta do seu computador. Todos os seus dados são arquivos .md comuns — abertos, editáveis e portáteis.',
-  },
-  {
-    icon: BookOpen,
-    title: 'Timelines',
-    desc: 'Qualquer subpasta com um arquivo _timeline.md vira uma timeline. Crie quantas quiser e organize-as por tema, período ou projeto.',
-  },
-  {
-    icon: CalendarClock,
-    title: 'Eventos',
-    desc: 'Cada arquivo .md dentro de uma timeline é um evento. O único campo obrigatório no front matter é date — o restante é opcional.',
-  },
-  {
-    icon: Layers,
-    title: 'Chronicles',
-    desc: 'Um único arquivo .md pode conter vários eventos. Use o tipo chronicle no front matter para registrar múltiplos acontecimentos de um mesmo assunto num só lugar.',
-  },
-  {
-    icon: ScanLine,
-    title: 'Canvas & zoom',
-    desc: 'Na visão canvas, use Ctrl+scroll ou os botões − + no rodapé para dar zoom no eixo temporal e inspecionar períodos específicos.',
-  },
-  {
-    icon: List,
-    title: 'Visão em lista',
-    desc: 'Alterne para a visão em lista quando quiser uma leitura mais densa — com agrupamento por ano e filtros por categoria.',
-  },
-  {
-    icon: Tag,
-    title: 'Categorias & importância',
-    desc: 'Classifique eventos por categoria (Arte, Ciência, Política…) e importância de 1 a 5 para controlar o peso visual na timeline.',
-  },
-  {
-    icon: Trash2,
-    title: 'Lixeira interna',
-    desc: 'Eventos deletados vão para a lixeira do vault. Nada é removido permanentemente do disco sem sua confirmação explícita.',
-  },
-  {
-    icon: FileDown,
-    title: 'Exportar PDF',
-    desc: 'Qualquer timeline pode ser exportada como PDF pela barra de ações. Útil para compartilhar ou arquivar fora do Tecius.',
-  },
-] as const
+  { icon: FolderOpen, title: 'slide_vault_title', desc: 'slide_vault_desc' },
+  { icon: BookOpen, title: 'slide_timelines_title', desc: 'slide_timelines_desc' },
+  { icon: CalendarClock, title: 'slide_events_title', desc: 'slide_events_desc' },
+  { icon: Layers, title: 'slide_chronicles_title', desc: 'slide_chronicles_desc' },
+  { icon: ScanLine, title: 'slide_canvas_title', desc: 'slide_canvas_desc' },
+  { icon: List, title: 'slide_list_title', desc: 'slide_list_desc' },
+  { icon: Tag, title: 'slide_categories_title', desc: 'slide_categories_desc' },
+  { icon: Trash2, title: 'slide_trash_title', desc: 'slide_trash_desc' },
+  { icon: FileDown, title: 'slide_pdf_title', desc: 'slide_pdf_desc' },
+] as const satisfies ReadonlyArray<{ icon: unknown; title: TranslationKey; desc: TranslationKey }>
 
 const AUTOPLAY_INTERVAL = 4500
 
@@ -160,10 +125,10 @@ export default function VaultSetup() {
             {/* Coluna direita: título + descrição */}
             <div className="flex flex-col gap-2 justify-center">
               <h3 className="font-serif text-lg text-chr-primary leading-snug">
-                {slide.title}
+                {t(slide.title)}
               </h3>
               <p className="text-sm text-chr-secondary leading-relaxed">
-                {slide.desc}
+                {t(slide.desc)}
               </p>
             </div>
           </div>
@@ -173,7 +138,7 @@ export default function VaultSetup() {
             <button
               onClick={prev}
               className="text-chr-muted hover:text-chr-primary transition-colors duration-100 p-1"
-              aria-label="Slide anterior"
+              aria-label={t('slide_prev')}
             >
               <ChevronLeft size={14} strokeWidth={1.5} />
             </button>
@@ -183,7 +148,7 @@ export default function VaultSetup() {
                 <button
                   key={i}
                   onClick={() => goTo(i)}
-                  aria-label={`Ir para slide ${i + 1}`}
+                  aria-label={t('slide_goto', { n: i + 1 })}
                   className={cn(
                     'rounded-full transition-all duration-300',
                     i === current
@@ -197,7 +162,7 @@ export default function VaultSetup() {
             <button
               onClick={next}
               className="text-chr-muted hover:text-chr-primary transition-colors duration-100 p-1"
-              aria-label="Próximo slide"
+              aria-label={t('slide_next')}
             >
               <ChevronRight size={14} strokeWidth={1.5} />
             </button>

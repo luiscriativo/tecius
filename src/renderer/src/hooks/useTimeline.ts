@@ -1,7 +1,8 @@
 import { useCallback } from 'react'
 import { useTimelineStore } from '../stores/useTimelineStore'
 import { useNavigationStore } from '../stores/useNavigationStore'
-import { parseChroniclerDate } from '../utils/chroniclerDate'
+import { parseChroniclerDate, parseDateParts, undatedLabel } from '../utils/chroniclerDate'
+import { parseLocation } from '../utils/location'
 import type { RawTimeline, RawEvent } from '../types/ipc'
 import type { TimelineData, ChroniclerEvent, ChroniclerDate, TimelineMeta, TimelineRef } from '../types/chronicler'
 import type { EventFrontmatter } from '../types/chronicler'
@@ -9,11 +10,23 @@ import type { EventFrontmatter } from '../types/chronicler'
 function toChroniclerDate(raw: Record<string, unknown>): ChroniclerDate {
   const dateStr = String(raw.date ?? '0')
   const timeStr = raw.time ? String(raw.time) : undefined
-  return parseChroniclerDate(dateStr, timeStr, undefined, Boolean(raw.circa))
+  // date-precision (documentado no GUIDE) sobrepõe a precisão detectada
+  const prec = raw['date-precision']
+  const precision = prec === 'year' || prec === 'month' || prec === 'day' || prec === 'hour' ? prec : undefined
+  return parseChroniclerDate(dateStr, timeStr, precision, Boolean(raw.circa))
 }
 
 function toChroniclerEvent(raw: RawEvent): ChroniclerEvent {
   const fm = raw.frontmatter as Partial<EventFrontmatter>
+  const undated = fm.date === undefined || fm.date === null || String(fm.date).trim() === ''
+    || parseDateParts(String(fm.date)) === null
+  const date = toChroniclerDate(raw.frontmatter)
+  if (undated) {
+    Object.defineProperties(date, {
+      display: { enumerable: true, get: undatedLabel },
+      displayShort: { enumerable: true, get: undatedLabel },
+    })
+  }
   return {
     filePath: raw.filePath,
     relativePath: raw.relativePath,
@@ -24,22 +37,27 @@ function toChroniclerEvent(raw: RawEvent): ChroniclerEvent {
       date: String(fm.date ?? '0'),
       ...fm,
     } as EventFrontmatter,
-    date: toChroniclerDate(raw.frontmatter),
+    date,
+    undated: undated || undefined,
     dateEnd: raw.frontmatter['date-end']
       ? parseChroniclerDate(String(raw.frontmatter['date-end']))
       : undefined,
     hasSubtimeline: raw.hasSubtimeline,
     subtimelinePath: raw.subtimelinePath,
     chronicle: raw.chronicle,
+    location: parseLocation(raw.frontmatter.location) ?? undefined,
   }
 }
 
-function toTimelineData(raw: RawTimeline): TimelineData {
+export function toTimelineData(raw: RawTimeline): TimelineData {
   const events = raw.events.map((e) => toChroniclerEvent(e))
-  const sorted = [...events].sort((a, b) => a.date.sortKey - b.date.sortKey)
+  // Eventos sem data vão para o fim e não entram no intervalo de datas
+  const sorted = [...events].sort((a, b) =>
+    Number(!!a.undated) - Number(!!b.undated) || a.date.sortKey - b.date.sortKey)
+  const dated = sorted.filter((e) => !e.undated)
 
-  const minDate = sorted[0]?.date ?? null
-  const maxDate = sorted[sorted.length - 1]?.date ?? null
+  const minDate = dated[0]?.date ?? null
+  const maxDate = dated[dated.length - 1]?.date ?? null
 
   const meta: TimelineMeta = {
     title: String(raw.meta.title ?? 'Timeline'),

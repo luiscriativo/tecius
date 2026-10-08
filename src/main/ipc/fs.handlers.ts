@@ -7,15 +7,16 @@
 
 import { ipcMain, dialog, shell } from 'electron'
 import { fileSystemService } from '../services/FileSystemService'
+import { tm } from '../i18n'
 
 export function registerFsHandlers(): void {
   // ── fs:pick-vault-folder ──────────────────────────────────────────────────
   // Abre dialog nativo para escolher pasta do vault
   ipcMain.handle('fs:pick-vault-folder', async () => {
     const result = await dialog.showOpenDialog({
-      title: 'Escolher pasta do Vault',
+      title: tm('dialog_pick_vault'),
       properties: ['openDirectory'],
-      buttonLabel: 'Usar como Vault',
+      buttonLabel: tm('dialog_use_as_vault'),
     })
     if (result.canceled || !result.filePaths[0]) return null
     return result.filePaths[0]
@@ -44,6 +45,16 @@ export function registerFsHandlers(): void {
 
   // ── fs:read-timeline ──────────────────────────────────────────────────────
   // Le uma timeline especifica
+  // ── fs:search-index ───────────────────────────────────────────────────────
+  // Eventos de todo o vault para a busca global (Ctrl+K)
+  ipcMain.handle('fs:search-index', async () => {
+    try {
+      return { success: true, data: fileSystemService.buildSearchIndex() }
+    } catch (e) {
+      return { success: false, error: String(e) }
+    }
+  })
+
   ipcMain.handle('fs:read-timeline', async (_event, timelinePath: string) => {
     try {
       fileSystemService.assertWithinVault(timelinePath)
@@ -107,9 +118,9 @@ export function registerFsHandlers(): void {
     try {
       fileSystemService.assertWithinVault(eventFilePath)
       const result = await dialog.showOpenDialog({
-        title: 'Escolher imagem',
+        title: tm('dialog_pick_image'),
         properties: ['openFile'],
-        filters: [{ name: 'Imagens', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'] }],
+        filters: [{ name: tm('dialog_images'), extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'] }],
       })
       if (result.canceled || !result.filePaths[0]) return { success: false }
       const imageResult = fileSystemService.saveImageFromPath(result.filePaths[0], eventFilePath)

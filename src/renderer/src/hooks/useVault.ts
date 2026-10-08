@@ -17,7 +17,7 @@ function toVaultInfo(raw: RawVault, vaultPath: string): VaultInfo {
 
   return {
     rootPath: vaultPath,
-    title: raw.title || 'Meu Vault',
+    title: raw.title || '',
     timelines,
     totalEvents: raw.totalEvents,
     trashCount: raw.trashCount ?? 0,

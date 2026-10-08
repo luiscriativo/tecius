@@ -15,6 +15,7 @@
 
 import { useEffect, useState } from 'react'
 import { Download, CheckCircle2, X, Loader2 } from 'lucide-react'
+import { useI18n } from '@/hooks/useI18n'
 
 type UpdateState =
   | { phase: 'idle' }
@@ -23,6 +24,7 @@ type UpdateState =
   | { phase: 'ready'; version: string }
 
 export function UpdateBanner(): React.ReactElement | null {
+  const { t } = useI18n()
   const [state, setState] = useState<UpdateState>({ phase: 'idle' })
   const [dismissed, setDismissed] = useState(false)
 
@@ -112,20 +114,20 @@ export function UpdateBanner(): React.ReactElement | null {
             <span className="font-mono text-xs text-chr-secondary">
               {state.phase === 'available' && (
                 <>
-                  Nova versão disponível:{' '}
+                  {t('update_available')}{' '}
                   <span className="text-chr-primary font-medium">v{state.version}</span>
                 </>
               )}
               {state.phase === 'downloading' && (
                 <>
-                  Baixando{' '}
+                  {t('update_downloading')}{' '}
                   <span className="text-chr-primary font-medium">v{state.version}</span>
                 </>
               )}
               {isReady && (
                 <>
                   <span className="text-chr-primary font-medium">v{state.version}</span>
-                  {' '}pronta para instalar
+                  {' '}{t('update_ready')}
                 </>
               )}
             </span>
@@ -154,7 +156,7 @@ export function UpdateBanner(): React.ReactElement | null {
               onClick={handleDownload}
               className="font-mono text-xs text-chr-primary border border-chr-subtle px-2.5 py-0.5 rounded-sm hover:bg-active transition-colors duration-100"
             >
-              Baixar
+              {t('update_download')}
             </button>
           )}
           {isReady && (
@@ -162,14 +164,14 @@ export function UpdateBanner(): React.ReactElement | null {
               onClick={handleInstall}
               className="font-mono text-xs text-chr-primary border border-chr-strong px-2.5 py-0.5 rounded-sm hover:bg-active transition-colors duration-100"
             >
-              Reiniciar e instalar
+              {t('update_install')}
             </button>
           )}
           {!isDownloading && (
             <button
               onClick={() => setDismissed(true)}
               className="text-chr-muted hover:text-chr-primary transition-colors duration-100"
-              aria-label="Dispensar"
+              aria-label={t('dismiss')}
             >
               <X size={13} strokeWidth={1.5} />
             </button>

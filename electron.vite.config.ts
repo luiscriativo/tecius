@@ -41,6 +41,12 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve(__dirname, 'src/renderer/index.html')
+        },
+        output: {
+          // Dados (JSON importado sob demanda: mapas, gazetteer, fronteiras) ficam em
+          // assets/data/ — o scripts/protect.js não ofusca essa pasta (não é código)
+          chunkFileNames: (chunk) =>
+            chunk.facadeModuleId?.endsWith('.json') ? 'assets/data/[name]-[hash].js' : 'assets/[name]-[hash].js'
         }
       }
     }

@@ -11,6 +11,7 @@ import { cn } from '@/utils/cn'
 
 function ThemeToggle(): React.ReactElement {
   const { theme, setTheme, isDark } = useTheme()
+  const { t } = useI18n()
   const cycleTheme = (): void => {
     if (theme === 'light') setTheme('dark')
     else if (theme === 'dark') setTheme('system')
@@ -20,8 +21,8 @@ function ThemeToggle(): React.ReactElement {
     <button
       onClick={cycleTheme}
       className={cn('p-2 rounded-md text-foreground/70','hover:bg-accent hover:text-accent-foreground','transition-colors duration-150','focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring')}
-      title={`Theme: ${theme} (click to cycle)`}
-      aria-label="Toggle theme"
+      title={t('theme_cycle_hint', { theme })}
+      aria-label={t('theme_toggle')}
     >
       {theme === 'system' ? (
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>

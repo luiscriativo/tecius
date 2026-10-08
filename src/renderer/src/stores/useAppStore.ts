@@ -14,6 +14,8 @@ import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import type { Theme, Notification, NotificationType, Platform } from '@/types'
 import type { Language } from '@/i18n/translations'
+import { setDateLanguage } from '@/utils/chroniclerDate'
+import type { ScalePreference } from '@/utils/timelineScale'
 
 // ── State shape ───────────────────────────────────────────────────────────────
 
@@ -38,6 +40,14 @@ interface AppState {
 
   // ── Language ───────────────────────────────────────────────────────────────
   language: Language
+  /** Escala da timeline horizontal: automática, linear ou comprimida */
+  timelineScale: ScalePreference
+
+  // ── Serviços online (desligados por padrão: enviam dados para fora) ───────
+  /** Busca de endereços no OpenStreetMap (Nominatim) */
+  onlineGeocoding: boolean
+  /** Mapas paleogeográficos via GPlates Web Service */
+  paleoMaps: boolean
 }
 
 // ── Actions shape ─────────────────────────────────────────────────────────────
@@ -69,6 +79,11 @@ interface AppActions {
 
   // Language
   setLanguage: (language: Language) => void
+  setTimelineScale: (scale: ScalePreference) => void
+
+  // Serviços online
+  setOnlineGeocoding: (v: boolean) => void
+  setPaleoMaps: (v: boolean) => void
 }
 
 type AppStore = AppState & AppActions
@@ -109,6 +124,9 @@ export const useAppStore = create<AppStore>()(
       platform: null,
       isSidebarCollapsed: false,
       language: 'pt' as Language,
+      timelineScale: 'auto' as ScalePreference,
+      onlineGeocoding: false,
+      paleoMaps: false,
 
       // ── Theme ───────────────────────────────────────────────────────────────
       setTheme: (theme) => {
@@ -171,16 +189,33 @@ export const useAppStore = create<AppStore>()(
       },
 
       // ── Language ─────────────────────────────────────────────────────────
-      setLanguage: (language) => set({ language }),
+      setLanguage: (language) => {
+        setDateLanguage(language)
+        // O processo principal também usa o idioma (títulos de diálogos, mensagens de erro)
+        window.electronAPI?.invoke('app:set-language', language).catch(() => {})
+        set({ language })
+      },
+      setOnlineGeocoding: (onlineGeocoding) => set({ onlineGeocoding }),
+      setPaleoMaps: (paleoMaps) => set({ paleoMaps }),
+      setTimelineScale: (timelineScale) => set({ timelineScale }),
     }),
     {
       name: 'electron-app-storage', // key in localStorage
       storage: createJSONStorage(() => localStorage),
+      // Idioma salvo: aplica às datas e ao processo principal assim que o app abre
+      onRehydrateStorage: () => (state) => {
+        const language = state?.language ?? 'pt'
+        setDateLanguage(language)
+        window.electronAPI?.invoke('app:set-language', language).catch(() => {})
+      },
       // Only persist user preferences — not transient state
       partialize: (state) => ({
         theme: state.theme,
         isSidebarCollapsed: state.isSidebarCollapsed,
-        language: state.language
+        language: state.language,
+        onlineGeocoding: state.onlineGeocoding,
+        paleoMaps: state.paleoMaps,
+        timelineScale: state.timelineScale,
       })
     }
   )

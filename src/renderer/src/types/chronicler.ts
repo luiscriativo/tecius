@@ -78,6 +78,25 @@ export interface EventFrontmatter {
   'cover-image'?: string
 }
 
+// ── Local de um evento ───────────────────────────────────────
+/** Nível de precisão do local (define como é desenhado no mapa) */
+export type LocationPrecision = 'point' | 'city' | 'region' | 'country' | 'approx'
+
+/**
+ * Onde o evento ocorreu. Coordenadas sempre ATUAIS (geografia de hoje);
+ * a posição em eras geológicas é calculada à parte (paleogeografia).
+ */
+export interface EventLocation {
+  name?: string
+  lat: number
+  lng: number
+  precision: LocationPrecision
+  /** Código para destacar a área: país ISO3 ("BRA") ou estado ISO 3166-2 ("BR-BA") */
+  area?: string
+  /** Raio aproximado em km (cidade/região/aproximado) */
+  radiusKm?: number
+}
+
 // ── Evento processado (pronto para uso no renderer) ───────────
 export interface ChroniclerEvent {
   /** Caminho absoluto do arquivo .md no disco */
@@ -98,6 +117,13 @@ export interface ChroniclerEvent {
   hasSubtimeline: boolean
   /** Caminho da sub-timeline (se existir) */
   subtimelinePath?: string
+  /** Onde o evento ocorreu (campo `location` do frontmatter) */
+  location?: EventLocation
+  /**
+   * Sem `date` ou com uma data que não dá para interpretar: fica fora do eixo,
+   * da timeline horizontal e do mapa (senão cairia no ano 0 e distorceria a escala)
+   */
+  undated?: boolean
   /**
    * Presente apenas quando o evento foi gerado a partir de um chronicle.
    * Identifica o documento-fonte e a posição desta entrada nele.

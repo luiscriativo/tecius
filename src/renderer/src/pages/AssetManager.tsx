@@ -24,10 +24,13 @@ import {
   RefreshCw,
   Search,
   Trash2,
-  X,
-} from 'lucide-react'
+  X, ImagePlus } from 'lucide-react'
 import { useVaultStore } from '@/stores/useVaultStore'
 import { cn } from '@/utils/cn'
+import { useI18n } from '@/hooks/useI18n'
+import { imageMarkdown } from '@/utils/markdown'
+import { usePref } from '@/hooks/usePref'
+import { oneOf } from '@/utils/prefs'
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -39,6 +42,8 @@ interface AssetInfo {
   relativePath: string
   size: number
   isOrphaned: boolean
+  /** Quantos .md da pasta usam a imagem */
+  usedBy?: number
 }
 
 type SortKey = 'name' | 'size' | 'orphaned'
@@ -83,6 +88,7 @@ interface AssetCardProps {
 }
 
 function AssetCard({ asset, onDelete, onRename, deleting, hideFolder }: AssetCardProps) {
+  const { t } = useI18n()
   const [imgError, setImgError] = useState(false)
   const [copied, setCopied] = useState(false)
   const [renaming, setRenaming] = useState(false)
@@ -92,12 +98,12 @@ function AssetCard({ asset, onDelete, onRename, deleting, hideFolder }: AssetCar
 
   // Copia o link markdown para o clipboard
   const handleCopy = useCallback(() => {
-    const link = `![imagem](${asset.relativePath})`
+    const link = imageMarkdown(t('md_image_alt'), asset.relativePath)
     navigator.clipboard.writeText(link).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 1500)
     })
-  }, [asset.relativePath])
+  }, [asset.relativePath, t])
 
   // Inicia modo de renomeação
   const handleStartRename = useCallback(() => {
@@ -143,7 +149,7 @@ function AssetCard({ asset, onDelete, onRename, deleting, hideFolder }: AssetCar
         {imgError ? (
           <div className="flex flex-col items-center gap-1 text-chr-muted">
             <ImageOff size={18} strokeWidth={1.5} />
-            <span className="text-2xs font-mono">sem preview</span>
+            <span className="text-2xs font-mono">{t('assets_no_preview')}</span>
           </div>
         ) : (
           <img
@@ -159,7 +165,7 @@ function AssetCard({ asset, onDelete, onRename, deleting, hideFolder }: AssetCar
         {asset.isOrphaned && (
           <div className="absolute top-1.5 left-1.5 flex items-center gap-1 px-1.5 py-0.5 rounded-sm bg-amber-900/80 border border-amber-700/60">
             <AlertTriangle size={9} strokeWidth={2} className="text-amber-400" />
-            <span className="font-mono text-2xs text-amber-300">órfã</span>
+            <span className="font-mono text-2xs text-amber-300">{t('assets_orphan')}</span>
           </div>
         )}
       </div>
@@ -210,7 +216,7 @@ function AssetCard({ asset, onDelete, onRename, deleting, hideFolder }: AssetCar
           {/* Copiar link */}
           <button
             onClick={handleCopy}
-            title={copied ? 'Copiado!' : 'Copiar link markdown'}
+            title={copied ? t('assets_copied') : t('assets_copy_link')}
             className={cn(
               'flex items-center gap-1 px-1.5 py-0.5 rounded-sm font-mono text-2xs',
               'transition-colors duration-150',
@@ -220,15 +226,15 @@ function AssetCard({ asset, onDelete, onRename, deleting, hideFolder }: AssetCar
             )}
           >
             {copied
-              ? <><Check size={10} strokeWidth={2.5} /> Copiado</>
-              : <><Clipboard size={10} strokeWidth={1.5} /> Copiar</>
+              ? <><Check size={10} strokeWidth={2.5} /> {t('assets_copied')}</>
+              : <><Clipboard size={10} strokeWidth={1.5} /> {t('assets_copy')}</>
             }
           </button>
 
           {/* Renomear */}
           <button
             onClick={handleStartRename}
-            title="Renomear imagem"
+            title={t('assets_rename')}
             className="p-1 rounded-sm text-chr-muted hover:text-chr-secondary hover:bg-hover transition-colors"
           >
             <Pencil size={11} strokeWidth={1.5} />
@@ -238,7 +244,7 @@ function AssetCard({ asset, onDelete, onRename, deleting, hideFolder }: AssetCar
           <button
             onClick={() => onDelete(asset.filePath)}
             disabled={deleting}
-            title="Deletar imagem"
+            title={t('assets_delete')}
             className={cn(
               'p-1 rounded-sm text-red-600 hover:text-red-400 hover:bg-red-950/30',
               'transition-colors duration-150',
@@ -288,6 +294,7 @@ interface FolderSectionProps {
 }
 
 function FolderSection({ folder, assets, onDelete, onRename, deletingPaths, defaultOpen = false }: FolderSectionProps) {
+  const { t } = useI18n()
   const [open, setOpen] = useState(defaultOpen)
   const orphanCount = assets.filter((a) => a.isOrphaned).length
   const totalSize = assets.reduce((s, a) => s + a.size, 0)
@@ -304,11 +311,11 @@ function FolderSection({ folder, assets, onDelete, onRename, deletingPaths, defa
         </span>
         <FolderOpen size={14} strokeWidth={1.5} className="text-chr-muted shrink-0" />
         <span className="font-mono text-xs text-chr-primary truncate flex-1">{folder}</span>
-        <span className="font-mono text-2xs text-chr-muted shrink-0">{assets.length} imagem{assets.length !== 1 ? 's' : ''}</span>
+        <span className="font-mono text-2xs text-chr-muted shrink-0">{t(assets.length === 1 ? 'assets_images_one' : 'assets_images_other', { count: assets.length })}</span>
         <span className="font-mono text-2xs text-chr-muted shrink-0 ml-2">{formatSize(totalSize)}</span>
         {orphanCount > 0 && (
           <span className="font-mono text-2xs text-amber-500 shrink-0 ml-2">
-            {orphanCount} órfã{orphanCount !== 1 ? 's' : ''}
+            {t(orphanCount === 1 ? 'assets_orphans_one' : 'assets_orphans_other', { count: orphanCount })}
           </span>
         )}
       </button>
@@ -342,6 +349,7 @@ interface PaginationProps {
 }
 
 function Pagination({ page, totalPages, total, onPage }: PaginationProps) {
+  const { t } = useI18n()
   if (totalPages <= 1) return null
 
   const from = page * PAGE_SIZE + 1
@@ -354,11 +362,11 @@ function Pagination({ page, totalPages, total, onPage }: PaginationProps) {
         disabled={page === 0}
         className="px-3 py-1.5 rounded-sm font-mono text-xs border border-chr-subtle text-chr-muted hover:border-chr hover:text-chr-secondary disabled:opacity-30 disabled:cursor-default transition-colors"
       >
-        ‹ Anterior
+        {t('assets_prev')}
       </button>
 
       <span className="font-mono text-2xs text-chr-muted">
-        {from}–{to} de {total}
+        {t('assets_range', { from, to, total })}
       </span>
 
       <button
@@ -366,7 +374,7 @@ function Pagination({ page, totalPages, total, onPage }: PaginationProps) {
         disabled={page >= totalPages - 1}
         className="px-3 py-1.5 rounded-sm font-mono text-xs border border-chr-subtle text-chr-muted hover:border-chr hover:text-chr-secondary disabled:opacity-30 disabled:cursor-default transition-colors"
       >
-        Próxima ›
+        {t('assets_next')}
       </button>
     </div>
   )
@@ -375,7 +383,13 @@ function Pagination({ page, totalPages, total, onPage }: PaginationProps) {
 // ── AssetManager ──────────────────────────────────────────────────────────────
 
 export default function AssetManager(): React.ReactElement {
+  const { t } = useI18n()
   const vaultInfo = useVaultStore((s) => s.vaultInfo)
+  // Adicionar imagens (pasta de destino, arrastar, enviando)
+  const [targetDir, setTargetDir] = useState('')
+  const [dragOver, setDragOver] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Dados brutos
   const [assets, setAssets] = useState<AssetInfo[]>([])
@@ -385,9 +399,9 @@ export default function AssetManager(): React.ReactElement {
 
   // Controles de UI
   const [search, setSearch] = useState('')
-  const [sort, setSort] = useState<SortKey>('name')
-  const [filterOrphaned, setFilterOrphaned] = useState(false)
-  const [viewMode, setViewMode] = useState<ViewMode>('grid')
+  const [sort, setSort] = usePref<SortKey>('assets.sort', 'name', oneOf(['name', 'size', 'orphaned']))
+  const [filterOrphaned, setFilterOrphaned] = usePref('assets.onlyOrphans', false)
+  const [viewMode, setViewMode] = usePref<ViewMode>('assets.view', 'grid', oneOf(['grid', 'grouped']))
   const [page, setPage] = useState(0)
 
   const searchRef = useRef<HTMLInputElement>(null)
@@ -406,14 +420,14 @@ export default function AssetManager(): React.ReactElement {
       if (result.success && result.data) {
         setAssets(result.data)
       } else {
-        setError(result.error ?? 'Erro ao listar assets')
+        setError(result.error ?? t('assets_list_error'))
       }
     } catch (e) {
       setError(String(e))
     } finally {
       setIsLoading(false)
     }
-  }, [])
+  }, [t])
 
   useEffect(() => {
     if (vaultInfo) loadAssets()
@@ -473,7 +487,7 @@ export default function AssetManager(): React.ReactElement {
       if (result.success) {
         setAssets((prev) => prev.filter((a) => a.filePath !== filePath))
       } else {
-        setError(result.error ?? 'Erro ao deletar')
+        setError(result.error ?? t('assets_delete_error'))
       }
     } catch (e) {
       setError(String(e))
@@ -484,27 +498,29 @@ export default function AssetManager(): React.ReactElement {
         return next
       })
     }
-  }, [])
+  }, [t])
 
   // A exclusão de imagens é permanente (não vai para a lixeira) — sempre confirma
   const confirmAndDelete = useCallback((filePath: string) => {
     const name = filePath.replace(/\\/g, '/').split('/').pop() ?? filePath
-    if (window.confirm(`Excluir permanentemente "${name}"?\n\nEsta ação não pode ser desfeita.`)) {
+    const usedBy = assets.find((a) => a.filePath === filePath)?.usedBy ?? 0
+    // Imagem em uso: o aviso diz quantos eventos vão ficar com a imagem quebrada
+    const message = usedBy > 0
+      ? t('assets_delete_in_use_confirm', { name, count: usedBy })
+      : t('assets_delete_confirm', { name })
+    if (window.confirm(message)) {
       handleDelete(filePath)
     }
-  }, [handleDelete])
+  }, [handleDelete, assets, t])
 
   const handleDeleteAllOrphaned = useCallback(async () => {
     const orphaned = assets.filter((a) => a.isOrphaned)
-    const confirmed = window.confirm(
-      `Excluir permanentemente ${orphaned.length} imagem(ns) órfã(s)?\n\n` +
-      'Órfã = nenhum .md da mesma pasta a referencia. Esta ação não pode ser desfeita.'
-    )
+    const confirmed = window.confirm(t('assets_delete_orphans_confirm', { count: orphaned.length }))
     if (!confirmed) return
     for (const asset of orphaned) {
       await handleDelete(asset.filePath)
     }
-  }, [assets, handleDelete])
+  }, [assets, handleDelete, t])
 
   const handleRename = useCallback(async (
     filePath: string,
@@ -536,15 +552,52 @@ export default function AssetManager(): React.ReactElement {
   if (!vaultInfo) {
     return (
       <div className="flex-1 flex items-center justify-center h-full">
-        <p className="font-mono text-xs text-chr-muted">Nenhum vault carregado.</p>
+        <p className="font-mono text-xs text-chr-muted">{t('assets_no_vault')}</p>
       </div>
     )
+  }
+
+  // ── Adicionar imagens (arrastar para a tela ou escolher arquivos) ──────────
+  const vaultTimelines = vaultInfo?.timelines ?? []
+  const rootPath = vaultInfo?.rootPath ?? ''
+  const relFolder = (dir: string) => (rootPath && dir.startsWith(rootPath) ? dir.slice(rootPath.length).replace(/^[\\/]+/, '') : dir) || '/'
+  const folders = [
+    ...vaultTimelines.map((tl) => ({ dir: tl.dirPath, label: tl.title })),
+    ...assets.map((a) => ({ dir: a.eventFolderPath, label: relFolder(a.eventFolderPath) })),
+  ].filter((f, i, arr) => arr.findIndex((x) => x.dir === f.dir) === i)
+  const target = targetDir || folders[0]?.dir || ''
+  const targetLabel = folders.find((f) => f.dir === target)?.label ?? ''
+
+  const uploadFiles = async (list: File[]) => {
+    const images = list.filter((f) => f.type.startsWith('image/'))
+    if (!target || images.length === 0) return
+    setUploading(true)
+    try {
+      for (const file of images) {
+        // O processo principal salva em <pasta>/_assets/ (recebe um .md da pasta como referência)
+        const r = await window.electronAPI.invoke<{ success: boolean; error?: string }>(
+          'fs:save-image', await file.arrayBuffer(), file.name, `${target}/.tecius-upload.md`)
+        if (!r.success) setError(r.error ?? t('assets_upload_error'))
+      }
+      await loadAssets()
+    } finally {
+      setUploading(false)
+    }
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="relative flex flex-col h-full overflow-hidden"
+      onDragOver={(e) => { if (e.dataTransfer.types.includes('Files') && target) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; setDragOver(true) } }}
+      onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragOver(false) }}
+      onDrop={(e) => { e.preventDefault(); setDragOver(false); void uploadFiles(Array.from(e.dataTransfer.files)) }}>
+
+      {dragOver && (
+        <div className="absolute inset-3 z-30 flex items-center justify-center rounded-sm border-2 border-dashed border-timeline-chronicle bg-vault/85 pointer-events-none" data-testid="assets-drop-overlay">
+          <p className="font-mono text-sm text-chr-primary">{t('assets_drop_here', { folder: targetLabel })}</p>
+        </div>
+      )}
 
       {/* ── Header ──────────────────────────────────────────────────────────── */}
       <header className="shrink-0 border-b border-chr-subtle bg-surface">
@@ -552,16 +605,16 @@ export default function AssetManager(): React.ReactElement {
         {/* Linha 1: título + stats + ações */}
         <div className="flex items-center justify-between px-6 py-3 gap-4 flex-wrap">
           <div className="flex items-center gap-4">
-            <h1 className="font-mono text-sm text-chr-primary">Imagens do Vault</h1>
+            <h1 className="font-mono text-sm text-chr-primary">{t('assets_title')}</h1>
             {!isLoading && (
               <div className="flex items-center gap-2 font-mono text-2xs text-chr-muted">
-                <span>{assets.length} imagens</span>
+                <span>{t(assets.length === 1 ? 'assets_images_one' : 'assets_images_other', { count: assets.length })}</span>
                 <span className="text-chr-subtle">·</span>
                 <span>{formatSize(totalSize)}</span>
                 {totalOrphans > 0 && (
                   <>
                     <span className="text-chr-subtle">·</span>
-                    <span className="text-amber-500">{totalOrphans} órfã{totalOrphans !== 1 ? 's' : ''}</span>
+                    <span className="text-amber-500">{t(totalOrphans === 1 ? 'assets_orphans_one' : 'assets_orphans_other', { count: totalOrphans })}</span>
                   </>
                 )}
               </div>
@@ -573,7 +626,7 @@ export default function AssetManager(): React.ReactElement {
             <div className="flex items-center border border-chr-subtle rounded-sm overflow-hidden">
               <button
                 onClick={() => setViewMode('grid')}
-                title="Visão em grade paginada"
+                title={t('assets_view_grid')}
                 className={cn(
                   'p-1.5 transition-colors',
                   viewMode === 'grid'
@@ -585,7 +638,7 @@ export default function AssetManager(): React.ReactElement {
               </button>
               <button
                 onClick={() => setViewMode('grouped')}
-                title="Visão agrupada por pasta"
+                title={t('assets_view_grouped')}
                 className={cn(
                   'p-1.5 transition-colors',
                   viewMode === 'grouped'
@@ -610,8 +663,25 @@ export default function AssetManager(): React.ReactElement {
                 )}
               >
                 <Trash2 size={11} strokeWidth={1.5} />
-                Deletar {totalOrphans} órfã{totalOrphans !== 1 ? 's' : ''}
+                {t(totalOrphans === 1 ? 'assets_delete_orphans_one' : 'assets_delete_orphans_other', { count: totalOrphans })}
               </button>
+            )}
+
+            {/* Adicionar imagens: pasta de destino + escolher arquivos (ou arrastar para a tela) */}
+            {folders.length > 0 && (
+              <div className="flex items-center gap-1.5" data-testid="assets-upload">
+                <select value={target} onChange={(e) => setTargetDir(e.target.value)} title={t('assets_upload_target')}
+                  className="px-1.5 py-1 rounded-sm bg-vault border border-chr-subtle font-mono text-2xs text-chr-primary focus:outline-none focus:border-chr max-w-[12rem]">
+                  {folders.map((f) => <option key={f.dir} value={f.dir}>{f.label}</option>)}
+                </select>
+                <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading}
+                  title={t('assets_upload_hint')}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-sm text-xs font-mono border border-chr-subtle text-chr-secondary hover:border-chr hover:text-chr-primary transition-colors disabled:opacity-50">
+                  <ImagePlus size={11} strokeWidth={1.5} />{uploading ? t('loading') : t('assets_upload')}
+                </button>
+                <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden"
+                  onChange={(e) => { void uploadFiles(Array.from(e.target.files ?? [])); e.target.value = '' }} />
+              </div>
             )}
 
             {/* Recarregar */}
@@ -621,7 +691,7 @@ export default function AssetManager(): React.ReactElement {
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-sm text-xs font-mono border border-chr-subtle text-chr-muted hover:border-chr hover:text-chr-secondary transition-colors"
             >
               <RefreshCw size={11} strokeWidth={1.5} className={isLoading ? 'animate-spin' : ''} />
-              Atualizar
+              {t('refresh')}
             </button>
           </div>
         </div>
@@ -637,7 +707,7 @@ export default function AssetManager(): React.ReactElement {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar por nome ou pasta..."
+              placeholder={t('assets_search_ph')}
               className={cn(
                 'w-full pl-7 pr-7 py-1.5 rounded-sm',
                 'bg-vault border border-chr-subtle',
@@ -665,9 +735,9 @@ export default function AssetManager(): React.ReactElement {
               'focus:outline-none focus:border-chr transition-colors cursor-pointer'
             )}
           >
-            <option value="name">Ordenar: Nome</option>
-            <option value="size">Ordenar: Tamanho</option>
-            <option value="orphaned">Ordenar: Órfãs primeiro</option>
+            <option value="name">{t('assets_sort_name')}</option>
+            <option value="size">{t('assets_sort_size')}</option>
+            <option value="orphaned">{t('assets_sort_orphaned')}</option>
           </select>
 
           {/* Filtro órfãs */}
@@ -681,13 +751,13 @@ export default function AssetManager(): React.ReactElement {
             )}
           >
             <AlertTriangle size={11} strokeWidth={1.5} />
-            {filterOrphaned ? 'Ver todas' : 'Só órfãs'}
+            {filterOrphaned ? t('assets_show_all') : t('assets_only_orphans')}
           </button>
 
           {/* Resultado do filtro */}
           {(search || filterOrphaned) && !isLoading && (
             <span className="font-mono text-2xs text-chr-muted">
-              {filtered.length} resultado{filtered.length !== 1 ? 's' : ''}
+              {filtered.length === 1 ? t('results_one') : t('results_other', { count: filtered.length })}
             </span>
           )}
         </div>
@@ -708,7 +778,7 @@ export default function AssetManager(): React.ReactElement {
         {isLoading ? (
           <div className="flex flex-col items-center justify-center h-40 gap-2">
             <RefreshCw size={20} strokeWidth={1.5} className="text-chr-muted animate-spin" />
-            <span className="font-mono text-xs text-chr-muted">Carregando imagens...</span>
+            <span className="font-mono text-xs text-chr-muted">{t('assets_loading')}</span>
           </div>
 
         ) : filtered.length === 0 ? (
@@ -716,8 +786,8 @@ export default function AssetManager(): React.ReactElement {
             <ImageOff size={24} strokeWidth={1.5} className="text-chr-muted" />
             <p className="font-mono text-xs text-chr-muted">
               {search || filterOrphaned
-                ? 'Nenhuma imagem encontrada para os filtros aplicados.'
-                : 'Nenhuma imagem no vault ainda.'}
+                ? t('assets_none_filtered')
+                : t('assets_none')}
             </p>
           </div>
 

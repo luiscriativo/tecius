@@ -9,7 +9,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import pkg from '../../../../package.json'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { BookOpen, Plus, Pencil, Trash2, Trash, Images } from 'lucide-react'
+import { BookOpen, Plus, Pencil, Trash2, Trash, Images, Search } from 'lucide-react'
 import { useAppStore } from '@/stores/useAppStore'
 import { useVaultStore } from '@/stores/useVaultStore'
 import { useTimeline } from '@/hooks/useTimeline'
@@ -440,7 +440,7 @@ export function Sidebar(): React.ReactElement {
             'hover:bg-hover hover:text-chr-secondary',
             'transition-colors duration-150'
           )}
-          aria-label={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-label={isSidebarCollapsed ? t('sidebar_expand') : t('sidebar_collapse')}
         >
           <svg
             className={cn('w-4 h-4 transition-transform duration-200', isSidebarCollapsed && 'rotate-180')}
@@ -456,6 +456,19 @@ export function Sidebar(): React.ReactElement {
 
       {/* ── Navigation ─────────────────────────────────────────────────── */}
       <nav className="p-2 space-y-0.5 shrink-0">
+        {/* Busca global (Ctrl/Cmd+K) */}
+        <button type="button" onClick={() => window.dispatchEvent(new Event('tecius:open-search'))}
+          className={cn('w-full flex items-center gap-3 px-3 py-2 rounded-sm text-sm transition-colors duration-150',
+            'text-chr-secondary hover:bg-hover hover:text-chr-primary', isSidebarCollapsed && 'justify-center px-2')}
+          title={isSidebarCollapsed ? t('search_vault') : undefined} data-testid="open-search">
+          <span className="shrink-0"><Search size={18} className="w-5 h-5" strokeWidth={1.5} /></span>
+          {!isSidebarCollapsed && (
+            <>
+              <span className="truncate flex-1 text-left">{t('search_vault')}</span>
+              <kbd className="font-mono text-2xs text-chr-muted">{navigator.platform.toLowerCase().includes('mac') ? '⌘K' : 'Ctrl K'}</kbd>
+            </>
+          )}
+        </button>
         {navItems.map((item) => (
           <NavLink
             key={item.path}

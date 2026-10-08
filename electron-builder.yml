@@ -23,6 +23,13 @@ files:
   - "!**/*.map"
   - "!**/*.d.ts"
 
+# ── Licenças (a GPL exige que o texto acompanhe o app distribuído) ────────────
+extraResources:
+  - from: LICENSE
+    to: LICENSE.txt
+  - from: src/renderer/src/assets/geo/historical/NOTICE.md
+    to: NOTICE-historical-borders.md
+
 # ── Application metadata ─────────────────────────────────────────────────────
 extraMetadata:
   main: out/main/index.js

@@ -22,33 +22,48 @@
  */
 
 import { useMemo, useState, useEffect, useRef, useCallback } from 'react'
+import { useTimelineStore } from '../../stores/useTimelineStore'
+import { eventSpan } from '../../utils/mapTime'
 import { ChevronDown, ChevronRight, Search, X, Pencil, Trash2, AlertTriangle, Filter } from 'lucide-react'
 import { cn } from '../../utils/cn'
+import { formatYear, undatedLabel } from '../../utils/chroniclerDate'
 import { useI18n } from '../../hooks/useI18n'
 import type { TimelineData, ChroniclerEvent } from '../../types/chronicler'
+import { usePref } from '../../hooks/usePref'
+import { oneOf } from '../../utils/prefs'
 
 // ── Tipos ──────────────────────────────────────────────────────────────────────
 
-type GroupLevel = 'year' | 'decade' | 'century'
+type GroupLevel = 'year' | 'decade' | 'century' | 'millennium' | 'myr'
 type GroupBy = 'auto' | 'year' | 'decade' | 'century' | 'category' | 'importance'
 
 // ── Lógica de agrupamento ─────────────────────────────────────────────────────
 
+// Largura (em anos) de cada nível
+const LEVEL_WIDTH: Record<GroupLevel, number> = { year: 1, decade: 10, century: 100, millennium: 1000, myr: 1_000_000 }
+
+/** Com poucos eventos, todos os grupos já abrem expandidos (nada fica escondido) */
+const OPEN_ALL_GROUPS_UP_TO = 60
+
 function getGroupLevel(spanYears: number): GroupLevel {
   if (spanYears <= 100) return 'year'
   if (spanYears <= 1000) return 'decade'
-  return 'century'
+  if (spanYears <= 20_000) return 'century'
+  if (spanYears <= 2_000_000) return 'millennium'
+  return 'myr'   // tempo profundo: agrupa por milhão de anos
 }
 
 function getPeriodKey(year: number, level: GroupLevel): number {
-  if (level === 'year') return year
-  if (level === 'decade') return Math.floor(year / 10) * 10
-  return Math.floor(year / 100) * 100
+  const w = LEVEL_WIDTH[level]
+  return Math.floor(year / w) * w
 }
 
 function getPeriodLabel(key: number, level: GroupLevel): string {
-  if (level === 'year') return String(key)
-  return `${key}s`
+  if (level === 'year') return formatYear(key)
+  if (level === 'myr') return key >= 0 ? '< 1 Ma' : formatYear(key)
+  if (key >= 0) return `${key}s`
+  // Antes de Cristo: mostra o intervalo ("500 a.C. – 401 a.C.")
+  return `${formatYear(key)} – ${formatYear(key + LEVEL_WIDTH[level] - 1)}`
 }
 
 // ── ContextMenu ───────────────────────────────────────────────────────────────
@@ -269,6 +284,8 @@ interface EventRowProps {
   selectionMode?: boolean
   isPicked?: boolean
   onTogglePick?: () => void
+  /** Destaque temporário (evento do momento em que o mapa estava) */
+  flash?: boolean
 }
 
 function EventRow({
@@ -280,11 +297,14 @@ function EventRow({
   selectionMode,
   isPicked,
   onTogglePick,
+  flash,
 }: EventRowProps) {
+  const { t } = useI18n()
   const highlighted = selectionMode ? isPicked : isSelected
 
   return (
     <div
+      data-event-slug={event.slug}
       onClick={selectionMode ? onTogglePick : onClick}
       onContextMenu={selectionMode ? undefined : onContextMenu}
       className={cn(
@@ -292,7 +312,8 @@ function EventRow({
         'border-l-2 transition-all duration-150',
         highlighted
           ? 'bg-active border-chr-strong'
-          : 'border-transparent hover:bg-hover hover:border-chr-subtle'
+          : 'border-transparent hover:bg-hover hover:border-chr-subtle',
+        flash && 'bg-active border-timeline-chronicle-text'
       )}
     >
       {/* Checkbox — visível só no modo seleção */}
@@ -339,7 +360,7 @@ function EventRow({
             'font-mono text-2xs text-chr-muted border border-chr-subtle',
             'hover:border-chr-strong hover:text-chr-secondary transition-colors'
           )}
-          title="Entrar na sub-timeline"
+          title={t('enter_subtimeline')}
         >
           <ChevronRight size={10} strokeWidth={2} />
         </button>
@@ -361,6 +382,9 @@ interface CollapsibleGroupProps {
   selectionMode?: boolean
   pickedFiles?: Set<string>
   onTogglePick?: (filePath: string) => void
+  flashSlug?: string | null
+  /** Abre o grupo (quando ganha o evento em foco depois de montado) */
+  forceOpen?: boolean
 }
 
 function CollapsibleGroup({
@@ -374,8 +398,11 @@ function CollapsibleGroup({
   selectionMode,
   pickedFiles,
   onTogglePick,
+  flashSlug,
+  forceOpen,
 }: CollapsibleGroupProps) {
   const [open, setOpen] = useState(defaultOpen)
+  useEffect(() => { if (forceOpen) setOpen(true) }, [forceOpen])
   const { nEvents } = useI18n()
 
   const byYear = useMemo(() => {
@@ -416,10 +443,13 @@ function CollapsibleGroup({
               className="mb-4"
               style={{ contentVisibility: 'auto', containIntrinsicSize: '0 auto 180px' } as React.CSSProperties}
             >
-              <div className="flex items-center gap-2 mb-1">
-                <span className="font-mono text-2xs text-chr-muted">{year}</span>
-                <div className="flex-1 h-px bg-chr-subtle opacity-50" />
-              </div>
+              {/* Eventos sem data não têm ano (senão apareceria "0") */}
+              {!yearEvents[0]?.undated && (
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="font-mono text-2xs text-chr-muted">{formatYear(year)}</span>
+                  <div className="flex-1 h-px bg-chr-subtle opacity-50" />
+                </div>
+              )}
               <div className="space-y-px ml-2">
                 {yearEvents.map((event) => (
                   <EventRow
@@ -432,6 +462,7 @@ function CollapsibleGroup({
                     selectionMode={selectionMode}
                     isPicked={selectionMode ? pickedFiles?.has(event.filePath) : undefined}
                     onTogglePick={onTogglePick ? () => onTogglePick(event.filePath) : undefined}
+                    flash={flashSlug === event.slug}
                   />
                 ))}
               </div>
@@ -468,8 +499,8 @@ export function TimelineList({
   filterPaths,
 }: TimelineListProps) {
   const [search, setSearch] = useState('')
-  const [groupBy, setGroupBy] = useState<GroupBy>('auto')
-  const { t, nEvents, nResults } = useI18n()
+  const [groupBy, setGroupBy] = usePref<GroupBy>('list.groupBy', 'auto', oneOf(['auto', 'year', 'decade', 'century', 'category', 'importance']))
+  const { t, nEvents } = useI18n()
 
   const GROUP_BY_OPTIONS: { value: GroupBy; label: string }[] = [
     { value: 'auto',       label: t('group_auto') },
@@ -480,9 +511,39 @@ export function TimelineList({
     { value: 'importance', label: t('group_importance') },
   ]
 
-  const IMPORTANCE_LABEL: Record<number, string> = {
+  // Vindo do modo Mapa: o primeiro evento do momento em que a régua estava
+  // (ou o mais próximo dele) — abre o grupo dele, rola até ele e destaca.
+  // Lido num efeito: o mapa só grava o momento ao desmontar, depois desta renderização.
+  const [focusSlug, setFocusSlug] = useState<string | null>(null)
+  const [flashSlug, setFlashSlug] = useState<string | null>(null)
+  const listRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const { timelineFocus: focus, setTimelineFocus } = useTimelineStore.getState()
+    if (!focus || focus.dirPath !== timeline.dirPath || timeline.events.length === 0) return
+    setTimelineFocus(null)
+    const spans = timeline.events.map((e) => ({ e, span: eventSpan(e) }))
+    const inWindow = spans.filter(({ span }) => span[0] < focus.end && span[1] > focus.start)
+      .sort((a, b) => a.span[0] - b.span[0])
+    const target = inWindow[0]
+      ?? spans.reduce((a, b) => (Math.abs(b.span[0] - focus.start) < Math.abs(a.span[0] - focus.start) ? b : a))
+    setFocusSlug(target.e.slug)
+    setFlashSlug(target.e.slug)
+  }, [timeline])
+  useEffect(() => {
+    if (!focusSlug) return
+    // Dois quadros: o grupo do evento abre e só então a linha existe para rolar até ela
+    let raf = requestAnimationFrame(() => {
+      raf = requestAnimationFrame(() => {
+        listRef.current?.querySelector(`[data-event-slug="${CSS.escape(focusSlug)}"]`)?.scrollIntoView({ block: 'center' })
+      })
+    })
+    const timer = setTimeout(() => setFlashSlug(null), 1800)
+    return () => { cancelAnimationFrame(raf); clearTimeout(timer) }
+  }, [focusSlug])
+
+  const IMPORTANCE_LABEL = useMemo<Record<number, string>>(() => ({
     5: t('importance_max'), 4: t('importance_high'), 3: t('importance_mid'), 2: t('importance_low'), 1: t('importance_min'),
-  }
+  }), [t])
 
   // Context menu state
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
@@ -528,7 +589,7 @@ export function TimelineList({
   )
 
   const spanYears = timeline.dateRange.spanYears
-  const effectiveGroupBy: GroupBy = groupBy === 'auto' ? getGroupLevel(spanYears) : groupBy
+  const effectiveGroupBy: GroupBy | GroupLevel = groupBy === 'auto' ? getGroupLevel(spanYears) : groupBy
   const useFlat = effectiveGroupBy === 'year'
 
   const filtered = useMemo(() => {
@@ -573,15 +634,19 @@ export function TimelineList({
 
     const level = effectiveGroupBy as GroupLevel
     const map = new Map<number, ChroniclerEvent[]>()
+    const undated: ChroniclerEvent[] = []
     for (const event of filtered) {
+      if (event.undated) { undated.push(event); continue }
       const key = getPeriodKey(event.date.year, level)
       if (!map.has(key)) map.set(key, [])
       map.get(key)!.push(event)
     }
-    return Array.from(map.entries())
+    const groups = Array.from(map.entries())
       .sort(([a], [b]) => a - b)
-      .map(([k, evs]) => [getPeriodLabel(k, level), evs])
-  }, [filtered, effectiveGroupBy, t])
+      .map(([k, evs]): [string, ChroniclerEvent[]] => [getPeriodLabel(k, level), evs])
+    // Sem data: grupo próprio no fim (antes caíam no "ano 0")
+    return undated.length ? [...groups, [undatedLabel(), undated]] : groups
+  }, [filtered, effectiveGroupBy, t, IMPORTANCE_LABEL])
 
   // Early return só depois de todos os hooks (regras dos hooks) — ver TimelineCanvas
   if (baseEvents.length === 0 && timeline.events.length === 0) {
@@ -592,11 +657,16 @@ export function TimelineList({
     )
   }
 
+  const focusGroupIdx = focusSlug ? groupedEntries.findIndex(([, evs]) => evs.some((e) => e.slug === focusSlug)) : -1
+
   const footerGroupLabel = (() => {
     if (groupBy === 'auto') {
       const autoLevel = getGroupLevel(spanYears)
       if (autoLevel === 'year') return null
-      return autoLevel === 'decade' ? t('grouped_decades_auto') : t('grouped_centuries_auto')
+      if (autoLevel === 'decade') return t('grouped_decades_auto')
+      if (autoLevel === 'millennium') return t('grouped_millennia_auto')
+      if (autoLevel === 'myr') return t('grouped_myr_auto')
+      return t('grouped_centuries_auto')
     }
     const labels: Partial<Record<GroupBy, string>> = {
       decade: t('grouped_decades'),
@@ -641,7 +711,7 @@ export function TimelineList({
         </div>
         {search && (
           <p className="font-mono text-2xs text-chr-muted mt-1">
-            {nResults(filtered.length)} {t('grouped_by').includes('agrupado') ? 'de' : 'of'} {timeline.events.length}
+            {t('results_of', { count: filtered.length, s: filtered.length === 1 ? '' : 's', total: timeline.events.length })}
           </p>
         )}
       </div>
@@ -668,7 +738,7 @@ export function TimelineList({
       </div>
 
       {/* ── Lista principal ──────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto px-8 py-2">
+      <div ref={listRef} className="flex-1 overflow-y-auto px-8 py-2">
 
         {filtered.length === 0 ? (
           <p className="font-mono text-xs text-chr-muted text-center py-8">
@@ -701,6 +771,7 @@ export function TimelineList({
                       onClick={() => onEventClick(event)}
                       onSubtimeline={() => onEnterSubtimeline(event)}
                       onContextMenu={(e) => handleContextMenu(e, event)}
+                      flash={flashSlug === event.slug}
                     />
                   ))}
                 </div>
@@ -719,7 +790,9 @@ export function TimelineList({
                 onEventClick={onEventClick}
                 onEnterSubtimeline={onEnterSubtimeline}
                 onEventContextMenu={handleContextMenu}
-                defaultOpen={idx === 0}
+                defaultOpen={idx === 0 || filtered.length <= OPEN_ALL_GROUPS_UP_TO}
+                forceOpen={idx === focusGroupIdx}
+                flashSlug={flashSlug}
               />
             ))}
           </>
@@ -729,7 +802,7 @@ export function TimelineList({
         <div className="pt-4 border-t border-chr-subtle">
           <span className="font-mono text-2xs text-chr-muted">
             {filterPaths
-              ? <>{nEvents(baseEvents.length)}<span className="opacity-60"> de {timeline.events.length}</span></>
+              ? <>{nEvents(baseEvents.length)}<span className="opacity-60"> {t('of_total', { total: timeline.events.length })}</span></>
               : nEvents(timeline.events.length)
             }
             {footerGroupLabel && (

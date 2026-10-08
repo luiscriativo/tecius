@@ -93,6 +93,10 @@ export default function TrashView(): React.ReactElement {
   const deleteCached = useTimelineStore((s) => s.deleteCached)
   const addNotification = useAppStore((s) => s.addNotification)
   const trashCount = useVaultStore((s) => s.vaultInfo?.trashCount ?? 0)
+  const vaultRoot = useVaultStore((s) => s.vaultInfo?.rootPath ?? '')
+  // Mostra o caminho a partir do vault (o absoluto fica no tooltip)
+  const relativeToVault = (p: string): string =>
+    vaultRoot && p.startsWith(vaultRoot) ? p.slice(vaultRoot.length).replace(/^[\\/]+/, '') : p
   const { t, language, nEvents, nItems } = useI18n()
 
   const [items, setItems]           = useState<TrashItem[]>([])
@@ -258,7 +262,7 @@ export default function TrashView(): React.ReactElement {
                       {item.name}
                     </p>
                     <p className="font-mono text-2xs text-chr-muted mt-1 truncate" title={item.originalPath}>
-                      {item.originalPath}
+                      {relativeToVault(item.originalPath)}
                     </p>
                     <div className="flex items-center gap-3 mt-2">
                       <span className="font-mono text-2xs text-chr-muted">

@@ -10,7 +10,8 @@
  *     - Bytecode is tied to the Electron/V8 version → cannot be decompiled
  *
  *  2. PRELOAD + RENDERER → Obfuscation via javascript-obfuscator
- *     - Renames identifiers to hex, splits strings, flattens control flow
+ *     - Renames identifiers to hex, shuffles and splits strings (no control-flow
+ *       flattening: it made the UI 6–25× slower — see OBFUSCATOR_OPTIONS)
  *     - Adds self-defending code that breaks when formatted/debugged
  *     - The renderer is already minified by Vite; this adds a second layer
  *
@@ -39,35 +40,35 @@ const args = process.argv.slice(2);
 const skipBytecode = args.includes('--no-bytecode');
 
 // ── Obfuscator configuration ──────────────────────────────────────────────────
-// Balanced between maximum protection and runtime performance.
-// Increase controlFlowFlatteningThreshold/deadCodeInjectionThreshold for stronger
-// protection at the cost of a slightly larger/slower bundle.
+// Ofuscação "leve": renomeia identificadores, embaralha e quebra as strings e se
+// defende de formatação, mas sem as transformações que pesam em código executado
+// muitas vezes. Medido no mapa com 5 mil eventos (passo da régua / passo de zoom):
+//   sem ofuscar 2 ms / 6 ms · leve (esta) 4 ms / 6 ms · completa 53 ms / 36 ms
+// A completa (controlFlowFlattening, deadCodeInjection, numbersToExpressions,
+// strings em base64 e chamadas transformadas) travava a interface ao arrastar.
 const OBFUSCATOR_OPTIONS = {
   compact: true,
-  controlFlowFlattening: true,
-  controlFlowFlatteningThreshold: 0.75,
-  deadCodeInjection: true,
-  deadCodeInjectionThreshold: 0.4,
+  controlFlowFlattening: false,     // pesado: embaralha o fluxo de cada laço
+  deadCodeInjection: false,         // pesado: código morto nos caminhos quentes
   debugProtection: false,           // set true to break devtools (affects perf)
   debugProtectionInterval: 0,
   disableConsoleOutput: false,      // set true to silence console in production
   identifierNamesGenerator: 'hexadecimal',
   log: false,
-  numbersToExpressions: true,
+  numbersToExpressions: false,      // pesado: cada número vira uma expressão
   renameGlobals: false,
   selfDefending: true,              // breaks when code is reformatted/debugged
   simplify: true,
   splitStrings: true,
   splitStringsChunkLength: 12,
   stringArray: true,
-  stringArrayCallsTransform: true,
-  stringArrayCallsTransformThreshold: 0.75,
-  stringArrayEncoding: ['base64'],
+  stringArrayCallsTransform: false, // pesado: chamadas passam por funções intermediárias
+  stringArrayEncoding: [],          // sem base64: decodificar a cada acesso pesava
   stringArrayIndexShift: true,
   stringArrayRotate: true,
   stringArrayShuffle: true,
-  stringArrayWrappersCount: 2,
-  stringArrayWrappersChainedCalls: true,
+  stringArrayWrappersCount: 1,
+  stringArrayWrappersChainedCalls: false,
   stringArrayWrappersParametersMaxCount: 4,
   stringArrayWrappersType: 'function',
   stringArrayThreshold: 0.75,
@@ -103,11 +104,17 @@ function obfuscateDir(dir) {
   walkJs(dir).forEach(obfuscateFile);
 }
 
+// Pastas que não são código: dados geográficos (JSON empacotado como JS).
+// Ofuscá-los só aumentaria muito o tamanho e o tempo de build; os mapas de
+// fronteiras, além disso, são GPL e devem ficar legíveis.
+const SKIP_DIRS = new Set([path.join(RENDERER_DIR, 'assets', 'data')]);
+
 /** Recursively collect all .js files */
 function walkJs(dir) {
   const results = [];
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
+    if (entry.isDirectory() && SKIP_DIRS.has(full)) { log(`    ↷ ${path.relative(ROOT, full)}  (dados, não ofuscados)`); continue; }
     if (entry.isDirectory()) results.push(...walkJs(full));
     else if (entry.name.endsWith('.js')) results.push(full);
   }
@@ -136,9 +143,12 @@ async function compileMainToBytecode() {
   `;
 
   log(`  Compiling with Electron's V8 (${electronBin})...`);
+  // ELECTRON_RUN_AS_NODE: sem isso o Electron ignora o `-e`, abre a janela
+  // padrão e o build fica parado esperando
   execFileSync(electronBin, ['-e', compileScript], {
     stdio: 'inherit',
     cwd: ROOT,
+    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
   });
 
   if (!fs.existsSync(MAIN_BYTECODE)) {

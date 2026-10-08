@@ -9,8 +9,15 @@ import { ipcMain, app, nativeTheme, shell, BrowserWindow, dialog } from 'electro
 import { promises as fs } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
+import { getMainLanguage, setMainLanguage, tm } from '../i18n'
 
 export function registerAppHandlers(): void {
+  // ── app:set-language ───────────────────────────────────────────────────────
+  // Idioma da interface (diálogos nativos e mensagens de erro do processo principal)
+  ipcMain.handle('app:set-language', (_event, language: unknown) => {
+    setMainLanguage(language)
+  })
+
   // ── app:get-version ────────────────────────────────────────────────────────
   // Returns the current application version from package.json.
   ipcMain.handle('app:get-version', () => {
@@ -73,8 +80,8 @@ export function registerAppHandlers(): void {
     if (!win) return { success: false, error: 'No window found' }
 
     const { canceled, filePath } = await dialog.showSaveDialog(win, {
-      title: 'Exportar como PDF',
-      defaultPath: `${options.suggestedName}.pdf`,
+      title: tm('dialog_export_pdf'),
+      defaultPath: `${safeFileName(options.suggestedName, 'evento')}.pdf`,
       filters: [{ name: 'PDF', extensions: ['pdf'] }],
     })
 
@@ -112,6 +119,128 @@ export function registerAppHandlers(): void {
   })
 }
 
+// ── Exportar timeline inteira (PDF ou página web) ──────────────────────────────
+
+/** asset://local/<caminho> → caminho no disco */
+function assetUrlToPath(url: string): string {
+  const parts = url.replace(/^asset:\/\/local\//, '').split('/').map((p) => { try { return decodeURIComponent(p) } catch { return p } })
+  return /^[A-Za-z]:$/.test(parts[0] ?? '') ? parts.join('/') : '/' + parts.join('/')
+}
+
+const MIME: Record<string, string> = {
+  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml',
+}
+
+/** Troca imagens asset:// por dados embutidos: o arquivo fica autossuficiente */
+async function inlineAssets(html: string): Promise<string> {
+  const urls = [...new Set([...html.matchAll(/src="(asset:\/\/local\/[^"]+)"/g)].map((m) => m[1]))]
+  let out = html
+  for (const url of urls) {
+    try {
+      const file = assetUrlToPath(url.replace(/&amp;/g, '&'))
+      const ext = file.split('.').pop()?.toLowerCase() ?? ''
+      const data = await fs.readFile(file)
+      out = out.split(`src="${url}"`).join(`src="data:${MIME[ext] ?? 'application/octet-stream'};base64,${data.toString('base64')}"`)
+    } catch { /* imagem ausente: fica o link original */ }
+  }
+  return out
+}
+
+export function registerTimelineExport(): void {
+  ipcMain.handle('app:export-timeline', async (event, options: {
+    format: 'pdf' | 'html'
+    suggestedName: string
+    title: string
+    bodyHtml: string
+  }) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win) return { success: false, error: 'No window found' }
+    const isPdf = options.format === 'pdf'
+    const baseName = safeFileName(options.suggestedName, 'timeline')
+    // Testes automatizados não operam o diálogo nativo: TECIUS_TEST_SAVE_DIR fornece a pasta
+    const testDir = process.env.TECIUS_TEST_SAVE_DIR
+    const { canceled, filePath } = testDir
+      ? { canceled: false, filePath: join(testDir, `${baseName}.${isPdf ? 'pdf' : 'html'}`) }
+      : await dialog.showSaveDialog(win, {
+      title: tm(isPdf ? 'dialog_export_pdf' : 'dialog_export_html'),
+      defaultPath: `${baseName}.${isPdf ? 'pdf' : 'html'}`,
+      filters: [isPdf ? { name: 'PDF', extensions: ['pdf'] } : { name: 'HTML', extensions: ['html'] }],
+    })
+    if (canceled || !filePath) return { success: false, canceled: true }
+
+    const html = await inlineAssets(buildTimelineHtml(options.title, options.bodyHtml, !isPdf))
+    if (!isPdf) {
+      await fs.writeFile(filePath, html, 'utf-8')
+      return { success: true, filePath }
+    }
+    const tmpFile = join(tmpdir(), `tecius-timeline-${Date.now()}.html`)
+    const printWindow = new BrowserWindow({ show: false, width: 1200, height: 900, webPreferences: { javascript: false } })
+    try {
+      await fs.writeFile(tmpFile, html, 'utf-8')
+      await printWindow.loadFile(tmpFile)
+      await new Promise<void>((resolve) => setTimeout(resolve, 400))
+      const data = await printWindow.webContents.printToPDF({ printBackground: true, pageSize: 'A4' })
+      await fs.writeFile(filePath, data)
+      return { success: true, filePath }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) }
+    } finally {
+      printWindow.destroy()
+      await fs.unlink(tmpFile).catch(() => {})
+    }
+  })
+}
+
+/** Título → nome de arquivo: "/", ":" etc. criariam pastas ou nomes inválidos no diálogo de salvar */
+function safeFileName(name: string, fallback: string): string {
+  // eslint-disable-next-line no-control-regex -- caracteres de controle também são proibidos em nomes de arquivo
+  return name.replace(/[\\/:*?"<>|\x00-\x1f]/g, '-').trim() || fallback
+}
+
+/** Documento da timeline: capa, índice e um capítulo por evento */
+function buildTimelineHtml(title: string, bodyHtml: string, forScreen: boolean): string {
+  return `<!DOCTYPE html>
+<html lang="${getMainLanguage()}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${escapeHtml(title)}</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin: 0; font-family: Georgia, 'Times New Roman', serif; font-size: 16px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .doc { max-width: 720px; margin: 0 auto; padding: 56px 40px; }
+  .mono { font-family: 'Courier New', monospace; }
+  .cover { padding-bottom: 28px; margin-bottom: 28px; border-bottom: 2px solid #1a1a1a; }
+  .cover h1 { font-size: 2.4rem; line-height: 1.15; margin: 0 0 10px; }
+  .cover .desc { color: #444; margin: 0 0 12px; }
+  .cover .meta { font-size: 0.75rem; color: #777; letter-spacing: 0.06em; text-transform: uppercase; }
+  .toc { margin: 0 0 36px; padding: 0; list-style: none; columns: 2; column-gap: 32px; font-size: 0.85rem; }
+  .toc li { break-inside: avoid; padding: 2px 0; }
+  .toc a { color: #1a1a1a; text-decoration: none; }
+  .toc .d { font-family: 'Courier New', monospace; font-size: 0.72rem; color: #8a6a2a; margin-right: 6px; }
+  article { padding: 26px 0; border-top: 1px solid #e3e3e3; }
+  article .date, article h2, article h3 { break-after: avoid; }
+  .body img, .chips { break-inside: avoid; }
+  article .date { font-family: 'Courier New', monospace; font-size: 0.75rem; color: #8a6a2a; letter-spacing: 0.06em; text-transform: uppercase; }
+  article h2 { font-size: 1.5rem; line-height: 1.25; margin: 4px 0 8px; }
+  article h3 { font-size: 1.1rem; margin: 18px 0 4px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+  .chip { font-family: 'Courier New', monospace; font-size: 0.68rem; padding: 1px 7px; border: 1px solid #ccc; border-radius: 3px; color: #555; background: #f7f7f7; }
+  .loc { font-family: 'Courier New', monospace; font-size: 0.75rem; color: #555; margin-bottom: 8px; }
+  .entries { margin: 0 0 12px; padding-left: 18px; font-size: 0.9rem; }
+  .body img { max-width: 100%; height: auto; border-radius: 3px; }
+  .body blockquote { margin: 12px 0; padding: 4px 14px; border-left: 3px solid #ddd; color: #555; }
+  .body pre, .body code { font-family: 'Courier New', monospace; font-size: 0.85em; background: #f5f5f5; }
+  .body table { border-collapse: collapse; } .body td, .body th { border: 1px solid #ddd; padding: 4px 8px; }
+  .muted { color: #999; font-style: italic; }
+  footer { margin-top: 40px; font-size: 0.7rem; color: #999; font-family: 'Courier New', monospace; }
+  ${forScreen ? '@media (prefers-color-scheme: dark) { body { background: #141414; color: #e8e6e1; } .cover { border-color: #e8e6e1; } .toc a { color: #e8e6e1; } article { border-color: #333; } .chip { background: #1f1f1f; border-color: #3a3a3a; color: #bbb; } .cover .desc, .loc, .body blockquote { color: #aaa; } }' : ''}
+</style>
+</head>
+<body><div class="doc">${bodyHtml}<footer>Tecius</footer></div></body>
+</html>`
+}
+
 // ── PDF helpers ───────────────────────────────────────────────────────────────
 
 function escapeHtml(text: string): string {
@@ -133,7 +262,7 @@ function buildPdfHtml(options: {
     : ''
 
   return `<!DOCTYPE html>
-<html lang="pt">
+<html lang="${getMainLanguage()}">
 <head>
   <meta charset="utf-8">
   <title>${escapeHtml(options.title)}</title>

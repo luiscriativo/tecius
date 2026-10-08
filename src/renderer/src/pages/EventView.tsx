@@ -13,10 +13,10 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, ExternalLink, GitBranch, ChevronLeft, ChevronRight,
-  Pencil, Eye, ImagePlus, Save, X, BookOpen, FileText, Plus,
+  Pencil, Eye, ImagePlus, X, BookOpen, FileText, Plus,
   Code, Quote, List, ListOrdered, CheckSquare, Table, Link,
   FileCode, Download, Tag, Maximize2, Minimize2, Trash2,
-  Search, ChevronUp, ChevronDown,
+  Search, ChevronUp, ChevronDown, MapPin,
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -25,23 +25,37 @@ import { useTimeline } from '@/hooks/useTimeline'
 import { useVault } from '@/hooks/useVault'
 import { useNavigationStore } from '@/stores/useNavigationStore'
 import { useI18n } from '@/hooks/useI18n'
+import { getDateLanguage } from '@/utils/chroniclerDate'
 import { cn } from '@/utils/cn'
 import { DateInput } from '@/components/DateInput'
 import { isMultiPart } from '@/utils/events'
-import type { ChroniclerEvent } from '@/types/chronicler'
+import { parseLocationRaw, locationToRaw } from '@/utils/location'
+import { LocationPicker } from '@/components/map/LocationPicker'
+import { stripAnchors } from '@/utils/anchors'
+import { imageMarkdown } from '@/utils/markdown'
+import { usePref } from '@/hooks/usePref'
+import type { ChroniclerEvent, EventLocation } from '@/types/chronicler'
 
 // ── Utilitários de anchor ──────────────────────────────────────────────────────
 
-function stripAnchors(body: string): string {
-  return body.replace(/\r\n/g, '\n').replace(/\s*\^[\w-]+\s*$/gm, '')
+/** Caminho relativo ("./x.md", "../t/y.md") resolvido a partir da pasta do arquivo base */
+function resolveRelativePath(baseFile: string, rel: string): string {
+  const sep = baseFile.includes('\\') && !baseFile.includes('/') ? '\\' : '/'
+  const parts = baseFile.split(/[\\/]/).slice(0, -1)
+  for (const seg of rel.split(/[\\/]/)) {
+    if (!seg || seg === '.') continue
+    if (seg === '..') parts.pop()
+    else parts.push(seg)
+  }
+  return parts.join(sep)
 }
 
 // ── Search helpers ─────────────────────────────────────────────────────────────
 function clearCSSHighlights() {
   try {
-    const H = (CSS as any).highlights
+    const H = CSS.highlights
     if (H) { H.delete('chr-search-all'); H.delete('chr-search-cur') }
-  } catch {}
+  } catch { /* CSS Custom Highlight API indisponível */ }
 }
 
 function findTextRanges(container: HTMLElement, query: string): Range[] {
@@ -118,7 +132,7 @@ function extractSectionBody(body: string, anchorId: string): string {
 function yamlStr(value: string): string {
   if (!value) return value
   if (
-    /[:#\[\]{}&*!|>'"%@`]/.test(value) ||
+    /[:#[\]{}&*!|>'"%@`]/.test(value) ||
     /^[\s\-?,]/.test(value) ||
     value.endsWith(' ') ||
     value.includes('\n') ||
@@ -216,11 +230,12 @@ interface EditFm {
   category: string
   importance: number
   tags: string[]
+  location: EventLocation | null
   extra: Record<string, string>
 }
 
 function defaultEditFm(): EditFm {
-  return { title: '', date: '', dateEnd: '', hasDateEnd: false, circa: false, category: '', importance: 3, tags: [], extra: {} }
+  return { title: '', date: '', dateEnd: '', hasDateEnd: false, circa: false, category: '', importance: 3, tags: [], location: null, extra: {} }
 }
 
 function parseTagsValue(value: string): string[] {
@@ -247,12 +262,18 @@ function parseEventRaw(raw: string): { fm: EditFm; body: string } {
       default:           extra[key] = cont.length > 0 ? [value, ...cont].join('\n') : value
     }
   }
+  // Local estruturado; se o formato não for reconhecido, fica preservado como texto
+  if (extra['location'] !== undefined) {
+    const loc = parseLocationRaw(extra['location'])
+    if (loc) { fm.location = loc; delete extra['location'] }
+  }
   fm.extra = extra
   return { fm, body: (match[2] ?? '').trim() }
 }
 
 function buildEventRaw(fm: EditFm, body: string): string {
-  const lines: string[] = ['---']
+  // `type: event` é o campo documentado; manter o arquivo autodescritivo
+  const lines: string[] = ['---', 'type: event']
   if (fm.title)    lines.push(`title: ${yamlStr(fm.title)}`)
   if (fm.date)     lines.push(`date: ${fm.date}`)
   if (fm.hasDateEnd && fm.dateEnd) lines.push(`date-end: ${fm.dateEnd}`)
@@ -260,6 +281,7 @@ function buildEventRaw(fm: EditFm, body: string): string {
   if (fm.category) lines.push(`category: ${yamlStr(fm.category)}`)
   lines.push(`importance: ${fm.importance}`)
   if (fm.tags.length > 0) lines.push(`tags: ${buildTags(fm.tags)}`)
+  if (fm.location) lines.push(yamlLine('location', locationToRaw(fm.location)))
   for (const [k, v] of Object.entries(fm.extra)) lines.push(yamlLine(k, v))
   lines.push('---', '')
   if (body.trim()) lines.push(body.trim())
@@ -273,6 +295,7 @@ interface EntryEdit {
   title: string
   date: string
   anchor: string
+  location: EventLocation | null
   extra: Record<string, string>
 }
 
@@ -293,7 +316,7 @@ function defaultChronicleEdit(): ChronicleEdit {
 }
 
 function defaultEntry(): EntryEdit {
-  return { id: crypto.randomUUID(), title: '', date: '', anchor: '', extra: {} }
+  return { id: crypto.randomUUID(), title: '', date: '', anchor: '', location: null, extra: {} }
 }
 
 function parseChronicleRaw(raw: string): ChronicleEdit {
@@ -377,6 +400,11 @@ function parseChronicleRaw(raw: string): ChronicleEdit {
   for (const obj of [meta.extra, ...entries.map((e) => e.extra)]) {
     for (const k of Object.keys(obj)) obj[k] = obj[k].replace(/(\n[ \t]*)+$/, '')
   }
+  for (const entry of entries) {
+    if (entry.extra['location'] === undefined) continue
+    const loc = parseLocationRaw(entry.extra['location'])
+    if (loc) { entry.location = loc; delete entry.extra['location'] }
+  }
   return { meta, entries, body }
 }
 
@@ -405,6 +433,8 @@ function chronicleEditFm(parsed: ChronicleEdit): EditFm {
   fm.importance = parseInt(parsed.meta.extra['importance'] ?? '3') || 3
   fm.tags = parsed.meta.extra['tags'] ? tagsFromRaw(parsed.meta.extra['tags']) : []
   const { category: _c, importance: _i, tags: _t, ...restExtra } = parsed.meta.extra
+  const metaLoc = restExtra['location'] !== undefined ? parseLocationRaw(restExtra['location']) : null
+  if (metaLoc) { fm.location = metaLoc; delete restExtra['location'] }
   fm.extra = restExtra
   return fm
 }
@@ -423,7 +453,7 @@ interface EditState {
 
 /** Converte o único trecho restante em evento simples (dados do trecho passam ao evento) */
 function collapseToSingle(fm: EditFm, entry: EntryEdit, entryBody: string, chrDesc: string): EditState {
-  const next: EditFm = { ...fm, title: entry.title || fm.title, date: entry.date || fm.date, extra: { ...fm.extra } }
+  const next: EditFm = { ...fm, title: entry.title || fm.title, date: entry.date || fm.date, location: entry.location ?? fm.location, extra: { ...fm.extra } }
   const { importance, category, tags, ...entryExtra } = entry.extra
   if (importance) next.importance = parseInt(importance) || next.importance
   if (category) next.category = unquoteYaml(category)
@@ -485,9 +515,10 @@ function buildChronicleRaw(edit: ChronicleEdit): string {
   if (edit.entries.length > 0) {
     lines.push('entries:')
     for (const entry of edit.entries) {
-      lines.push(`  - title: ${yamlStr(entry.title || '(sem título)')}`)
+      lines.push(`  - title: ${yamlStr(entry.title || (getDateLanguage() === 'en' ? '(untitled)' : '(sem título)'))}`)
       if (entry.date)   lines.push(`    date: ${entry.date}`)
       if (entry.anchor) lines.push(`    anchor: ${entry.anchor}`)
+      if (entry.location) lines.push(yamlLine('location', locationToRaw(entry.location, '      '), '    '))
       for (const [k, v] of Object.entries(entry.extra)) lines.push(yamlLine(k, v, '    '))
     }
   }
@@ -518,6 +549,7 @@ function buildSaveContent(
   if (fm.category) extra['category'] = yamlStr(fm.category)
   if (fm.importance !== 3) extra['importance'] = String(fm.importance)
   if (fm.tags.length > 0) extra['tags'] = buildTags(fm.tags)
+  if (fm.location) extra['location'] = locationToRaw(fm.location)
   return buildChronicleRaw({
     meta: { title: fm.title, description: chrDesc, extra },
     entries: sortEntries(entries),
@@ -579,51 +611,6 @@ function insertAtCursor(v: string, s: number, text: string): TextEdit {
   return { value: v.slice(0, s) + text + v.slice(s), selStart: s + text.length, selEnd: s + text.length }
 }
 
-// ── TagInput ───────────────────────────────────────────────────────────────────
-
-function TagInput({ tags, onChange }: { tags: string[]; onChange: (t: string[]) => void }) {
-  const [input, setInput] = useState('')
-  const inputRef = useRef<HTMLInputElement>(null)
-  const { t } = useI18n()
-
-  const addTag = (raw: string) => {
-    const tag = raw.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
-    if (tag && !tags.includes(tag)) onChange([...tags, tag])
-    setInput('')
-  }
-
-  return (
-    <div
-      className="flex flex-wrap gap-1 px-2 py-1.5 rounded-sm min-h-[34px] bg-vault border border-chr-subtle focus-within:border-chr transition-colors cursor-text"
-      onClick={() => inputRef.current?.focus()}
-    >
-      {tags.map((tag, i) => (
-        <span key={i} className="flex items-center gap-1 px-1.5 py-0.5 bg-subtle rounded-sm font-mono text-2xs text-chr-secondary leading-none">
-          {tag}
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onChange(tags.filter((_, j) => j !== i)) }}
-            className="text-chr-muted hover:text-chr-primary ml-0.5 text-sm leading-none"
-          >×</button>
-        </span>
-      ))}
-      <input
-        ref={inputRef}
-        type="text"
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(input) }
-          else if (e.key === 'Backspace' && !input && tags.length > 0) onChange(tags.slice(0, -1))
-        }}
-        onBlur={() => { if (input.trim()) addTag(input) }}
-        placeholder={tags.length === 0 ? t('add_tag') : ''}
-        className="flex-1 min-w-[80px] bg-transparent outline-none font-mono text-xs text-chr-primary placeholder:text-chr-muted py-0.5"
-      />
-    </div>
-  )
-}
-
 // ── ImportanceSelector ─────────────────────────────────────────────────────────
 
 function ImportanceSelector({ value, onChange }: { value: number; onChange: (v: number) => void }) {
@@ -650,6 +637,7 @@ function ImportanceSelector({ value, onChange }: { value: number; onChange: (v: 
 // ── CategoryInput ──────────────────────────────────────────────────────────────
 
 function CategoryInput({ value, onChange, suggestions }: { value: string; onChange: (v: string) => void; suggestions: string[] }) {
+  const { t } = useI18n()
   const [open, setOpen] = useState(false)
   const filtered = suggestions.filter((c) =>
     c.toLowerCase().includes(value.toLowerCase())
@@ -662,7 +650,7 @@ function CategoryInput({ value, onChange, suggestions }: { value: string; onChan
         onChange={(e) => onChange(e.target.value)}
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
-        placeholder="CATEGORIA"
+        placeholder={t('category_ph')}
         spellCheck={false}
         className="font-mono text-[10px] font-medium tracking-[0.06em] uppercase px-1.5 py-0.5 rounded-sm border bg-subtle text-chr-secondary border-chr-subtle outline-none focus:border-chr transition-colors placeholder:text-chr-muted/30 w-32"
       />
@@ -686,6 +674,28 @@ function CategoryInput({ value, onChange, suggestions }: { value: string; onChan
 
 // ── EditHeader ─────────────────────────────────────────────────────────────────
 
+// ── LocationChip ───────────────────────────────────────────────────────────────
+
+/** "📍 Porto Seguro, Bahia" ou "+ local" — abre o seletor de local */
+function LocationChip({ location, onClick }: { location: EventLocation | null; onClick: () => void }) {
+  const { t } = useI18n()
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      data-testid="location-chip"
+      title={location ? `${location.lat}, ${location.lng}` : t('location_add')}
+      className={cn(
+        'flex items-center gap-1 font-mono text-2xs transition-colors max-w-[260px]',
+        location ? 'text-chr-secondary hover:text-chr-primary' : 'text-chr-muted hover:text-chr-secondary'
+      )}
+    >
+      <MapPin size={11} strokeWidth={1.5} className="shrink-0" />
+      <span className="truncate">{location ? (location.name ?? `${location.lat}, ${location.lng}`) : `+ ${t('location_add').toLowerCase()}`}</span>
+    </button>
+  )
+}
+
 interface EditHeaderProps {
   fm: EditFm
   onChange: (fm: EditFm) => void
@@ -694,9 +704,10 @@ interface EditHeaderProps {
   onChrDescChange: (v: string) => void
   categorySuggestions: string[]
   wideLayout?: boolean
+  onEditLocation: () => void
 }
 
-function EditHeader({ fm, onChange, hasEntries, chrDescription, onChrDescChange, categorySuggestions, wideLayout }: EditHeaderProps) {
+function EditHeader({ fm, onChange, hasEntries, chrDescription, onChrDescChange, categorySuggestions, wideLayout, onEditLocation }: EditHeaderProps) {
   const set = <K extends keyof EditFm>(key: K, val: EditFm[K]) => onChange({ ...fm, [key]: val })
   const { t } = useI18n()
   const [addingTag, setAddingTag] = useState(false)
@@ -746,6 +757,7 @@ function EditHeader({ fm, onChange, hasEntries, chrDescription, onChrDescChange,
               + data fim
             </button>
           )}
+          <LocationChip location={fm.location} onClick={onEditLocation} />
         </div>
       )}
 
@@ -797,7 +809,7 @@ function EditHeader({ fm, onChange, hasEntries, chrDescription, onChrDescChange,
               else if (e.key === 'Backspace' && !tagInput) setAddingTag(false)
             }}
             onBlur={() => { if (tagInput.trim()) addTag(tagInput); else setAddingTag(false) }}
-            placeholder="nova-tag"
+            placeholder={t('new_tag_ph')}
             className="font-mono text-[10px] text-chr-primary bg-transparent outline-none w-20 placeholder:text-chr-muted/40"
           />
         ) : (
@@ -808,276 +820,6 @@ function EditHeader({ fm, onChange, hasEntries, chrDescription, onChrDescChange,
         )}
       </div>
     </div>
-  )
-}
-
-// ── FrontmatterPanel ──────────────────────────────────────────────────────────
-
-const EVENT_CATEGORIES = ['Politica', 'Arte', 'Ciencia', 'Cultura', 'Musica', 'Cinema', 'Literatura', 'Esporte', 'Pessoal', 'Outro']
-
-interface FrontmatterPanelProps {
-  fm: EditFm
-  collapsed: boolean
-  onToggleCollapse: () => void
-  onChange: (fm: EditFm) => void
-  hasEntries: boolean
-  chrDescription: string
-  onChrDescChange: (v: string) => void
-}
-
-function FrontmatterPanel({ fm, collapsed, onToggleCollapse, onChange, hasEntries, chrDescription, onChrDescChange }: FrontmatterPanelProps) {
-  const set = <K extends keyof EditFm>(key: K, val: EditFm[K]) => onChange({ ...fm, [key]: val })
-  const { t } = useI18n()
-  const inputCls = cn(
-    'w-full px-2.5 py-1.5 rounded-sm',
-    'bg-vault border border-chr-subtle text-chr-primary',
-    'focus:outline-none focus:border-chr transition-colors',
-    'font-mono text-xs placeholder:text-chr-muted'
-  )
-  const labelCls = 'block font-mono text-2xs text-chr-muted mb-1'
-
-  return (
-    <div className="shrink-0 border-b border-chr-subtle bg-surface">
-      <button
-        type="button"
-        onClick={onToggleCollapse}
-        className="w-full flex items-center gap-2 px-5 py-2.5 text-left hover:bg-hover transition-colors"
-      >
-        <span className="font-mono text-2xs text-chr-muted select-none">{collapsed ? '▸' : '▾'}</span>
-        <span className="font-mono text-2xs text-chr-muted flex-1 select-none">{t('metadata')}</span>
-        {collapsed && (
-          <span className="font-serif text-xs text-chr-secondary truncate max-w-xs opacity-70">{fm.title || '—'}</span>
-        )}
-      </button>
-
-      {!collapsed && (
-        <div className="px-5 pb-4 space-y-3">
-
-          {/* Título */}
-          <div>
-            <label className={labelCls}>{t('event_title')}</label>
-            <input
-              type="text"
-              value={fm.title}
-              onChange={(e) => set('title', e.target.value)}
-              placeholder={t('event_title_placeholder')}
-              className={cn(inputCls, 'font-serif text-sm')}
-            />
-            {hasEntries && (
-              <span className="font-mono text-2xs text-chr-muted opacity-60 mt-1 block">
-                {t('dates_in_sections')}
-              </span>
-            )}
-          </div>
-
-          {/* Descrição (apenas quando hasEntries) */}
-          {hasEntries && (
-            <div>
-              <label className={labelCls}>{t('description')}</label>
-              <input
-                type="text"
-                value={chrDescription}
-                onChange={(e) => onChrDescChange(e.target.value)}
-                placeholder={t('chronicle_desc_placeholder')}
-                className={inputCls}
-              />
-            </div>
-          )}
-
-          {/* Data + Data fim + Circa (apenas quando !hasEntries) */}
-          {!hasEntries && (
-            <div className="flex items-end gap-3 flex-wrap">
-              <div className="flex-1 min-w-[140px]">
-                <label className={labelCls}>{t('event_date')}</label>
-                <DateInput value={fm.date} onChange={(v) => set('date', v)} className={inputCls} />
-              </div>
-
-              <label
-                title="Para eventos com duração. Ativa o campo date-end no YAML — ex: uma guerra de 1939 a 1945."
-                className="flex items-center gap-1.5 pb-1.5 cursor-pointer"
-              >
-                <input type="checkbox" checked={fm.hasDateEnd} onChange={(e) => set('hasDateEnd', e.target.checked)} className="w-3 h-3 accent-chr-primary" />
-                <span className="font-mono text-2xs text-chr-muted select-none">{t('event_date_end')}</span>
-              </label>
-
-              {fm.hasDateEnd && (
-                <div className="flex-1 min-w-[140px]">
-                  <label className={labelCls}>{t('event_date_end')}</label>
-                  <DateInput value={fm.dateEnd} onChange={(v) => set('dateEnd', v)} className={inputCls} />
-                </div>
-              )}
-
-              <label
-                title="Marca a data como aproximada. Exibe ~ antes da data e adiciona circa: true no YAML."
-                className="flex items-center gap-1.5 pb-1.5 cursor-pointer"
-              >
-                <input type="checkbox" checked={fm.circa} onChange={(e) => set('circa', e.target.checked)} className="w-3 h-3 accent-chr-primary" />
-                <span className="font-mono text-2xs text-chr-muted select-none">{t('event_circa')}</span>
-              </label>
-            </div>
-          )}
-
-          {/* Categoria + Importância */}
-          <div className="flex items-end gap-4 flex-wrap">
-            <div className="flex-1 min-w-[160px]">
-              <label className={labelCls}>{t('event_category')}</label>
-              <input
-                type="text"
-                list="event-categories-list"
-                value={fm.category}
-                onChange={(e) => set('category', e.target.value)}
-                placeholder="Categoria..."
-                className={inputCls}
-              />
-              <datalist id="event-categories-list">
-                {EVENT_CATEGORIES.map((c) => <option key={c} value={c} />)}
-              </datalist>
-            </div>
-            <div className="pb-1.5">
-              <label className={labelCls}>{t('importance')}</label>
-              <ImportanceSelector value={fm.importance} onChange={(v) => set('importance', v)} />
-            </div>
-          </div>
-
-          {/* Tags */}
-          <div>
-            <label className={labelCls}>
-              {t('tags')} <span className="opacity-50">{t('tags_hint')}</span>
-            </label>
-            <TagInput tags={fm.tags} onChange={(tag) => set('tags', tag)} />
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── SectionsPanel ─────────────────────────────────────────────────────────────
-
-interface SectionsPanelProps {
-  entries: EntryEdit[]
-  collapsed: boolean
-  onToggleCollapse: () => void
-  onChange: (entries: EntryEdit[]) => void
-  onAddSection: () => void
-}
-
-function SectionsPanel({ entries, collapsed, onToggleCollapse, onChange, onAddSection }: SectionsPanelProps) {
-  const { t, nSections } = useI18n()
-  const inputCls = cn(
-    'px-2 py-1 rounded-sm bg-vault border border-chr-subtle text-chr-primary',
-    'focus:outline-none focus:border-chr transition-colors font-mono text-xs placeholder:text-chr-muted'
-  )
-
-  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
-
-  const updateEntry = (id: string, patch: Partial<EntryEdit>) =>
-    onChange(entries.map((e) => e.id === id ? { ...e, ...patch } : e))
-
-  const confirmRemove = () => {
-    if (!pendingDeleteId) return
-    onChange(entries.filter((e) => e.id !== pendingDeleteId))
-    setPendingDeleteId(null)
-  }
-
-  const hasEntries = entries.length > 0
-
-  const pendingEntry = entries.find((e) => e.id === pendingDeleteId)
-
-  return (
-    <>
-    {pendingDeleteId && (
-      <ConfirmModal
-        message={t('remove_part_confirm', { title: pendingEntry?.title?.trim() || '—' })}
-        onConfirm={confirmRemove}
-        confirmLabel={t('remove_section')}
-        onCancel={() => setPendingDeleteId(null)}
-      />
-    )}
-    <div className="shrink-0 border-b border-chr-subtle bg-surface">
-      {/* Header */}
-      <div className="flex items-center gap-2 px-5 py-2.5">
-        <button
-          type="button"
-          onClick={onToggleCollapse}
-          className="flex items-center gap-2 flex-1 text-left hover:opacity-80 transition-opacity min-w-0"
-        >
-          <span className="font-mono text-2xs text-chr-muted select-none">{collapsed ? '▸' : '▾'}</span>
-          <span className={cn('font-mono text-2xs select-none', hasEntries ? 'text-chr-muted' : 'text-chr-muted opacity-60')}>
-            {t('sections')}
-          </span>
-          <span className={cn(
-            'font-mono text-2xs px-1.5 py-0.5 rounded-sm shrink-0',
-            hasEntries ? 'text-chr-muted bg-subtle' : 'text-chr-muted opacity-50 bg-subtle'
-          )}>
-            {hasEntries ? nSections(entries.length) : t('sections_none')}
-          </span>
-        </button>
-        <button
-          type="button"
-          onClick={onAddSection}
-          className="flex items-center gap-1 font-mono text-2xs text-chr-muted hover:text-chr-primary transition-colors shrink-0"
-        >
-          <Plus size={10} strokeWidth={1.5} />
-          {t('add_section')}
-        </button>
-      </div>
-
-      {!collapsed && (
-        <div className="px-5 pb-4">
-          {!hasEntries ? (
-            <p className="font-mono text-2xs text-chr-muted italic opacity-60 py-1">
-              {t('sections_empty_hint')}
-            </p>
-          ) : (
-            <div className="max-h-[200px] overflow-y-auto space-y-1.5 pr-1
-              [&::-webkit-scrollbar]:w-1
-              [&::-webkit-scrollbar-track]:bg-transparent
-              [&::-webkit-scrollbar-thumb]:bg-chr-subtle
-              [&::-webkit-scrollbar-thumb]:rounded-full
-              hover:[&::-webkit-scrollbar-thumb]:bg-chr-strong">
-              {entries.map((entry, idx) => (
-                <div key={entry.id} className="group rounded border border-chr-subtle hover:border-chr bg-vault transition-colors p-2">
-                  {/* Linha principal: número + título + data + apagar */}
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-2xs text-chr-muted w-4 text-right shrink-0 select-none">{idx + 1}</span>
-                    <input
-                      type="text"
-                      value={entry.title}
-                      onChange={(e) => {
-                        const newTitle = e.target.value
-                        const prevSlug = slugify(entry.title)
-                        const anchor = (!entry.anchor || entry.anchor === prevSlug)
-                          ? slugify(newTitle)
-                          : entry.anchor
-                        updateEntry(entry.id, { title: newTitle, anchor })
-                      }}
-                      placeholder={t('section_title_ph')}
-                      className={cn(inputCls, 'flex-1')}
-                    />
-                    <DateInput
-                      value={entry.date}
-                      onChange={(v) => updateEntry(entry.id, { date: v })}
-                      className={cn(inputCls, 'w-[110px] shrink-0')}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setPendingDeleteId(entry.id)}
-                      title={t('remove_section')}
-                      className="shrink-0 flex items-center justify-center p-1 rounded-sm text-chr-muted hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
-                    >
-                      <X size={11} strokeWidth={1.5} />
-                    </button>
-                  </div>
-
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-    </>
   )
 }
 
@@ -1113,9 +855,14 @@ interface SectionBlocksEditorProps {
   onBodyFocus: (el: HTMLTextAreaElement, id: string) => void
   onBodyBlur: () => void
   wideLayout?: boolean
+  onEditEntryLocation: (id: string) => void
+  /** Colar / arrastar imagens no texto do trecho (mesmo tratamento do texto principal) */
+  onBodyPaste: (e: React.ClipboardEvent<HTMLTextAreaElement>) => void
+  onBodyDrop: (e: React.DragEvent<HTMLTextAreaElement>) => void
+  onBodyDragOver: (e: React.DragEvent<HTMLTextAreaElement>) => void
 }
 
-function SectionBlocksEditor({ entries, sectionBodies, onEntriesChange, onBodyChange, onAddSection, onBodyFocus, onBodyBlur, wideLayout }: SectionBlocksEditorProps) {
+function SectionBlocksEditor({ entries, sectionBodies, onEntriesChange, onBodyChange, onAddSection, onBodyFocus, onBodyBlur, wideLayout, onEditEntryLocation, onBodyPaste, onBodyDrop, onBodyDragOver }: SectionBlocksEditorProps) {
   const { t } = useI18n()
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
 
@@ -1198,6 +945,9 @@ function SectionBlocksEditor({ entries, sectionBodies, onEntriesChange, onBodyCh
                   onBlur={(e) => handleDateBlur(entry.id, e)}
                   className="font-mono text-sm text-timeline-chronicle-text bg-transparent border-0 outline-none focus:outline-none placeholder:text-chr-muted/30 w-32"
                 />
+                <div className="flex-1 min-w-0 px-3">
+                  <LocationChip location={entry.location} onClick={() => onEditEntryLocation(entry.id)} />
+                </div>
                 <div className="flex items-center gap-3">
                   <span className="font-mono text-xs text-chr-muted/30 select-none tabular-nums">
                     {String(idx + 1).padStart(2, '0')}
@@ -1237,6 +987,9 @@ function SectionBlocksEditor({ entries, sectionBodies, onEntriesChange, onBodyCh
                 onChange={(e) => onBodyChange(entry.id, e.target.value)}
                 onFocus={(e) => onBodyFocus(e.currentTarget, entry.id)}
                 onBlur={onBodyBlur}
+                onPaste={onBodyPaste}
+                onDrop={onBodyDrop}
+                onDragOver={onBodyDragOver}
                 placeholder={t('section_body_ph')}
                 spellCheck={false}
                 rows={1}
@@ -1288,7 +1041,8 @@ function MarkdownToolbar({
     requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(r.selStart, r.selEnd) })
   }
 
-  const TABLE_TPL = `| Coluna 1 | Coluna 2 | Coluna 3 |\n|----------|----------|----------|\n| Célula 1 | Célula 2 | Célula 3 |`
+  const col = t('md_table_col'), cell = t('md_table_cell')
+  const TABLE_TPL = `| ${col} 1 | ${col} 2 | ${col} 3 |\n|----------|----------|----------|\n| ${cell} 1 | ${cell} 2 | ${cell} 3 |`
 
   const btnCls = cn(
     'flex items-center justify-center w-7 h-7 rounded-sm text-xs font-mono',
@@ -1305,47 +1059,47 @@ function MarkdownToolbar({
       onMouseDown={(e) => e.preventDefault()}
     >
       {/* Headings */}
-      <button type="button" title="Cabeçalho H2" disabled={!showFormatting} className={btnCls} onClick={() => apply((v, s) => applyHeading(v, s, '## '))}>H2</button>
-      <button type="button" title="Cabeçalho H3" disabled={!showFormatting} className={btnCls} onClick={() => apply((v, s) => applyHeading(v, s, '### '))}>H3</button>
+      <button type="button" title={t('md_h2')} disabled={!showFormatting} className={btnCls} onClick={() => apply((v, s) => applyHeading(v, s, '## '))}>H2</button>
+      <button type="button" title={t('md_h3')} disabled={!showFormatting} className={btnCls} onClick={() => apply((v, s) => applyHeading(v, s, '### '))}>H3</button>
 
       {sep}
 
       {/* Inline formatting */}
-      <button type="button" title="Negrito" disabled={!showFormatting} className={cn(btnCls, 'font-bold')} onClick={() => apply((v, s, e) => applyInline(v, s, e, '**', '**'))}>B</button>
-      <button type="button" title="Itálico" disabled={!showFormatting} className={cn(btnCls, 'italic')} onClick={() => apply((v, s, e) => applyInline(v, s, e, '*', '*'))}>I</button>
-      <button type="button" title="Tachado" disabled={!showFormatting} className={cn(btnCls, 'line-through')} onClick={() => apply((v, s, e) => applyInline(v, s, e, '~~', '~~'))}>S</button>
-      <button type="button" title="Código inline" disabled={!showFormatting} className={btnCls} onClick={() => apply((v, s, e) => applyInline(v, s, e, '`', '`', 'código'))}>
+      <button type="button" title={t('md_bold')} disabled={!showFormatting} className={cn(btnCls, 'font-bold')} onClick={() => apply((v, s, e) => applyInline(v, s, e, '**', '**'))}>B</button>
+      <button type="button" title={t('md_italic')} disabled={!showFormatting} className={cn(btnCls, 'italic')} onClick={() => apply((v, s, e) => applyInline(v, s, e, '*', '*'))}>I</button>
+      <button type="button" title={t('md_strike')} disabled={!showFormatting} className={cn(btnCls, 'line-through')} onClick={() => apply((v, s, e) => applyInline(v, s, e, '~~', '~~'))}>S</button>
+      <button type="button" title={t('md_code')} disabled={!showFormatting} className={btnCls} onClick={() => apply((v, s, e) => applyInline(v, s, e, '`', '`', t('md_code_ph')))}>
         <Code size={12} strokeWidth={1.5} />
       </button>
 
       {sep}
 
       {/* Block formatting */}
-      <button type="button" title="Citação (blockquote)" disabled={!showFormatting} className={btnCls} onClick={() => apply((v, s) => applyLinePrefix(v, s, '> '))}>
+      <button type="button" title={t('md_quote')} disabled={!showFormatting} className={btnCls} onClick={() => apply((v, s) => applyLinePrefix(v, s, '> '))}>
         <Quote size={12} strokeWidth={1.5} />
       </button>
-      <button type="button" title="Lista com marcador" disabled={!showFormatting} className={btnCls} onClick={() => apply((v, s) => applyLinePrefix(v, s, '- '))}>
+      <button type="button" title={t('md_bullets')} disabled={!showFormatting} className={btnCls} onClick={() => apply((v, s) => applyLinePrefix(v, s, '- '))}>
         <List size={12} strokeWidth={1.5} />
       </button>
-      <button type="button" title="Lista numerada" disabled={!showFormatting} className={btnCls} onClick={() => apply((v, s) => applyLinePrefix(v, s, '1. '))}>
+      <button type="button" title={t('md_numbered')} disabled={!showFormatting} className={btnCls} onClick={() => apply((v, s) => applyLinePrefix(v, s, '1. '))}>
         <ListOrdered size={12} strokeWidth={1.5} />
       </button>
-      <button type="button" title="Lista de tarefas" disabled={!showFormatting} className={btnCls} onClick={() => apply((v, s) => applyLinePrefix(v, s, '- [ ] '))}>
+      <button type="button" title={t('md_tasks')} disabled={!showFormatting} className={btnCls} onClick={() => apply((v, s) => applyLinePrefix(v, s, '- [ ] '))}>
         <CheckSquare size={12} strokeWidth={1.5} />
       </button>
 
       {sep}
 
       {/* Inserts */}
-      <button type="button" title="Inserir tabela" disabled={!showFormatting} className={btnCls} onClick={() => apply((v, s) => insertAtCursor(v, s, '\n' + TABLE_TPL + '\n'))}>
+      <button type="button" title={t('md_table')} disabled={!showFormatting} className={btnCls} onClick={() => apply((v, s) => insertAtCursor(v, s, '\n' + TABLE_TPL + '\n'))}>
         <Table size={12} strokeWidth={1.5} />
       </button>
-      <button type="button" title="Inserir link" disabled={!showFormatting} className={btnCls} onClick={() => apply((v, s, e) => applyInline(v, s, e, '[', '](url)', 'texto'))}>
+      <button type="button" title={t('md_link')} disabled={!showFormatting} className={btnCls} onClick={() => apply((v, s, e) => applyInline(v, s, e, '[', '](url)', t('md_link_ph')))}>
         <Link size={12} strokeWidth={1.5} />
       </button>
       <button
         type="button"
-        title="Inserir imagem (ou cole com Ctrl+V)"
+        title={t('md_image')}
         className={cn(btnCls, (isInsertingImage || !showFormatting) && 'opacity-40 cursor-default')}
         onClick={onPickImage}
         disabled={isInsertingImage || !showFormatting}
@@ -1362,7 +1116,7 @@ function MarkdownToolbar({
         <button
           type="button"
           onClick={onToggleRawMode}
-          title={isRawMode ? 'Voltar para o formulário estruturado' : 'Editar o arquivo .md completo (YAML + corpo)'}
+          title={isRawMode ? t('raw_toggle_back') : t('raw_toggle_open')}
           className={cn(
             'flex items-center gap-1 px-2.5 py-1 rounded-sm font-mono text-xs border shrink-0 transition-colors',
             isRawMode
@@ -1413,7 +1167,8 @@ const MarkdownBody = React.memo(function MarkdownBody({ body, eventFilePath }: {
 
 // ── ConfirmModal ───────────────────────────────────────────────────────────────
 
-function ConfirmModal({ message, onConfirm, onCancel, confirmLabel = 'Confirmar' }: { message: string; onConfirm: () => void; onCancel: () => void; confirmLabel?: string }) {
+function ConfirmModal({ message, onConfirm, onCancel, confirmLabel }: { message: string; onConfirm: () => void; onCancel: () => void; confirmLabel?: string }) {
+  const { t } = useI18n()
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel(); if (e.key === 'Enter') onConfirm() }
     window.addEventListener('keydown', handler)
@@ -1431,14 +1186,14 @@ function ConfirmModal({ message, onConfirm, onCancel, confirmLabel = 'Confirmar'
             onClick={onCancel}
             className="px-3 py-1.5 font-mono text-xs border border-chr-subtle text-chr-muted hover:text-chr-secondary hover:border-chr transition-colors rounded-sm"
           >
-            Cancelar
+            {t('cancel')}
           </button>
           <button
             type="button"
             onClick={onConfirm}
             className="px-3 py-1.5 font-mono text-xs border border-chr-strong text-chr-primary hover:bg-active transition-colors rounded-sm"
           >
-            {confirmLabel}
+            {confirmLabel ?? t('confirm')}
           </button>
         </div>
       </div>
@@ -1631,12 +1386,11 @@ export default function EventView(): React.ReactElement {
     reloadTimeline,
     refreshTimeline,
     enterSubtimeline,
-    openInEditor,
     deleteEvent,
   } = useTimeline()
   const { reloadVault } = useVault()
   const currentNavItem = useNavigationStore((s) => s.current())
-  const { t, nSections } = useI18n()
+  const { t } = useI18n()
 
   // ── Shared edit state ─────────────────────────────────────────────────────
   const [isEditing, setIsEditing] = useState(false)
@@ -1672,6 +1426,8 @@ export default function EventView(): React.ReactElement {
   const editInitializedRef = useRef(false)
   const reSelectRef = useRef<{ filePath: string; slug: string; anchor?: string } | null>(null)
   const [isInsertingImage, setIsInsertingImage] = useState(false)
+  // Seletor de local aberto para o evento ('event') ou para um trecho (id)
+  const [pickerTarget, setPickerTarget] = useState<string | null>(null)
   const [showPdfModal, setShowPdfModal] = useState(false)
   const [isPdfExporting, setIsPdfExporting] = useState(false)
   const [pdfError, setPdfError] = useState<string | null>(null)
@@ -1708,7 +1464,8 @@ export default function EventView(): React.ReactElement {
   }, [editFm, editBody, editEntries, editSectionBodies, editChrDesc]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Chronicle anchor / display ────────────────────────────────────────────
-  const [showFullBody, setShowFullBody] = useState(false)
+  // Trecho / Completo: a escolha vale para todos os chronicles e é lembrada
+  const [showFullBody, setShowFullBody] = usePref('chronicle.full', false)
   const chr = selectedEvent?.chronicle
   // anchorBlock  = último bloco da entrada (trecho/excerpt)
   const anchorBlock = chr?.anchor && selectedEventBody ? extractBlock(selectedEventBody, chr.anchor) : null
@@ -1724,7 +1481,6 @@ export default function EventView(): React.ReactElement {
       // Evento normal: body completo sem markers
       : stripAnchors(selectedEventBody))
     : null
-  useEffect(() => { setShowFullBody(false) }, [selectedEvent?.slug])
 
   // ── Navigate away if no event ─────────────────────────────────────────────
   useEffect(() => {
@@ -1768,19 +1524,7 @@ export default function EventView(): React.ReactElement {
     editInitializedRef.current = true
     setIsEditing(true)
     setTimeout(() => textareaRef.current?.focus(), 50)
-  }, [selectedEvent, selectedEventRaw, applyEditState])
-
-  // ── Cancel editing ────────────────────────────────────────────────────────
-  const handleCancelEdit = useCallback(() => {
-    if (autoSaveTimerRef.current) { clearTimeout(autoSaveTimerRef.current); autoSaveTimerRef.current = null }
-    skipDirtyRef.current = true
-    setIsDirty(false)
-    setSaveStatus('idle')
-    editInitializedRef.current = false
-    setIsEditing(false)
-    setSaveError(null)
-    setBodyFocused(false)
-  }, [])
+  }, [selectedEventRaw, applyEditState])
 
   // ── Navigate to another event, resetting all edit/draft state ───────────
   const navigateTo = useCallback((event: ChroniclerEvent) => {
@@ -1792,7 +1536,6 @@ export default function EventView(): React.ReactElement {
     setSaveStatus('idle')
     setSaveError(null)
     setBodyFocused(false)
-    setShowFullBody(false)
     loadEvent(event)
   }, [loadEvent])
 
@@ -1805,7 +1548,6 @@ export default function EventView(): React.ReactElement {
         setIsEditing(true)
       }
     } else {
-      setShowFullBody(false)
       setIsEditing(false)
       // If nothing was changed, clear draft state so view shows saved data.
       // This prevents isDraftActive from incorrectly overriding section-level
@@ -1815,18 +1557,6 @@ export default function EventView(): React.ReactElement {
       }
     }
   }, [isEditing, isDirty, handleStartEdit])
-
-  // ── Revert changes (stay in edit mode) ───────────────────────────────────
-  const handleRevert = useCallback(() => {
-    if (autoSaveTimerRef.current) { clearTimeout(autoSaveTimerRef.current); autoSaveTimerRef.current = null }
-    setSaveError(null)
-    setSaveStatus('idle')
-    skipDirtyRef.current = true
-    setIsDirty(false)
-    setEditIsRaw(false)
-    const rawSnapshot = preEditRawRef.current ?? selectedEventRaw ?? ''
-    applyEditState(editStateFromRaw(rawSnapshot, isChronicleRaw(rawSnapshot)))
-  }, [selectedEventRaw, applyEditState])
 
   // ── Body change handler ───────────────────────────────────────────────────
   const handleBodyChange = useCallback((v: string) => {
@@ -1868,11 +1598,22 @@ export default function EventView(): React.ReactElement {
     clearCSSHighlights()
   }, [])
 
+  // Evento anterior/próximo (atualizado a cada render, lido pelo atalho ← →)
+  const navRef = useRef<{ prev: ChroniclerEvent | null; next: ChroniclerEvent | null }>({ prev: null, next: null })
+
   // Ctrl+F / Escape + intercept typing when textarea has focus in edit search mode
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'f') { e.preventDefault(); openSearch(); return }
       if (e.key === 'Escape' && searchOpen) { closeSearch(); return }
+      // ← → passam para o evento anterior/próximo (fora de campos de texto e do editor)
+      if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !isEditing && !searchOpen
+        && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+        const el = document.activeElement as HTMLElement | null
+        const typing = el && (/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable)
+        const target = e.key === 'ArrowLeft' ? navRef.current.prev : navRef.current.next
+        if (!typing && target && !document.querySelector('.fixed.inset-0')) { e.preventDefault(); navigateTo(target); return }
+      }
       // In edit mode with search open: if a textarea stole focus, capture keystrokes
       // and redirect them to the search input so the user can keep typing the query
       if (searchOpen && isEditing && document.activeElement?.tagName === 'TEXTAREA') {
@@ -1890,7 +1631,7 @@ export default function EventView(): React.ReactElement {
     }
     document.addEventListener('keydown', onKey, true) // capture phase — before textarea
     return () => document.removeEventListener('keydown', onKey, true)
-  }, [searchOpen, isEditing, openSearch, closeSearch])
+  }, [searchOpen, isEditing, openSearch, closeSearch, navigateTo])
 
   // View mode: CSS Custom Highlight API (React-safe — never touches the DOM)
   useEffect(() => {
@@ -1906,11 +1647,11 @@ export default function EventView(): React.ReactElement {
     if (!count) return
     const normIdx = ((searchMatchIdx % count) + count) % count
     try {
-      const H = (CSS as any).highlights
+      const H = CSS.highlights
       const others = ranges.filter((_, i) => i !== normIdx)
-      if (others.length) H.set('chr-search-all', new (window as any).Highlight(...others))
-      H.set('chr-search-cur', new (window as any).Highlight(ranges[normIdx]))
-    } catch {}
+      if (others.length) H.set('chr-search-all', new Highlight(...others))
+      H.set('chr-search-cur', new Highlight(ranges[normIdx]))
+    } catch { /* CSS Custom Highlight API indisponível */ }
     const anchor = ranges[normIdx].startContainer.parentElement
     if (anchor) anchor.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }, [searchOpen, searchQuery, searchMatchIdx, selectedEventBody, showFullBody, isEditing, isLoadingEvent])
@@ -1981,6 +1722,9 @@ export default function EventView(): React.ReactElement {
       first.title = editFm.title
       first.date = editFm.date
       first.anchor = slugify(editFm.title || 'trecho')
+      // O local passa para o 1º trecho (senão o 2º herdaria o local do evento)
+      first.location = editFm.location
+      setEditFm((f) => ({ ...f, location: null }))
       setEditSectionBodies({ [first.id]: editBody, [newEntry.id]: '' })
       setEditBody('')
       setEditEntries([first, newEntry])
@@ -2068,16 +1812,28 @@ export default function EventView(): React.ReactElement {
   }, [performSave, activeBodyChange])
 
   // ── Image insertion ───────────────────────────────────────────────────────
-  const insertImageMarkdown = useCallback((relativePath: string) => {
-    const ta = textareaRef.current
-    const text = `![imagem](${relativePath})`
-    if (!ta) { activeBodyChange(text + '\n'); return }
+  /**
+   * Insere o link da imagem no cursor. Com `target` (colar/soltar), escreve no
+   * campo que recebeu a imagem — num chronicle, o trecho onde ela foi solta,
+   * mesmo que o foco estivesse em outro trecho. Num campo sem foco (sem cursor),
+   * a imagem entra no fim do texto, numa linha própria.
+   */
+  const insertImageMarkdown = useCallback((relativePath: string, target?: HTMLTextAreaElement) => {
+    const ta = target ?? textareaRef.current
+    const text = imageMarkdown(t('md_image_alt'), relativePath)
+    const sectionId = target?.dataset.sectionId
+    const apply = !target ? activeBodyChange
+      : sectionId ? (v: string) => setEditSectionBodies((prev) => ({ ...prev, [sectionId]: v }))
+      : handleBodyChange
+    if (!ta) { apply(text + '\n'); return }
     const v = ta.value
-    const s = ta.selectionStart
-    const newContent = v.slice(0, s) + text + v.slice(ta.selectionEnd)
-    activeBodyChange(newContent)
-    requestAnimationFrame(() => { ta.selectionStart = ta.selectionEnd = s + text.length; ta.focus() })
-  }, [activeBodyChange])
+    const atCursor = document.activeElement === ta
+    const s = atCursor ? ta.selectionStart : v.length
+    const e = atCursor ? ta.selectionEnd : v.length
+    const insert = !atCursor && v.trim() ? `${v.endsWith('\n') ? '' : '\n'}\n${text}` : text
+    apply(v.slice(0, s) + insert + v.slice(e))
+    requestAnimationFrame(() => { ta.selectionStart = ta.selectionEnd = s + insert.length; ta.focus() })
+  }, [activeBodyChange, handleBodyChange, t])
 
   const handlePickImage = useCallback(async () => {
     if (!selectedEvent || isInsertingImage) return
@@ -2150,15 +1906,35 @@ export default function EventView(): React.ReactElement {
     const imageItem = Array.from(e.clipboardData.items).find((i) => i.type.startsWith('image/'))
     if (!imageItem) return
     e.preventDefault()
+    const target = e.currentTarget
     const file = imageItem.getAsFile()
     if (!file) return
     const ext = file.type.split('/')[1] ?? 'png'
     const ab = await file.arrayBuffer()
     try {
-      const result = await window.electronAPI.invoke<{ success: boolean; relativePath?: string }>('fs:save-image', ab, `imagem.${ext}`, selectedEvent.filePath)
-      if (result.success && result.relativePath) insertImageMarkdown(result.relativePath)
+      const result = await window.electronAPI.invoke<{ success: boolean; relativePath?: string }>('fs:save-image', ab, `${t('md_image_alt')}.${ext}`, selectedEvent.filePath)
+      if (result.success && result.relativePath) insertImageMarkdown(result.relativePath, target)
     } catch { /* ignore */ }
-  }, [selectedEvent, insertImageMarkdown])
+  }, [selectedEvent, insertImageMarkdown, t])
+
+  // Arrastar imagens do sistema para o texto: copia para _assets/ e insere o link
+  const handleDrop = useCallback(async (e: React.DragEvent<HTMLTextAreaElement>) => {
+    if (!selectedEvent) return
+    const files = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith('image/'))
+    if (files.length === 0) return
+    e.preventDefault()
+    const target = e.currentTarget
+    for (const file of files) {
+      try {
+        const result = await window.electronAPI.invoke<{ success: boolean; relativePath?: string }>(
+          'fs:save-image', await file.arrayBuffer(), file.name || `${t('md_image_alt')}.png`, selectedEvent.filePath)
+        if (result.success && result.relativePath) insertImageMarkdown(result.relativePath, target)
+      } catch { /* ignore */ }
+    }
+  }, [selectedEvent, insertImageMarkdown, t])
+  const handleDragOver = useCallback((e: React.DragEvent<HTMLTextAreaElement>) => {
+    if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy' }
+  }, [])
 
   const handleDeleteEvent = useCallback(async () => {
     if (!selectedEvent) return
@@ -2188,6 +1964,7 @@ export default function EventView(): React.ReactElement {
   )].sort()
   const prevEvent = currentIdx > 0 ? events[currentIdx - 1] : null
   const nextEvent = currentIdx < events.length - 1 ? events[currentIdx + 1] : null
+  navRef.current = { prev: prevEvent, next: nextEvent }
   const fm = selectedEvent.frontmatter
   // Draft preview: when user toggles to view mode with an unsaved draft
   const isDraftActive = !isEditing && editInitializedRef.current
@@ -2207,7 +1984,7 @@ export default function EventView(): React.ReactElement {
   const chronicleAllEntries: Array<{ key: string; date: string; title: string; body: string | null }> =
     chr && showFullBody
       ? (isDraftActive
-          ? editEntries.map((e, i) => ({
+          ? editEntries.map((e) => ({
               key: e.id,
               date: e.date || '',
               title: e.title,
@@ -2237,6 +2014,20 @@ export default function EventView(): React.ReactElement {
 
   const handleEnterSubtimeline = () => { enterSubtimeline(selectedEvent); navigate('/timeline') }
 
+  // cover-image, links e references (documentados no guia) para a visualização
+  const coverRaw = fm['cover-image']
+  const coverSrc = typeof coverRaw === 'string' && coverRaw.trim()
+    ? window.electronAPI.resolveAssetPath(selectedEvent.filePath, coverRaw.trim()) : ''
+  const eventLinks = (Array.isArray(fm.links) ? fm.links : [])
+    .filter((l): l is { path: string; label: string } => !!l && typeof l === 'object' && typeof (l as { path?: unknown }).path === 'string')
+    .map((l) => {
+      const abs = resolveRelativePath(selectedEvent.filePath, l.path)
+      const target = events.find((e) => e.filePath === abs) ?? null
+      return { label: String(l.label || l.path), path: l.path, target }
+    })
+  const eventRefs = (Array.isArray(fm.references) ? fm.references : [])
+    .filter((r): r is { url: string; label: string } => !!r && typeof r === 'object' && /^https?:\/\//i.test(String((r as { url?: unknown }).url ?? '')))
+
   return (
     <div className="flex flex-col h-full overflow-hidden print:h-auto print:overflow-visible">
 
@@ -2244,10 +2035,11 @@ export default function EventView(): React.ReactElement {
       <header className="shrink-0 flex items-center justify-between px-6 py-3 border-b border-chr-subtle bg-surface gap-4 print:hidden">
         <button
           onClick={() => isEditing ? handleToggleMode() : navigate('/timeline')}
-          className="flex items-center gap-1.5 text-chr-muted hover:text-chr-primary transition-colors text-xs font-mono shrink-0"
+          className="flex items-center gap-1.5 text-chr-muted hover:text-chr-primary transition-colors text-xs font-mono min-w-0"
         >
-          <ArrowLeft size={13} strokeWidth={1.5} />
-          {isEditing ? (selectedEvent?.frontmatter.title ?? 'Evento') : (currentNavItem?.title ?? 'Timeline')}
+          <ArrowLeft size={13} strokeWidth={1.5} className="shrink-0" />
+          {/* Encolhe e trunca: títulos longos não empurram os botões para fora da tela */}
+          <span className="truncate">{isEditing ? (selectedEvent?.frontmatter.title ?? 'Evento') : (currentNavItem?.title ?? 'Timeline')}</span>
         </button>
 
         <div className="flex items-center shrink-0">
@@ -2276,18 +2068,18 @@ export default function EventView(): React.ReactElement {
           <button
             type="button"
             onClick={handleToggleMode}
-            title={isEditing ? 'Voltar para visualização' : 'Editar evento'}
+            title={isEditing ? t('event_back_to_view') : t('event_edit')}
             className="flex items-center gap-1 px-2 py-1 rounded-sm border border-transparent text-chr-muted hover:text-chr-secondary hover:border-chr-subtle transition-colors"
           >
             {isEditing
-              ? <><Eye size={12} strokeWidth={1.5} /><span className="font-mono text-2xs">Visualizar</span></>
-              : <><Pencil size={12} strokeWidth={1.5} /><span className="font-mono text-2xs">Editar</span></>
+              ? <><Eye size={12} strokeWidth={1.5} /><span className="font-mono text-2xs">{t('view')}</span></>
+              : <><Pencil size={12} strokeWidth={1.5} /><span className="font-mono text-2xs">{t('edit')}</span></>
             }
           </button>
           <button
             type="button"
             onClick={toggleWideLayout}
-            title={wideLayout ? 'Comprimir layout' : 'Expandir layout'}
+            title={wideLayout ? t('layout_compress') : t('layout_expand')}
             className={cn(
               'flex items-center gap-1 px-2 py-1 rounded-sm border transition-colors',
               wideLayout
@@ -2296,8 +2088,8 @@ export default function EventView(): React.ReactElement {
             )}
           >
             {wideLayout
-              ? <><Minimize2 size={12} strokeWidth={1.5} /><span className="font-mono text-2xs">Comprimir</span></>
-              : <><Maximize2 size={12} strokeWidth={1.5} /><span className="font-mono text-2xs">Expandir</span></>
+              ? <><Minimize2 size={12} strokeWidth={1.5} /><span className="font-mono text-2xs">{t('compress')}</span></>
+              : <><Maximize2 size={12} strokeWidth={1.5} /><span className="font-mono text-2xs">{t('expand')}</span></>
             }
           </button>
         </div>
@@ -2315,12 +2107,12 @@ export default function EventView(): React.ReactElement {
               if (e.key === 'Enter') { e.preventDefault(); setSearchMatchIdx(i => searchMatchCount > 0 ? (i + 1) % searchMatchCount : 0) }
               if (e.key === 'Escape') closeSearch()
             }}
-            placeholder="Buscar no conteúdo..."
+            placeholder={t('search_content_ph')}
             className="flex-1 bg-transparent text-sm text-chr-primary outline-none placeholder:text-chr-muted/50 min-w-0"
           />
           {searchQuery.trim() && (
             <span className="font-mono text-2xs text-chr-muted shrink-0 tabular-nums">
-              {searchMatchCount > 0 ? `${((searchMatchIdx % searchMatchCount) + searchMatchCount) % searchMatchCount + 1} / ${searchMatchCount}` : '0 resultados'}
+              {searchMatchCount > 0 ? `${((searchMatchIdx % searchMatchCount) + searchMatchCount) % searchMatchCount + 1} / ${searchMatchCount}` : t('results_other', { count: 0 })}
             </span>
           )}
           <button onClick={() => setSearchMatchIdx(i => searchMatchCount > 0 ? (i - 1 + searchMatchCount) % searchMatchCount : 0)} disabled={searchMatchCount === 0} className="text-chr-muted hover:text-chr-primary disabled:opacity-30 transition-colors p-0.5">
@@ -2365,12 +2157,12 @@ export default function EventView(): React.ReactElement {
                   if (e.key === 'Enter') { e.preventDefault(); setSearchMatchIdx(i => searchMatchCount > 0 ? (i + 1) % searchMatchCount : 0) }
                   if (e.key === 'Escape') closeSearch()
                 }}
-                placeholder="Buscar no conteúdo..."
+                placeholder={t('search_content_ph')}
                 className="flex-1 bg-transparent text-sm text-chr-primary outline-none placeholder:text-chr-muted/50 min-w-0"
               />
               {searchQuery.trim() && (
                 <span className="font-mono text-2xs text-chr-muted shrink-0 tabular-nums">
-                  {searchMatchCount > 0 ? `${((searchMatchIdx % searchMatchCount) + searchMatchCount) % searchMatchCount + 1} / ${searchMatchCount}` : '0 resultados'}
+                  {searchMatchCount > 0 ? `${((searchMatchIdx % searchMatchCount) + searchMatchCount) % searchMatchCount + 1} / ${searchMatchCount}` : t('results_other', { count: 0 })}
                 </span>
               )}
               <button onClick={() => setSearchMatchIdx(i => searchMatchCount > 0 ? (i - 1 + searchMatchCount) % searchMatchCount : 0)} disabled={searchMatchCount === 0} className="text-chr-muted hover:text-chr-primary disabled:opacity-30 transition-colors p-0.5">
@@ -2402,6 +2194,7 @@ export default function EventView(): React.ReactElement {
                 onChrDescChange={setEditChrDesc}
                 categorySuggestions={categorySuggestions}
                 wideLayout={wideLayout}
+                onEditLocation={() => setPickerTarget('event')}
               />
               {hasEntries ? (
                 <SectionBlocksEditor
@@ -2421,6 +2214,10 @@ export default function EventView(): React.ReactElement {
                   onBodyFocus={(el, id) => { textareaRef.current = el; setBodyFocused(true); setFocusedSectionId(id) }}
                   onBodyBlur={() => { setBodyFocused(false); setFocusedSectionId(null) }}
                   wideLayout={wideLayout}
+                  onEditEntryLocation={(id) => setPickerTarget(id)}
+                  onBodyPaste={handlePaste}
+                  onBodyDrop={handleDrop}
+                  onBodyDragOver={handleDragOver}
                 />
               ) : (
                 <div className={wideLayout ? 'max-w-5xl mx-auto px-8 pt-2 pb-20' : 'max-w-2xl mx-auto px-12 pt-2 pb-20'}>
@@ -2430,6 +2227,8 @@ export default function EventView(): React.ReactElement {
                     onChange={(e) => handleBodyChange(e.target.value)}
                     onKeyDown={handleKeyDown}
                     onPaste={handlePaste}
+                    onDrop={handleDrop}
+                    onDragOver={handleDragOver}
                     onFocus={() => setBodyFocused(true)}
                     onBlur={() => setBodyFocused(false)}
                     spellCheck={false}
@@ -2447,6 +2246,8 @@ export default function EventView(): React.ReactElement {
               onChange={(e) => handleBodyChange(e.target.value)}
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
+                    onDrop={handleDrop}
+                    onDragOver={handleDragOver}
               onFocus={() => setBodyFocused(true)}
               onBlur={() => setBodyFocused(false)}
               spellCheck={false}
@@ -2479,10 +2280,21 @@ export default function EventView(): React.ReactElement {
         <div ref={viewContentRef} className="flex-1 overflow-y-auto print:overflow-visible print:flex-none print:h-auto">
           <article className={cn(wideLayout ? 'max-w-5xl mx-auto px-8 pt-12 pb-20' : 'max-w-2xl mx-auto px-8 pt-12 pb-20', 'print:max-w-none print:px-12 print:pt-8 print:pb-8')}>
 
+            {coverSrc && (
+              <img src={coverSrc} alt="" data-testid="event-cover"
+                className="w-full max-h-80 object-cover rounded-sm border border-chr-subtle mb-8" />
+            )}
+
             <p className="chr-date mb-3 tracking-wider">
               {viewFm.circa && <span className="mr-1 opacity-60">~</span>}
               {selectedEvent.date.display}
             </p>
+            {selectedEvent.location && (
+              <p className="flex items-center gap-1.5 font-mono text-xs text-chr-secondary mb-3" data-testid="event-location">
+                <MapPin size={12} strokeWidth={1.5} />
+                {selectedEvent.location.name ?? `${selectedEvent.location.lat}, ${selectedEvent.location.lng}`}
+              </p>
+            )}
 
             <h1 className="font-serif text-display text-chr-primary leading-tight mb-6">{viewFm.title}</h1>
 
@@ -2545,6 +2357,49 @@ export default function EventView(): React.ReactElement {
               </p>
             ) : null}
 
+            {/* Links internos (outros eventos) e referências externas do frontmatter */}
+            {(eventLinks.length > 0 || eventRefs.length > 0) && (
+              <div className="mt-12 grid gap-6 sm:grid-cols-2" data-testid="event-links">
+                {eventLinks.length > 0 && (
+                  <div>
+                    <p className="font-mono text-2xs text-chr-muted uppercase tracking-wider mb-2">{t('event_links')}</p>
+                    <ul className="space-y-1.5">
+                      {eventLinks.map((l, i) => (
+                        <li key={i}>
+                          {l.target ? (
+                            <button type="button" onClick={() => navigateTo(l.target!)}
+                              className="flex items-center gap-1.5 text-sm text-chr-secondary hover:text-chr-primary underline underline-offset-2 decoration-chr-subtle text-left">
+                              <Link size={11} strokeWidth={1.5} className="shrink-0" />{l.label}
+                            </button>
+                          ) : (
+                            <span className="flex items-center gap-1.5 text-sm text-chr-muted" title={l.path}>
+                              <Link size={11} strokeWidth={1.5} className="shrink-0" />{l.label}
+                              <span className="font-mono text-2xs">({t('link_not_found')})</span>
+                            </span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {eventRefs.length > 0 && (
+                  <div>
+                    <p className="font-mono text-2xs text-chr-muted uppercase tracking-wider mb-2">{t('event_references')}</p>
+                    <ul className="space-y-1.5">
+                      {eventRefs.map((r, i) => (
+                        <li key={i}>
+                          <button type="button" onClick={() => window.electronAPI.invoke('app:open-external', r.url)} title={r.url}
+                            className="flex items-center gap-1.5 text-sm text-chr-secondary hover:text-chr-primary underline underline-offset-2 decoration-chr-subtle text-left">
+                            <ExternalLink size={11} strokeWidth={1.5} className="shrink-0" />{r.label || r.url}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="flex items-center gap-3 mt-14 pt-8 border-t border-chr-subtle print:hidden">
               {selectedEvent.hasSubtimeline && (
                 <button onClick={handleEnterSubtimeline} className={cn('flex items-center gap-1.5 px-4 py-2 rounded-sm text-sm font-medium border border-chr-strong text-chr-primary hover:bg-active transition-colors')}>
@@ -2559,6 +2414,22 @@ export default function EventView(): React.ReactElement {
 
           </article>
         </div>
+      )}
+
+      {/* ── Seletor de local ─────────────────────────────────────────────── */}
+      {pickerTarget && (
+        <LocationPicker
+          dateText={pickerTarget === 'event' ? editFm.date : editEntries.find((e) => e.id === pickerTarget)?.date}
+          value={pickerTarget === 'event'
+            ? editFm.location
+            : editEntries.find((e) => e.id === pickerTarget)?.location ?? null}
+          onCancel={() => setPickerTarget(null)}
+          onSave={(loc) => {
+            if (pickerTarget === 'event') setEditFm((f) => ({ ...f, location: loc }))
+            else setEditEntries((prev) => prev.map((e) => (e.id === pickerTarget ? { ...e, location: loc } : e)))
+            setPickerTarget(null)
+          }}
+        />
       )}
 
       {/* ── PDF Export Modal ─────────────────────────────────────────────── */}

@@ -10,7 +10,7 @@
 
 <br />
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-black?style=flat-square)](LICENSE)
+[![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-black?style=flat-square)](LICENSE)
 [![Latest Release](https://img.shields.io/github/v/release/luiscriativo/tecius?style=flat-square&color=black&label=release)](https://github.com/luiscriativo/tecius/releases/latest)
 [![Electron](https://img.shields.io/badge/Electron-33-black?style=flat-square&logo=electron)](https://www.electronjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-black?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
@@ -271,7 +271,17 @@ For larger changes, please open an issue first so we can discuss the approach be
 
 ## License
 
-[MIT](LICENSE) © 2026 [luiscriativo](https://github.com/luiscriativo)
+Copyright © 2026 [luiscriativo](https://github.com/luiscriativo)
+
+Tecius is free software: you can redistribute it and/or modify it under the terms of the [GNU General Public License](LICENSE) as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. It is distributed in the hope that it will be useful, but **without any warranty**; see the license for details.
+
+Versions up to and including v1.4.2 were released under the MIT license and remain available under it.
+
+### Third-party data
+
+- **Historical borders** — [historical-basemaps](https://github.com/aourednik/historical-basemaps) by André Ourednik and contributors, GPL-3.0 (simplified; see `src/renderer/src/assets/geo/historical/NOTICE.md` and `scripts/build-historical-data.sh`).
+- **Present-day countries, regions and places** — [Natural Earth](https://www.naturalearthdata.com), public domain.
+- **Paleogeographic maps** (optional, online) — [GPlates Web Service](https://gws.gplates.org), MERDITH2021 plate model.
 
 ---
 

@@ -27,7 +27,8 @@ export function cn(...inputs: ClassValue[]): string {
     if (typeof input === 'string' || typeof input === 'number') {
       classes.push(String(input))
     } else if (Array.isArray(input)) {
-      const result = cn(...input)
+      // apply, não cn(...input): o ofuscador do build protegido perde argumentos espalhados
+      const result = cn.apply(null, input)
       if (result) classes.push(result)
     }
   }

@@ -11,6 +11,7 @@
 import React, { useEffect, useState } from 'react'
 import { Github, ExternalLink, ChevronDown, ChevronUp, Heart } from 'lucide-react'
 import { useAppStore } from '../stores/useAppStore'
+import { useI18n } from '../hooks/useI18n'
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -55,6 +56,7 @@ function LinkButton({
 // ── AboutPage ─────────────────────────────────────────────────────────────────
 
 export function AboutPage(): React.ReactElement {
+  const { t } = useI18n()
   const appVersion = useAppStore((s) => s.appVersion)
   const [platform, setPlatform] = useState<string>('…')
   const [nodeVersion, setNodeVersion] = useState<string>('…')
@@ -95,8 +97,8 @@ export function AboutPage(): React.ReactElement {
           <div>
             <h1 className="font-serif text-2xl text-chr-primary leading-none">Tecius</h1>
             <p className="font-mono text-xs text-chr-muted mt-2 leading-relaxed max-w-sm">
-              Sistema pessoal de timelines visuais.<br />
-              Seus eventos, seus arquivos, seu controle.
+              {t('app_card_desc')}<br />
+              {t('about_tagline')}
             </p>
           </div>
 
@@ -110,17 +112,17 @@ export function AboutPage(): React.ReactElement {
         <div className="flex flex-wrap justify-center gap-2">
           <LinkButton
             icon={Github}
-            label="Código-fonte"
+            label={t('about_source')}
             onClick={() => openExternal('https://github.com/luiscriativo/tecius')}
           />
           <LinkButton
             icon={ExternalLink}
-            label="Releases"
+            label={t('about_releases')}
             onClick={() => openExternal('https://github.com/luiscriativo/tecius/releases')}
           />
           <LinkButton
             icon={ExternalLink}
-            label="Reportar bug"
+            label={t('about_report_bug')}
             onClick={() => openExternal('https://github.com/luiscriativo/tecius/issues')}
           />
         </div>
@@ -128,7 +130,7 @@ export function AboutPage(): React.ReactElement {
         {/* ── Créditos ──────────────────────────────────────────────────────── */}
         <div className="chr-card px-5 py-4 text-center space-y-1">
           <p className="font-mono text-xs text-chr-muted flex items-center justify-center gap-1.5">
-            Feito com <Heart size={11} className="text-chr-muted fill-chr-muted" /> por
+            {t('about_made_with')} <Heart size={11} className="text-chr-muted fill-chr-muted" /> {t('about_by')}
             <button
               onClick={() => openExternal('https://github.com/luiscriativo')}
               className="text-chr-secondary hover:text-chr-primary transition-colors duration-150 underline underline-offset-2"
@@ -137,7 +139,7 @@ export function AboutPage(): React.ReactElement {
             </button>
           </p>
           <p className="font-mono text-2xs text-chr-muted">
-            Licença MIT · Open Source · Gratuito para sempre
+            {t('about_license')}
           </p>
         </div>
 
@@ -147,7 +149,7 @@ export function AboutPage(): React.ReactElement {
             onClick={() => setShowStack((v) => !v)}
             className="w-full flex items-center justify-between px-5 py-3 hover:bg-active transition-colors duration-100"
           >
-            <span className="font-mono text-xs text-chr-secondary">Informações técnicas</span>
+            <span className="font-mono text-xs text-chr-secondary">{t('about_tech_info')}</span>
             {showStack
               ? <ChevronUp size={13} strokeWidth={1.5} className="text-chr-muted" />
               : <ChevronDown size={13} strokeWidth={1.5} className="text-chr-muted" />

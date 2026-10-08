@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { calcTimelinePosition } from '../../utils/chroniclerDate'
+import { calcTimelinePosition, formatYear } from '../../utils/chroniclerDate'
 import type { ChroniclerDate } from '../../types/chronicler'
 
 interface TimelineAxisProps {
@@ -12,7 +12,9 @@ interface TimelineAxisProps {
 }
 
 const MONTH_INITIALS = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D']
-const NICE_YEAR_INTERVALS = [1, 2, 5, 10, 25, 50, 100, 200, 500, 1000]
+// 1-2-5 até bilhões de anos: datas em tempo profundo (66 Ma) não geram milhares de marcas
+const NICE_YEAR_INTERVALS = [1, 2, 5, 10, 25, 50, 100, 200, 500,
+  ...[3, 4, 5, 6, 7, 8, 9].flatMap((e) => [1, 2, 5].map((m) => m * 10 ** e))]
 
 function getDaysInMonth(year: number, month0: number): number {
   return new Date(year, month0 + 1, 0).getDate()
@@ -72,7 +74,6 @@ export function TimelineAxis({
   // Referência: século h-32(128), ano h-16(64), mês h-10(40), dia h-2(8)
   // Razões: século=2x, mês=0.625x, dia=0.125x do ano
   const yearTickH    = tickZoneH                               // 100% — ano ocupa toda a zona
-  const centuryTickH = Math.min(rulerHeight, Math.round(tickZoneH * 1.0)) // mesmo (já é o max)
   const monthTickH   = Math.round(tickZoneH * 0.60)           // 60% da zona
   const dayTickH     = Math.round(tickZoneH * 0.14)           // 14% da zona
 
@@ -85,11 +86,15 @@ export function TimelineAxis({
     const span = endYear - startYear || 1
     const targetCount = Math.max(2, Math.floor((viewWidth * 1.2) / 80))
     const rawInterval = span / targetCount
-    const interval = NICE_YEAR_INTERVALS.find(n => n >= rawInterval) ?? 1000
-    const out: Array<{ year: number; sortKey: number }> = []
+    const interval = NICE_YEAR_INTERVALS.find(n => n >= rawInterval) ?? 5e9
+    // Marca de destaque: séculos (escala histórica) ou a cada 5 intervalos (tempo profundo)
+    const majorEvery = interval <= 1000 ? 100 : interval * 5
+    const out: Array<{ year: number; sortKey: number; isMajor: boolean }> = []
     const first = Math.ceil(startYear / interval) * interval
-    for (let y = first; y <= endYear; y += interval) {
-      out.push({ year: y, sortKey: y * 10000 + 101 })
+    // A margem depois do último evento não deve mostrar anos do futuro ("50000000")
+    const lastYear = Math.min(endYear, Math.max(maxDate.year, new Date().getFullYear()))
+    for (let y = first; y <= lastYear; y += interval) {
+      out.push({ year: y, sortKey: y * 10000 + 101, isMajor: y % majorEvery === 0 })
     }
     return out
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -169,9 +174,9 @@ export function TimelineAxis({
       style={{ height: rulerHeight, backgroundColor: 'transparent', borderColor: 'var(--axis-line)' }}
     >
       {/* ── Anos ──────────────────────────────────────────────────────────── */}
-      {yearMarkers.map(({ year, sortKey }) => {
+      {yearMarkers.map(({ year, sortKey, isMajor }) => {
         const left    = toLeft(sortKey)
-        const isCent  = year % 100 === 0
+        const isCent  = isMajor
         const tickColor = isCent ? 'var(--axis-century-tick)' : 'var(--axis-tick)'
         const labelColor = isCent ? 'var(--axis-century)' : 'var(--axis-label)'
 
@@ -194,7 +199,7 @@ export function TimelineAxis({
             className="absolute font-mono text-[11px] font-bold select-none whitespace-nowrap leading-none"
             style={{ left, top: 4, marginLeft: 3, color: labelColor }}
           >
-            {year}
+            {formatYear(year)}
           </span>,
         ]
       })}

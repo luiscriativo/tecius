@@ -9,15 +9,18 @@
  *   - ipcMain.on('channel:action', handler)       → for send() calls (fire-and-forget)
  */
 
-import { registerAppHandlers } from './app.handlers'
+import { registerAppHandlers, registerTimelineExport } from './app.handlers'
 import { registerWindowHandlers } from './window.handlers'
 import { registerFsHandlers } from './fs.handlers'
+import { registerGeoHandlers } from './geo.handlers'
 
 /**
  * Registers all IPC handlers. Call this before the main window is created.
  */
 export function registerIpcHandlers(): void {
   registerAppHandlers()
+  registerTimelineExport()
   registerWindowHandlers()
   registerFsHandlers()
+  registerGeoHandlers()
 }

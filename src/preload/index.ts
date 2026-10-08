@@ -23,11 +23,14 @@ const INVOKE_CHANNELS = [
   'app:get-theme',
   'app:open-external',
   'app:export-pdf',
+  'app:export-timeline',
+  'app:set-language',
   'window:is-maximized',
   'fs:pick-vault-folder',
   'fs:set-vault',
   'fs:read-vault',
   'fs:read-timeline',
+  'fs:search-index',
   'fs:read-event',
   'fs:write-event',
   'fs:save-image',
@@ -49,6 +52,9 @@ const INVOKE_CHANNELS = [
   'fs:rename-vault',
   'update:check',
   'update:download',
+  'geo:search-online',
+  'geo:paleo-coastlines',
+  'geo:paleo-points',
 ] as const
 
 const SEND_CHANNELS = [
@@ -154,7 +160,8 @@ const electronAPI = {
     }
 
     const wrappedListener = (_event: Electron.IpcRendererEvent, ...args: unknown[]): void => {
-      listener(...args)
+      // apply, não listener(...args): o ofuscador do build protegido perde argumentos espalhados
+      listener.apply(undefined, args)
     }
 
     ipcRenderer.on(channel, wrappedListener)
