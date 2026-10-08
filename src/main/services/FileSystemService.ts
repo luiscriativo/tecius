@@ -879,7 +879,7 @@ export class FileSystemService {
     fs.rmSync(dirPath, { recursive: true, force: true })
   }
 
-  createEvent(timelineDirPath: string, title: string, filename?: string, date?: string): { filePath: string; slug: string } {
+  createEvent(timelineDirPath: string, title: string, filename?: string, date?: string | null): { filePath: string; slug: string } {
     this.assertWithinVault(timelineDirPath)
     const base = (filename || title)
       .toLowerCase()
@@ -909,7 +909,10 @@ export class FileSystemService {
           return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
         })()
 
-    const template = `---\ntitle: ${yamlScalar(title)}\ndate: ${dateStr}\nimportance: 3\n---\n\n`
+    // date === null: evento sem data (criado por uma ligação [[…]]; vai para "Sem data")
+    const template = date === null
+      ? `---\ntitle: ${yamlScalar(title)}\nimportance: 3\n---\n\n`
+      : `---\ntitle: ${yamlScalar(title)}\ndate: ${dateStr}\nimportance: 3\n---\n\n`
     fs.writeFileSync(filePath, template, 'utf-8')
     return { filePath, slug }
   }

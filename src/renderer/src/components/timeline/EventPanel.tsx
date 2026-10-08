@@ -5,6 +5,8 @@ import type { ChroniclerEvent } from '../../types/chronicler'
 import { cn } from '../../utils/cn'
 import { useI18n } from '../../hooks/useI18n'
 import { stripAnchors } from '../../utils/anchors'
+import { remarkWikiLinks } from '../../utils/wikiLinks'
+import { wikiAnchor } from '../WikiLink'
 import { usePref } from '../../hooks/usePref'
 
 
@@ -141,7 +143,7 @@ export function EventPanel({ event, body, isLoading, onClose, onOpenInEditor, on
         ) : displayBody ? (
           <>
             <div className="markdown-content selectable">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayBody}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm, remarkWikiLinks]} components={{ a: wikiAnchor(event.filePath) }}>{displayBody}</ReactMarkdown>
             </div>
           </>
         ) : (

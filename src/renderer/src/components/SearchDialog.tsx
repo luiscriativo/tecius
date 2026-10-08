@@ -10,13 +10,10 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { Index } from 'flexsearch'
 import { Search, X } from 'lucide-react'
 import { useI18n } from '@/hooks/useI18n'
-import { useTimeline } from '@/hooks/useTimeline'
-import { useTimelineStore } from '@/stores/useTimelineStore'
-import { useNavigationStore } from '@/stores/useNavigationStore'
+import { useOpenEvent } from '@/hooks/useOpenEvent'
 import { parseChroniclerDate, parseDateParts, undatedLabel } from '@/utils/chroniclerDate'
 import { cn } from '@/utils/cn'
 
@@ -67,8 +64,6 @@ interface SearchDialogProps {
 
 export function SearchDialog({ open, onClose }: SearchDialogProps) {
   const { t } = useI18n()
-  const navigate = useNavigate()
-  const { loadTimeline, loadEvent } = useTimeline()
   const [docs, setDocs] = useState<SearchDoc[]>([])
   const [index, setIndex] = useState<Index | null>(null)
   const [loading, setLoading] = useState(false)
@@ -111,13 +106,10 @@ export function SearchDialog({ open, onClose }: SearchDialogProps) {
     listRef.current?.querySelector(`[data-idx="${sel}"]`)?.scrollIntoView({ block: 'nearest' })
   }, [sel])
 
+  const openEvent = useOpenEvent()
   const openDoc = async (d: SearchDoc) => {
     onClose()
-    // Caminho no topo recomeça na timeline do resultado
-    useNavigationStore.getState().reset({ title: d.timelineTitle, dirPath: d.timelineDir })
-    await loadTimeline(d.timelineDir, d.timelineTitle, false)
-    const ev = useTimelineStore.getState().currentTimeline?.events.find((e) => e.filePath === d.filePath && e.slug === d.slug)
-    if (ev) { loadEvent(ev); navigate('/event') } else navigate('/timeline')
+    await openEvent(d)
   }
 
   const onKeyDown = (e: React.KeyboardEvent) => {

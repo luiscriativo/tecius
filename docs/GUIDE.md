@@ -193,7 +193,22 @@ In a multi-part event, a part without its own `location` inherits the event's. U
 - **Many events in one place** — points closer than a few pixels merge into a numbered circle. Clicking a group opens a side list (like a cluster on the timeline) in chronological order, with a filter by title, date or place; it scrolls smoothly even with thousands of items — e.g. every event marked only as a country (Esc closes it). Zoom in to separate points that are close but not in the same place. Events with an area (`area` or a radius) that share the same country, state or circle are drawn as one shape, shaded darker the more events it holds.
 - **Deep time** — with *Paleogeographic maps* enabled in Settings, moving the cursor into deep time swaps the map (with a cross-fade) for the coastlines of that era and shows reconstructed event positions, plus a badge with the age, geological period and supercontinent (e.g. *~300 Ma · Carboniferous · Pangaea*). The eras of your events are prepared in the background (GPlates; the first time can take a few minutes per era, then it is cached and works offline). Between two eras the map shows the closest one already prepared. Ages under 1 Ma use the present-day map; beyond 1000 Ma (the plate model's range) positions are present-day.
 
-### Internal links
+### Linking events in the text — `[[ ]]`
+
+Type `[[` anywhere in an event's text (or in a section of a chronicle) and a list of the events of the whole vault opens, filtered as you type, with their date and timeline. `↑` `↓` choose, `Enter` (or `Tab`) inserts the link, `Esc` closes.
+
+```markdown
+The treaty explains why [[Cabral reaches Brazil]] claims the new land.
+Dias opened the route later used by [[Vasco da Gama reaches Calicut|Vasco da Gama]].
+```
+
+- The link points to the event **by its title** (capitals and accents don't matter). `[[Title|text]]` shows a different text.
+- When two events share a title, the link includes the timeline: `[[Brazil/Foundation]]` — the list writes it for you.
+- If no event has that title, the last option of the list is **Create "…"**: a new event without a date is created in the current timeline (it shows up under **No date** until you fill it in).
+- When reading, a link shows the date of the event and opens it on click — even in another timeline. A link to an event that doesn't exist is dashed; clicking it creates the event.
+- In PDF and HTML exports, links become plain text.
+
+### Internal links (header)
 
 ```yaml
 links:

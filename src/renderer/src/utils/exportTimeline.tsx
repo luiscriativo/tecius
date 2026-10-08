@@ -10,6 +10,8 @@ import remarkGfm from 'remark-gfm'
 import remarkBreaks from 'remark-breaks'
 import { formatSpan, formatYear } from './chroniclerDate'
 import { stripAnchors } from './anchors'
+import { remarkWikiLinks } from './wikiLinks'
+import { StaticWikiAnchor } from '../components/WikiLink'
 import type { ChroniclerEvent, TimelineData } from '../types/chronicler'
 
 export interface ExportLabels {
@@ -20,8 +22,9 @@ export interface ExportLabels {
 
 function Markdown({ body, filePath }: { body: string; filePath: string }) {
   return (
-    <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}
+    <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks, remarkWikiLinks]}
       components={{
+        a: StaticWikiAnchor,
         img: ({ src, alt }) => <img src={src ? window.electronAPI.resolveAssetPath(filePath, String(src)) : ''} alt={alt ?? ''} />,
         // Títulos do texto ficam abaixo do título do evento (h2) no documento
         h1: ({ children }) => <h3>{children}</h3>,

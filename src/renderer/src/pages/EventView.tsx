@@ -33,7 +33,12 @@ import { parseLocationRaw, locationToRaw } from '@/utils/location'
 import { LocationPicker } from '@/components/map/LocationPicker'
 import { stripAnchors } from '@/utils/anchors'
 import { imageMarkdown } from '@/utils/markdown'
-import { continueList, diffRange, formatStateAt, indentLines, insertBlock, insertLink, linkFromPaste, outdentLines, selectionTouchesList, toggleBlock, toggleHeading, toggleInline, type FormatState, type TextEdit } from '@/utils/markdownEdit'
+import { remarkWikiLinks } from '@/utils/wikiLinks'
+import { StaticWikiAnchor, wikiAnchor } from '@/components/WikiLink'
+import { WikiSuggest } from '@/components/WikiSuggest'
+import { useEventIndexStore } from '@/stores/useEventIndexStore'
+import { applyTextEdit } from '@/utils/textareaEdit'
+import { continueList, formatStateAt, indentLines, insertBlock, insertLink, linkFromPaste, outdentLines, selectionTouchesList, toggleBlock, toggleHeading, toggleInline, type FormatState, type TextEdit } from '@/utils/markdownEdit'
 import { usePref } from '@/hooks/usePref'
 import type { ChroniclerEvent, EventLocation } from '@/types/chronicler'
 
@@ -581,23 +586,6 @@ function buildBodyFromSections(entries: EntryEdit[], sectionBodies: Record<strin
 }
 
 // ── Edição pela barra e pelos atalhos ────────────────────────────────────────
-
-/**
- * Aplica a edição como se fosse digitada (só o trecho que mudou, via insertText):
- * assim ela entra no histórico do Ctrl/Cmd+Z. Se o navegador recusar, cai no
- * `fallback`, que troca o texto inteiro (sem desfazer).
- */
-function applyTextEdit(ta: HTMLTextAreaElement, r: TextEdit, fallback: (v: string) => void) {
-  const d = diffRange(ta.value, r.value)
-  if (d.start !== d.endA || d.insert) {
-    ta.focus()
-    ta.setSelectionRange(d.start, d.endA)
-    const ok = d.insert ? document.execCommand('insertText', false, d.insert) : document.execCommand('delete')
-    if (!ok || ta.value !== r.value) fallback(r.value)
-  }
-  ta.setSelectionRange(r.selStart, r.selEnd)
-  requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(r.selStart, r.selEnd) })
-}
 
 /** Rótulo do modificador dos atalhos: ⌘ no Mac, Ctrl no resto */
 const MOD = window.electronAPI?.platform === 'darwin' ? '⌘' : 'Ctrl+'
@@ -1162,7 +1150,7 @@ function MarkdownToolbar({
 
 // ── MarkdownBody ──────────────────────────────────────────────────────────────
 
-const REMARK_PLUGINS = [remarkGfm, remarkBreaks]
+const REMARK_PLUGINS = [remarkGfm, remarkBreaks, remarkWikiLinks]
 
 /**
  * Markdown renderizado. Memoizado: sem isso o documento inteiro era re-parseado
@@ -1170,6 +1158,7 @@ const REMARK_PLUGINS = [remarkGfm, remarkBreaks]
  */
 const MarkdownBody = React.memo(function MarkdownBody({ body, eventFilePath }: { body: string; eventFilePath: string }) {
   const components = useMemo(() => ({
+    a: wikiAnchor(eventFilePath),
     img: ({ src, alt, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => {
       const resolved = src ? window.electronAPI.resolveAssetPath(eventFilePath, src) : ''
       return <img {...props} src={resolved} alt={alt ?? ''} className="max-w-full rounded border border-chr-subtle my-4" />
@@ -1774,6 +1763,8 @@ export default function EventView(): React.ReactElement {
           anchor: vals.selectedEvent.chronicle?.anchor,
         }
         refreshTimeline()
+        // Título ou data podem ter mudado: as ligações [[…]] relêem o índice quando forem usadas
+        useEventIndexStore.getState().markStale()
       } else {
         setSaveStatus('error')
         setSaveError(t('save_error'))
@@ -1893,8 +1884,9 @@ export default function EventView(): React.ReactElement {
     const htmlContent = displayBody
       ? renderToStaticMarkup(
           <ReactMarkdown
-            remarkPlugins={[remarkGfm, remarkBreaks]}
+            remarkPlugins={[remarkGfm, remarkBreaks, remarkWikiLinks]}
             components={{
+              a: StaticWikiAnchor,
               img: ({ src, alt }) => {
                 const resolved = src ? window.electronAPI.resolveAssetPath(filePath, src) : ''
                 return <img src={resolved} alt={alt ?? ''} />
@@ -2166,6 +2158,11 @@ export default function EventView(): React.ReactElement {
       {/* ── Edit mode ────────────────────────────────────────────────────── */}
       {isEditing ? (
         <div className="relative flex flex-col flex-1 overflow-hidden">
+
+          {/* Lista de eventos ao digitar [[ */}
+          {selectedEvent && (
+            <WikiSuggest textareaRef={textareaRef} contextDir={selectedEvent.filePath.replace(/[\\/][^\\/]*$/, '')} fallback={activeBodyChange} />
+          )}
 
           {/* Markdown toolbar */}
           <MarkdownToolbar

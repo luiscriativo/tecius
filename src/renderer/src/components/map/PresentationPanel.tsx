@@ -13,6 +13,8 @@ import { MapPin, X } from 'lucide-react'
 import { useI18n } from '@/hooks/useI18n'
 import { extractBlock } from '../timeline/EventPanel'
 import { stripAnchors } from '@/utils/anchors'
+import { remarkWikiLinks } from '@/utils/wikiLinks'
+import { wikiAnchor } from '../WikiLink'
 import type { ChroniclerEvent } from '@/types/chronicler'
 
 const bodyCache = new Map<string, string>()
@@ -74,8 +76,8 @@ export function PresentationPanel({ events, windowLabel, position, onClose, onOp
                 {text === null
                   ? <div className="h-3 w-2/3 bg-subtle rounded animate-pulse" />
                   : text.trim()
-                    ? <ReactMarkdown remarkPlugins={[remarkGfm]}
-                        components={{ img: ({ src, alt }) => <img src={src ? window.electronAPI.resolveAssetPath(e.filePath, String(src)) : ''} alt={alt ?? ''} /> }}>
+                    ? <ReactMarkdown remarkPlugins={[remarkGfm, remarkWikiLinks]}
+                        components={{ a: wikiAnchor(e.filePath), img: ({ src, alt }) => <img src={src ? window.electronAPI.resolveAssetPath(e.filePath, String(src)) : ''} alt={alt ?? ''} /> }}>
                         {text}
                       </ReactMarkdown>
                     : <p className="font-mono text-xs text-chr-muted italic">{t('no_content')}</p>}
