@@ -41,6 +41,8 @@ export interface SearchDoc {
   timelineTitle: string
   /** Nome do local (para o cartão das ligações [[…]]) */
   place: string
+  /** Local como está no cabeçalho (o renderer valida): para as relações no mapa */
+  location?: unknown
   /** Trecho de chronicle: âncora e título do chronicle */
   anchor?: string
   chronicleTitle?: string
@@ -325,6 +327,7 @@ export class FileSystemService {
           timelineDir: dir,
           timelineTitle,
           place: fm.location && typeof fm.location === 'object' && 'name' in fm.location ? String((fm.location as { name?: unknown }).name ?? '') : '',
+          location: fm.location && typeof fm.location === 'object' ? fm.location : undefined,
           anchor: ev.chronicle?.anchor,
           chronicleTitle: ev.chronicle?.title,
         })

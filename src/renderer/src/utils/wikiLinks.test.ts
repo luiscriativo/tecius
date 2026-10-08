@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { unified } from 'unified'
 import remarkParse from 'remark-parse'
-import { completeWikiLink, eventTexts, findBacklinks, linksToOldTitle, openWikiQuery, parseWikiLink, remarkWikiLinks, resolveWikiLink, snippetAround, suggestWikiTargets, wikiTextFor, type VaultEventDoc } from './wikiLinks'
+import { completeWikiLink, eventRelations, eventTexts, findBacklinks, linksToOldTitle, openWikiQuery, parseWikiLink, remarkWikiLinks, resolveWikiLink, snippetAround, suggestWikiTargets, wikiTextFor, type VaultEventDoc } from './wikiLinks'
 
 const doc = (title: string, timelineTitle: string, date = '1500'): VaultEventDoc =>
   ({ filePath: `/v/${timelineTitle}/${title}.md`, slug: title, title, date, timelineDir: `/v/${timelineTitle}`, timelineTitle })
@@ -109,5 +109,18 @@ describe('menções e renomeação', () => {
     // Outro evento ainda se chama assim: só a forma com a timeline é deste
     const other = { ...doc('Tratado de Tordesilhas', 'Outra'), body: '' }
     expect(linksToOldTitle('Tratado de Tordesilhas', 'Descobrimentos', [...renamed, other], tord).count).toBe(0)
+  })
+})
+
+describe('eventRelations', () => {
+  const bio = { ...doc('Vida de Cabral', 'Pessoas', '1467'), body: 'Nasce em [[Belmonte]]. Comanda a frota: [[Chegada]], depois [[Calicute]] e de novo [[chegada|ela]]. [[Inexistente]].' }
+  const belmonte = doc('Belmonte', 'Pessoas', '1467'), chegada = doc('Chegada', 'Descobrimentos', '1500')
+  const calicute = { ...doc('Calicute', 'Descobrimentos', '1500-09'), body: 'Ver [[Vida de Cabral]].' }
+  const all = [bio, belmonte, chegada, calicute]
+  it('cita na ordem do texto, sem repetir; e quem cita', () => {
+    const r = eventRelations(bio, all)
+    expect(r.cites.map((d) => d.title)).toEqual(['Belmonte', 'Chegada', 'Calicute'])
+    expect(r.citedBy.map((d) => d.title)).toEqual(['Calicute'])
+    expect(eventRelations(chegada, all)).toEqual({ cites: [], citedBy: [bio] })
   })
 })

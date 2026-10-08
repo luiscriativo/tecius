@@ -209,6 +209,8 @@ Dias opened the route later used by [[Vasco da Gama reaches Calicut|Vasco da Gam
 - Rest the mouse on a link to see a card with the date, place, timeline and the beginning of the event's text.
 - At the end of every event, **Mentioned in** lists the events that link to it, with the sentence around each mention (in a chronicle, the right section). It also appears in the side panel of the timeline.
 - Renaming an event (or a chronicle section) and going back to reading offers to **update the links** that still use the old name.
+- **Relations on the map:** **See relations on the map** (at the end of an event, or **Relations** in the map's popup) shows only that event and the ones linked to it, from any date and timeline. The events it cites form a **route in date order** (solid line) — a biography that cites loose events becomes a journey; events that cite it are joined to it by dotted lines. **Back to time** returns to the normal map.
+- **Relations on the timeline:** with an event selected, arcs join it to the events it cites (above the line) and to those that cite it (below, dotted), when they are in the same view.
 - In PDF and HTML exports, links become plain text.
 
 ### Internal links (header)

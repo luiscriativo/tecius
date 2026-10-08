@@ -16,6 +16,9 @@
  *
  * 3. useMemo em todas as derivações pesadas:
  *    pixelGroups e visibleGroups só recalculam quando deps mudam.
+ *
+ * Relações [[…]]: com um evento selecionado, arcos ligam ele aos eventos que
+ * cita (acima da linha) e aos que citam ele (abaixo), quando estão nesta vista.
  */
 
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -31,6 +34,8 @@ import { useTimelineStore } from '../../stores/useTimelineStore'
 import { useAppStore } from '../../stores/useAppStore'
 import { cn } from '../../utils/cn'
 import { useI18n } from '../../hooks/useI18n'
+import { useEventRelations } from '../../hooks/useEventRelations'
+import { docKey } from '../../utils/wikiLinks'
 
 // ── TimelineMinimap ────────────────────────────────────────────────────────────
 
@@ -312,6 +317,33 @@ export function TimelineCanvas({
     return out
   }, [lanes, scale, canvasWidth])
 
+  // ── Relações do evento selecionado: arcos até os ligados que estão no eixo ──
+  const rel = useEventRelations(selectedEvent)
+  const arcs = useMemo(() => {
+    if (!rel || !selectedEvent) return []
+    const pos = new Map<string, { lane: number; px: number }>()
+    for (const g of pixelGroups) for (const e of g.events) pos.set(docKey(e), { lane: g.lane, px: g.px })
+    const from = pos.get(docKey(selectedEvent))
+    if (!from) return []
+    const out: Array<{ key: string; from: typeof from; to: typeof from; dir: 'out' | 'in' }> = []
+    const add = (d: { filePath: string; slug: string }, dir: 'out' | 'in') => {
+      const to = pos.get(docKey(d))
+      if (to && (to.px !== from.px || to.lane !== from.lane) && !out.some((a) => a.key === docKey(d))) out.push({ key: docKey(d), from, to, dir })
+    }
+    rel.cites.forEach((d) => add(d, 'out'))
+    rel.citedBy.forEach((d) => add(d, 'in'))
+    return out
+  }, [rel, selectedEvent, pixelGroups])
+  // Tamanho da zona dos pontos (os arcos são desenhados em pixels dela)
+  const [zone, setZone] = useState<HTMLDivElement | null>(null)
+  const [zoneSize, setZoneSize] = useState({ w: 0, h: 0 })
+  useEffect(() => {
+    if (!zone) return
+    const ro = new ResizeObserver(() => setZoneSize({ w: zone.clientWidth, h: zone.clientHeight }))
+    ro.observe(zone)
+    return () => ro.disconnect()
+  }, [zone])
+
   // ── Viewport culling ───────────────────────────────────────────────────────
   // Renderiza apenas grupos dentro do viewport + 1 tela de buffer em cada lado.
   const buffer = Math.max(viewWidth, 400)
@@ -380,7 +412,31 @@ export function TimelineCanvas({
           className="h-full flex flex-col px-8 py-4"
         >
           {/* Zona dos dots: uma faixa por timeline (duas ao comparar) */}
-          <div className="flex-1 relative">
+          <div ref={setZone} className="flex-1 relative">
+            {arcs.length > 0 && zoneSize.w > 0 && (() => {
+              // Só a faixa perto da vista (o canvas pode ter milhões de pixels)
+              const x0 = Math.max(0, viewLeft - 32 - viewWidth), w = viewWidth * 3
+              const laneH = zoneSize.h / lanes.length
+              const X = (px: number) => (px / canvasWidth) * zoneSize.w - x0
+              const Y = (lane: number) => (lane + 0.5) * laneH
+              return (
+                <svg className="absolute top-0 pointer-events-none" style={{ left: x0 }} width={w} height={zoneSize.h} data-testid="relation-arcs">
+                  {arcs.map((a) => {
+                    const x1 = X(a.from.px), y1 = Y(a.from.lane), x2 = X(a.to.px), y2 = Y(a.to.lane)
+                    const lift = Math.min(laneH * 0.28, 12 + Math.abs(x2 - x1) * 0.15) * (a.dir === 'out' ? -1 : 1)
+                    const cy = a.from.lane === a.to.lane ? y1 + lift * 2 : (y1 + y2) / 2
+                    return (
+                      <g key={a.key} data-arc={a.dir}>
+                        <path d={`M${x1},${y1} Q${(x1 + x2) / 2},${cy} ${x2},${y2}`} fill="none" stroke="rgb(var(--chronicle-dot))"
+                          strokeOpacity={a.dir === 'out' ? 0.75 : 0.55} strokeWidth={a.dir === 'out' ? 1.5 : 1.2}
+                          strokeDasharray={a.dir === 'in' ? '1.5 3' : undefined} strokeLinecap="round" />
+                        <circle cx={x2} cy={y2} r={8} fill="none" stroke="rgb(var(--chronicle-dot))" strokeOpacity={0.6} strokeWidth={1.2} />
+                      </g>
+                    )
+                  })}
+                </svg>
+              )
+            })()}
             {lanes.map((_, lane) => (
               <div key={lane} className="absolute inset-x-0" data-lane={lane}
                 style={{ top: `${(lane * 100) / lanes.length}%`, height: `${100 / lanes.length}%` }}>

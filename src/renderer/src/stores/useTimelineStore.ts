@@ -40,6 +40,8 @@ interface TimelineState {
   /** Zoom e posição do mapa de cada timeline: o mapa reabre onde ficou */
   mapViews: Record<string, MapGeoView>
   timelineFocus: TimelineFocus | null
+  /** Evento cujas relações [[…]] o mapa está mostrando (em vez do tempo) */
+  mapRelations: { filePath: string; slug: string } | null
 
   setCurrentTimeline: (t: TimelineData | null) => void
   setSelectedEvent: (e: ChroniclerEvent | null) => void
@@ -51,6 +53,7 @@ interface TimelineState {
   setMapCursor: (c: MapCursor | null) => void
   setMapView: (dirPath: string, view: MapGeoView) => void
   setTimelineFocus: (f: TimelineFocus | null) => void
+  setMapRelations: (ev: { filePath: string; slug: string } | null) => void
   cacheTimeline: (path: string, data: TimelineData) => void
   getCached: (path: string) => TimelineData | undefined
   deleteCached: (path: string) => void
@@ -70,6 +73,7 @@ export const useTimelineStore = create<TimelineState>()((set, get) => ({
   mapCursor: null,
   mapViews: readPref('map.views', {}, isMapViews),
   timelineFocus: null,
+  mapRelations: null,
 
   setCurrentTimeline: (t) => set({ currentTimeline: t }),
   setSelectedEvent: (e) => set({ selectedEvent: e }),
@@ -89,6 +93,7 @@ export const useTimelineStore = create<TimelineState>()((set, get) => ({
     mapViewsSaveTimer = setTimeout(() => writePref('map.views', get().mapViews), 400)
   },
   setTimelineFocus: (f) => set({ timelineFocus: f }),
+  setMapRelations: (ev) => set({ mapRelations: ev ? { filePath: ev.filePath, slug: ev.slug } : null }),
   cacheTimeline: (path, data) => {
     const cache = new Map(get().cache)
     if (cache.size > 30) {

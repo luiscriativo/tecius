@@ -36,7 +36,7 @@ import { imageMarkdown } from '@/utils/markdown'
 import { remarkWikiLinks } from '@/utils/wikiLinks'
 import { StaticWikiAnchor, wikiAnchor } from '@/components/WikiLink'
 import { WikiSuggest } from '@/components/WikiSuggest'
-import { Backlinks } from '@/components/Backlinks'
+import { Backlinks, RelationsMapButton } from '@/components/Backlinks'
 import { useEventIndexStore } from '@/stores/useEventIndexStore'
 import { useVaultStore } from '@/stores/useVaultStore'
 import { useNotifications } from '@/hooks/useNotifications'
@@ -2523,7 +2523,10 @@ export default function EventView(): React.ReactElement {
             )}
 
             {/* Eventos que citam este com [[…]] */}
-            <div className="print:hidden"><Backlinks filePath={selectedEvent.filePath} slug={selectedEvent.slug} /></div>
+            <div className="print:hidden">
+              <Backlinks filePath={selectedEvent.filePath} slug={selectedEvent.slug} />
+              <RelationsMapButton filePath={selectedEvent.filePath} slug={selectedEvent.slug} />
+            </div>
 
             <div className="flex items-center gap-3 mt-14 pt-8 border-t border-chr-subtle print:hidden">
               {selectedEvent.hasSubtimeline && (

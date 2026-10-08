@@ -4,7 +4,10 @@
  */
 
 import { useEffect, useMemo } from 'react'
-import { Link2 } from 'lucide-react'
+import { Link2, Map as MapIcon } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { useTimelineStore } from '@/stores/useTimelineStore'
+import { useEventRelations } from '@/hooks/useEventRelations'
 import { ensureEventIndex, useEventIndexStore } from '@/stores/useEventIndexStore'
 import { useVaultStore } from '@/stores/useVaultStore'
 import { useOpenEvent } from '@/hooks/useOpenEvent'
@@ -45,5 +48,26 @@ export function Backlinks({ filePath, slug, compact }: { filePath: string; slug:
         ))}
       </div>
     </section>
+  )
+}
+
+/** "Ver relações no mapa": abre o mapa da timeline mostrando o evento e os ligados a ele */
+export function RelationsMapButton({ filePath, slug, compact }: { filePath: string; slug: string; compact?: boolean }) {
+  const { t } = useI18n()
+  const navigate = useNavigate()
+  const rel = useEventRelations({ filePath, slug })
+  const n = rel ? rel.cites.length + rel.citedBy.length : 0
+  if (!n) return null
+  const open = () => {
+    const s = useTimelineStore.getState()
+    s.setMapRelations({ filePath, slug })
+    s.setViewMode('map')
+    navigate('/timeline')
+  }
+  return (
+    <button type="button" onClick={open} data-testid="relations-map"
+      className={(compact ? 'mt-4' : 'mt-6') + ' flex items-center gap-1.5 font-mono text-2xs text-chr-muted hover:text-chr-primary transition-colors'}>
+      <MapIcon size={12} strokeWidth={1.5} /> {t('map_rel_open_map')} <span className="text-chr-secondary">{n}</span>
+    </button>
   )
 }

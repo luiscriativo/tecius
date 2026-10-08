@@ -17,6 +17,8 @@ export interface VaultEventDoc {
   /** Texto (no 1º trecho de um chronicle vem o arquivo inteiro; nos demais, vazio) */
   body?: string
   place?: string
+  /** Local como está no cabeçalho (validar com parseLocation) */
+  location?: unknown
   /** Trecho de chronicle: âncora e título do chronicle */
   anchor?: string
   chronicleTitle?: string
@@ -178,6 +180,23 @@ export function findBacklinks(target: VaultEventDoc, docs: VaultEventDoc[]): Arr
     }
   }
   return out
+}
+
+/** Chave única de um evento do vault (o mesmo arquivo pode ter vários trechos) */
+export const docKey = (d: { filePath: string; slug: string }) => `${d.filePath}#${d.slug}`
+
+/**
+ * Relações de um evento: os que ele cita (na ordem em que aparecem no texto) e
+ * os que citam ele. Cada evento entra uma vez; o próprio evento não entra.
+ */
+export function eventRelations(self: VaultEventDoc, docs: VaultEventDoc[]): { cites: VaultEventDoc[]; citedBy: VaultEventDoc[] } {
+  const text = eventTexts(docs.filter((d) => d.filePath === self.filePath)).find((x) => sameDoc(x.doc, self))?.text ?? ''
+  const cites: VaultEventDoc[] = []
+  for (const m of text.matchAll(WIKI_LINK_RE)) {
+    const hit = resolveWikiLink(parseWikiLink(m[1]).target, docs, self.timelineDir)
+    if (hit && !sameDoc(hit, self) && !cites.some((c) => sameDoc(c, hit))) cites.push(hit)
+  }
+  return { cites, citedBy: findBacklinks(self, docs).map((b) => b.doc) }
 }
 
 /**

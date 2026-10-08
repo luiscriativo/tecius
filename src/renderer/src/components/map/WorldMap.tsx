@@ -57,6 +57,8 @@ export interface MapLine {
   id: string
   coords: Array<[number, number]>
   opacity?: number
+  /** route: rota de chronicle (tracejada); relation: rota das relações [[…]] (cheia); backlink: quem cita (pontilhada) */
+  kind?: 'route' | 'relation' | 'backlink'
 }
 
 interface WorldMapProps {
@@ -276,7 +278,7 @@ export function WorldMap({
   }, [areas, countries, regions, basemap, path, areaShapeCache])
 
   const linesD = useMemo(() => lines.map((l) => ({
-    id: l.id, d: path({ type: 'LineString', coordinates: l.coords }) ?? '', opacity: l.opacity ?? 1,
+    id: l.id, d: path({ type: 'LineString', coordinates: l.coords }) ?? '', opacity: l.opacity ?? 1, kind: l.kind ?? 'route',
   })), [lines, path])
 
   // Marcadores em coordenadas de tela + agrupamento
@@ -536,8 +538,10 @@ export function WorldMap({
             ))}
             {linesD.map((l) => (
               // Rotas discretas: com muitas, não cobrem os pontos e os países
-              <path key={l.id} d={l.d} fill="none" stroke={css.accent} strokeOpacity={0.55 * l.opacity} strokeWidth={1.2} strokeDasharray="4 3"
-                vectorEffect="non-scaling-stroke" />
+              <path key={l.id} d={l.d} fill="none" stroke={css.accent} vectorEffect="non-scaling-stroke" data-line-kind={l.kind}
+                {...(l.kind === 'relation' ? { strokeOpacity: 0.85 * l.opacity, strokeWidth: 1.8 }
+                  : l.kind === 'backlink' ? { strokeOpacity: 0.6 * l.opacity, strokeWidth: 1.2, strokeDasharray: '1.5 3', strokeLinecap: 'round' as const }
+                  : { strokeOpacity: 0.55 * l.opacity, strokeWidth: 1.2, strokeDasharray: '4 3' })} />
             ))}
           </g>
 
