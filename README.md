@@ -84,7 +84,7 @@ Export a whole timeline as a print-ready **PDF** or a self-contained **web page 
 Maps, borders and place search are built into the app. The only online features are optional and off by default: address search on OpenStreetMap and paleogeographic maps of deep time (GPlates).
 
 **🔄 Updates**
-On Windows and with the Linux AppImage, the app downloads and installs new versions for you. On macOS it takes you to the download page of the new version.
+The app tells you when a new version is out. On Windows and with the Linux AppImage it downloads and installs it for you; on macOS it takes you to the download page.
 
 **🎨 Light & dark themes · 🌐 English & Portuguese**
 
@@ -117,7 +117,7 @@ Each release also includes `SHA256SUMS.txt` to verify the downloads.
 
 > **macOS "unidentified developer" warning:** Tecius is not notarized by Apple. The first time, right-click the app → **Open** → **Open** (or allow it in System Settings → Privacy & Security).
 
-> **Linux AppImage:** make it executable (`chmod +x Tecius-*.AppImage`) and run it. The AppImage updates itself; `.deb` and `.rpm` are installed and updated through your package manager.
+> **Linux:** for the AppImage, make it executable (`chmod +x Tecius-*.AppImage`) and run it — no installation needed. Install the `.deb` with `sudo apt install ./Tecius-*.deb` and the `.rpm` with `sudo dnf install ./Tecius-*.rpm`. The app tells you when a new version is available.
 
 > **Windows SmartScreen warning:** Tecius is unsigned (code signing certificates are expensive). Click "More info" → "Run anyway" to proceed. The app is fully open source — you can read every line of code in this repository.
 
