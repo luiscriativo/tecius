@@ -302,6 +302,18 @@ function TimelinesSection({ timelines, collapsed }: TimelinesSectionProps) {
           </div>
         )}
 
+        {/* Sem timelines: o "+" do cabeçalho passa despercebido — mostra o convite na lista */}
+        {!collapsed && !creatingNew && timelines.length === 0 && (
+          <button
+            type="button"
+            onClick={() => { setCreatingNew(true); setNewTitle('') }}
+            className="mx-2 w-[calc(100%-1rem)] flex items-center gap-2 px-3 py-1.5 rounded-sm border border-dashed border-chr text-xs font-mono text-chr-secondary hover:text-chr-primary hover:border-chr-strong hover:bg-hover transition-colors"
+            data-testid="sidebar-new-timeline"
+          >
+            <Plus size={12} strokeWidth={1.5} /> {t('new_timeline')}
+          </button>
+        )}
+
         <div className="space-y-0.5 px-2">
           {timelines.map((timeline) => (
             <div key={timeline.dirPath}>

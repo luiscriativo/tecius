@@ -7,7 +7,7 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BookOpen, ChevronRight, FolderOpen, RefreshCw, X, Library, Pencil, Check } from 'lucide-react'
+import { BookOpen, ChevronRight, FolderOpen, RefreshCw, X, Library, Pencil, Check, Plus } from 'lucide-react'
 import { useVaultStore } from '@/stores/useVaultStore'
 import { useVault } from '@/hooks/useVault'
 import { useTimeline } from '@/hooks/useTimeline'
@@ -58,6 +58,96 @@ function TimelineCard({ timeline, onClick }: { timeline: TimelineRef; onClick: (
         className="text-chr-muted shrink-0 mt-1 group-hover:text-chr-secondary transition-colors"
       />
     </button>
+  )
+}
+
+// ── Criar timeline ────────────────────────────────────────────────────────────
+
+/**
+ * Criação de timeline direto na tela inicial: o botão vira um campo para o nome;
+ * Enter cria e já abre a timeline nova. `variant="hero"` é o convite do vault
+ * vazio; `variant="card"` é o cartão tracejado no fim da grade.
+ */
+function NewTimeline({ variant, onCreated }: { variant: 'hero' | 'card'; onCreated: (t: TimelineRef) => void }) {
+  const { t } = useI18n()
+  const { createTimeline } = useVault()
+  const [editing, setEditing] = useState(false)
+  const [name, setName] = useState('')
+  const [busy, setBusy] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+  useEffect(() => { if (editing) inputRef.current?.focus() }, [editing])
+
+  const cancel = () => { setEditing(false); setName('') }
+  const submit = async () => {
+    const title = name.trim()
+    if (!title || busy) return
+    setBusy(true)
+    const before = new Set((useVaultStore.getState().vaultInfo?.timelines ?? []).map((tl) => tl.dirPath))
+    try {
+      if (await createTimeline(title)) {
+        const created = (useVaultStore.getState().vaultInfo?.timelines ?? []).find((tl) => !before.has(tl.dirPath))
+        cancel()
+        if (created) onCreated(created)
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const primaryBtn = cn(
+    'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-sm text-xs font-mono shrink-0',
+    'border border-timeline-chronicle bg-timeline-chronicle text-surface hover:bg-timeline-chronicle/85',
+    'transition-colors duration-150 disabled:opacity-50'
+  )
+  const form = (
+    <form className="flex items-center gap-2 w-full" onSubmit={(e) => { e.preventDefault(); void submit() }}>
+      <input
+        ref={inputRef}
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Escape') cancel() }}
+        placeholder={t('timeline_name_ph')}
+        disabled={busy}
+        className="flex-1 min-w-0 px-3 py-1.5 text-sm rounded-sm outline-none bg-vault border border-chr-subtle text-chr-primary placeholder:text-chr-muted focus:border-chr-strong transition-colors disabled:opacity-50"
+        data-testid="new-timeline-name"
+      />
+      <button type="submit" disabled={busy || !name.trim()} className={primaryBtn}>{t('create_timeline_btn')}</button>
+      <button type="button" onClick={cancel} className="px-2 py-1.5 text-xs font-mono text-chr-muted hover:text-chr-primary">{t('cancel')}</button>
+    </form>
+  )
+
+  if (variant === 'card') {
+    return editing ? (
+      <div className="chr-card p-5 flex items-center">{form}</div>
+    ) : (
+      <button
+        type="button"
+        onClick={() => setEditing(true)}
+        className="w-full min-h-[92px] flex items-center justify-center gap-2 rounded-sm border border-dashed border-chr text-chr-muted hover:text-chr-primary hover:border-chr-strong hover:bg-hover transition-colors font-mono text-xs"
+        data-testid="new-timeline-card"
+      >
+        <Plus size={14} strokeWidth={1.5} /> {t('new_timeline')}
+      </button>
+    )
+  }
+
+  return (
+    <div className="chr-card p-8 max-w-lg" data-testid="first-timeline">
+      <h2 className="font-serif text-2xl text-chr-primary">{t('first_timeline_title')}</h2>
+      <p className="text-sm text-chr-secondary mt-2 leading-relaxed">{t('first_timeline_desc')}</p>
+      <div className="mt-5">
+        {editing ? form : (
+          <button type="button" onClick={() => setEditing(true)} className={primaryBtn} data-testid="first-timeline-btn">
+            <Plus size={12} strokeWidth={1.5} /> {t('create_timeline_btn')}
+          </button>
+        )}
+      </div>
+      <p className="font-mono text-2xs text-chr-muted mt-6">
+        {t('create_timeline_hint').split('_timeline.md')[0]}
+        <span className="text-chr-secondary">_timeline.md</span>
+        {t('create_timeline_hint').split('_timeline.md')[1]}
+      </p>
+    </div>
   )
 }
 
@@ -190,7 +280,7 @@ export function HomePage(): React.ReactElement {
             <div className="flex items-center gap-2 font-mono text-2xs text-chr-muted hidden sm:flex">
               <span>{vaultInfo.totalEvents} {t('events_label')}</span>
               <span className="text-chr-subtle">·</span>
-              <span>{vaultInfo.timelines.length} {t('timelines_label')}</span>
+              <span>{vaultInfo.timelines.length} {t(vaultInfo.timelines.length === 1 ? 'timeline_label' : 'timelines_label')}</span>
             </div>
 
             <div className="w-px h-4 bg-chr-subtle hidden sm:block" />
@@ -264,18 +354,10 @@ export function HomePage(): React.ReactElement {
                 onClick={() => handleOpenTimeline(timeline)}
               />
             ))}
+            <NewTimeline variant="card" onCreated={handleOpenTimeline} />
           </div>
         ) : (
-          <div className="chr-card p-8 text-center max-w-md">
-            <p className="text-chr-muted text-sm">
-              {t('no_timelines')}
-            </p>
-            <p className="font-mono text-2xs text-chr-muted mt-2">
-              {t('create_timeline_hint').split('_timeline.md')[0]}
-              <span className="text-chr-secondary">_timeline.md</span>
-              {t('create_timeline_hint').split('_timeline.md')[1]}
-            </p>
-          </div>
+          <NewTimeline variant="hero" onCreated={handleOpenTimeline} />
         )}
 
       </div>
