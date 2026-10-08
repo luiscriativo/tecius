@@ -107,6 +107,9 @@ jobs:
     name: Build ${{ matrix.name }}
     needs: [prepare, check]
     runs-on: ${{ matrix.os }}
+    # Um build leva ~10 min; se a máquina do GitHub travar (já aconteceu no npm ci),
+    # falha logo em vez de esperar o limite padrão de 6 horas
+    timeout-minutes: 45
     strategy:
       fail-fast: true
       matrix:
@@ -151,7 +154,10 @@ jobs:
             sudo gem install --no-document fpm
             echo "USE_SYSTEM_FPM=true" >> "$GITHUB_ENV"
           fi
-      - run: npm ci
+      - name: Instalar dependências
+        # Limite + uma nova tentativa: travamentos de rede no npm ci acontecem nas máquinas do GitHub
+        timeout-minutes: 12
+        run: npm ci || (echo "::warning::npm ci falhou, tentando de novo" && npm ci)
       - name: Versão ${{ needs.prepare.outputs.version }}
         # Só nesta máquina: o commit da versão é feito no fim, se tudo passar
         run: npm version ${{ needs.prepare.outputs.version }} --no-git-tag-version --allow-same-version
