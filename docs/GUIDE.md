@@ -463,13 +463,14 @@ Accessible via the sidebar. Every option applies immediately and is saved automa
 | `Ctrl` + `B` / `Ctrl` + `I` | Bold / italic the selection while editing (again to remove) |
 | `Ctrl` + `Z` | Undo — including changes made with the formatting toolbar |
 | `Enter` in a list | Continue the list (`- `, `1.` → `2.`, `- [ ] `); `Enter` on an empty item ends it |
-| `Tab` | Indent while editing |
+| `Tab` / `Shift` + `Tab` | In a list: turn the item into a sub-item / move it back a level (several selected items at once). In plain text, `Tab` inserts two spaces |
+| Paste a link over selected text | Turns the text into a link — `[text](https://…)` |
 | `Enter` | Confirm inline rename |
 | `Escape` | Cancel inline rename; close panels, popovers and search |
 
 On macOS use `⌘` instead of `Ctrl`. The editing shortcuts work in the main text and in every section of a chronicle.
 
-**Formatting toolbar** — each button works on the selected text or on the line of the cursor, and clicking it again removes the formatting: headings, bold, italic, strikethrough, inline code, quote and lists apply to every selected line, and switching between list types replaces the marker. Spaces at the edges of the selection stay outside bold/italic marks.
+**Formatting toolbar** — each button works on the selected text or on the line of the cursor, and clicking it again removes the formatting: headings, bold, italic, strikethrough, inline code, quote and lists apply to every selected line, and switching between list types replaces the marker. Spaces at the edges of the selection stay outside bold/italic marks. The buttons light up to show the formatting where the cursor is; they stay disabled until you click in the text.
 
 ---
 

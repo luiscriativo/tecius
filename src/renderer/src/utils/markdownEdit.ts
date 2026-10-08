@@ -175,3 +175,114 @@ export function diffRange(a: string, b: string): { start: number; endA: number; 
   while (ea > start && eb > start && a[ea - 1] === b[eb - 1]) { ea--; eb-- }
   return { start, endA: ea, insert: b.slice(start, eb) }
 }
+
+// ── Recuo de listas (Tab / Shift+Tab) ─────────────────────────────────────────
+
+const ITEM = /^(\s*)([-*+]|\d+[.)])(\s+)/
+const indentOf = (l: string) => /^\s*/.exec(l)![0].length
+/** Largura do marcador de um item (`- ` = 2, `1. ` = 3, `10. ` = 4): o recuo que um subitem precisa */
+const markerWidth = (l: string) => { const m = ITEM.exec(l); return m ? m[2].length + m[3].length : 0 }
+
+/** Linhas inteiras cobertas pela seleção */
+function lineSpan(v: string, s: number, e: number) {
+  const ls = lineStartAt(v, s)
+  const le = lineEndAt(v, e > s && v[e - 1] === '\n' ? e - 1 : e)
+  return { ls, le, lines: v.slice(ls, le).split('\n') }
+}
+
+/** Há item de lista na seleção? (decide se o Tab recua a lista ou só insere espaços) */
+export function selectionTouchesList(v: string, s: number, e: number): boolean {
+  return lineSpan(v, s, e).lines.some((l) => ITEM.test(l))
+}
+
+function finish(v: string, s: number, e: number, ls: number, le: number, out: string[]): TextEdit {
+  const block = out.join('\n')
+  const value = v.slice(0, ls) + block + v.slice(le)
+  if (s === e) {
+    const pos = Math.max(ls, ls + block.length - (le - s))
+    return { value, selStart: pos, selEnd: pos }
+  }
+  return { value, selStart: ls, selEnd: ls + block.length }
+}
+
+/**
+ * Tab: transforma os itens selecionados em subitens do item de cima, com o recuo
+ * que o Markdown exige (a largura do marcador dele). Um item numerado que vira
+ * o primeiro de uma sublista passa a ser `1.`.
+ */
+export function indentLines(v: string, s: number, e: number): TextEdit {
+  const { ls, le, lines } = lineSpan(v, s, e)
+  const above = v.slice(0, ls).split('\n')
+  const out: string[] = []
+  lines.forEach((line, k) => {
+    if (!line.trim()) { out.push(line); return }
+    const i = indentOf(line)
+    // Item irmão (mesmo recuo) logo acima — nas linhas originais
+    const prev = [...above, ...lines.slice(0, k)].reverse().find((l) => l.trim() && indentOf(l) <= i && ITEM.test(l))
+    const unit = prev && indentOf(prev) === i ? markerWidth(prev) : 2
+    let next = ' '.repeat(unit) + line
+    const prevAtNew = [...above, ...out].reverse().find((l) => l.trim() && indentOf(l) <= i + unit)
+    if (/^\s*\d+[.)]\s/.test(line) && (!prevAtNew || indentOf(prevAtNew) < i + unit)) next = next.replace(/\d+([.)])/, '1$1')
+    out.push(next)
+  })
+  return finish(v, s, e, ls, le, out)
+}
+
+/** Shift+Tab: volta os itens para o nível do item pai (ou tira até 2 espaços de texto comum) */
+export function outdentLines(v: string, s: number, e: number): TextEdit {
+  const { ls, le, lines } = lineSpan(v, s, e)
+  const above = v.slice(0, ls).split('\n')
+  const out = lines.map((line, k) => {
+    const i = indentOf(line)
+    if (!line.trim() || i === 0) return line
+    if (!ITEM.test(line)) return line.slice(Math.min(i, 2))
+    const parent = [...above, ...lines.slice(0, k)].reverse().find((l) => l.trim() && ITEM.test(l) && indentOf(l) < i)
+    return ' '.repeat(parent ? indentOf(parent) : 0) + line.slice(i)
+  })
+  return finish(v, s, e, ls, le, out)
+}
+
+// ── Colar URL sobre um texto ──────────────────────────────────────────────────
+
+const URL_RE = /^(https?:\/\/|mailto:|www\.)\S+$/i
+
+/** Colar uma URL com um texto selecionado (de uma linha só) cria o link `[texto](url)` */
+export function linkFromPaste(v: string, s: number, e: number, pasted: string): TextEdit | null {
+  const url = pasted.trim()
+  const sel = v.slice(s, e)
+  if (s === e || !URL_RE.test(url) || sel.includes('\n') || URL_RE.test(sel.trim())) return null
+  const ins = `[${sel}](${url})`
+  return { value: v.slice(0, s) + ins + v.slice(e), selStart: s + ins.length, selEnd: s + ins.length }
+}
+
+// ── Estado da formatação no cursor (para a barra mostrar o que está ativo) ────
+
+export interface FormatState {
+  bold: boolean; italic: boolean; strike: boolean; code: boolean
+  heading: number
+  block: BlockKind | null
+}
+
+/** Trechos `[início, fim)` (com as marcas) de uma formatação na linha */
+function spans(line: string, re: RegExp): Array<[number, number]> {
+  const out: Array<[number, number]> = []
+  for (const m of line.matchAll(re)) out.push([m.index!, m.index! + m[0].length])
+  return out
+}
+
+/** Formatação ativa onde está o cursor ou a seleção (dentro de uma linha) */
+export function formatStateAt(v: string, s: number, e: number): FormatState {
+  const ls = lineStartAt(v, s)
+  const line = v.slice(ls, lineEndAt(v, s))
+  const a = s - ls, b = Math.min(e, ls + line.length) - ls
+  const inside = (list: Array<[number, number]>) => list.some(([x, y]) => x <= a && b <= y && (a > x || b < y || a !== b))
+  const strong = spans(line, /\*\*\*(?!\s)(.+?)(?<!\s)\*\*\*|\*\*(?!\s)(.+?)(?<!\s)\*\*/g)
+  const emph = spans(line, /\*\*\*(?!\s)(.+?)(?<!\s)\*\*\*|(?<!\*)\*(?![\s*])(.+?)(?<![\s*])\*(?!\*)/g)
+  const heading = /^(#{1,6})\s/.exec(line)
+  const block = (['task', 'numbered', 'bullet', 'quote'] as const).find((k) => hasKind(line, k)) ?? null
+  return {
+    bold: inside(strong), italic: inside(emph),
+    strike: inside(spans(line, /~~(?!\s)(.+?)(?<!\s)~~/g)), code: inside(spans(line, /`[^`\n]+`/g)),
+    heading: heading ? heading[1].length : 0, block,
+  }
+}

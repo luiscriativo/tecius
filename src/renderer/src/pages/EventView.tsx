@@ -33,7 +33,7 @@ import { parseLocationRaw, locationToRaw } from '@/utils/location'
 import { LocationPicker } from '@/components/map/LocationPicker'
 import { stripAnchors } from '@/utils/anchors'
 import { imageMarkdown } from '@/utils/markdown'
-import { continueList, diffRange, insertBlock, insertLink, toggleBlock, toggleHeading, toggleInline, type TextEdit } from '@/utils/markdownEdit'
+import { continueList, diffRange, formatStateAt, indentLines, insertBlock, insertLink, linkFromPaste, outdentLines, selectionTouchesList, toggleBlock, toggleHeading, toggleInline, type FormatState, type TextEdit } from '@/utils/markdownEdit'
 import { usePref } from '@/hooks/usePref'
 import type { ChroniclerEvent, EventLocation } from '@/types/chronicler'
 
@@ -1031,7 +1031,22 @@ function MarkdownToolbar({
     const ta = textareaRef.current
     if (!ta) return
     applyTextEdit(ta, fn(ta.value, ta.selectionStart, ta.selectionEnd), onBodyChange)
+    requestAnimationFrame(refreshState)
   }
+
+  // Formatação onde está o cursor: o botão correspondente aparece ativo
+  const [fmt, setFmt] = useState<FormatState | null>(null)
+  const refreshState = useCallback(() => {
+    const ta = textareaRef.current
+    setFmt(ta && document.activeElement === ta ? formatStateAt(ta.value, ta.selectionStart, ta.selectionEnd) : null)
+  }, [textareaRef])
+  useEffect(() => {
+    const evs = ['selectionchange', 'keyup', 'mouseup', 'input', 'focusin', 'focusout'] as const
+    const h = () => requestAnimationFrame(refreshState)
+    evs.forEach((n) => document.addEventListener(n, h, true))
+    return () => evs.forEach((n) => document.removeEventListener(n, h, true))
+  }, [refreshState])
+  const on = (active: boolean | undefined) => (showFormatting && active ? 'bg-active text-chr-primary border-chr-subtle' : '')
   const ph = t('md_link_ph')
 
   const col = t('md_table_col'), cell = t('md_table_cell')
@@ -1052,32 +1067,32 @@ function MarkdownToolbar({
       onMouseDown={(e) => e.preventDefault()}
     >
       {/* Headings */}
-      <button type="button" title={t('md_h2')} disabled={!showFormatting} className={btnCls} onClick={() => apply((v, s) => toggleHeading(v, s, 2))}>H2</button>
-      <button type="button" title={t('md_h3')} disabled={!showFormatting} className={btnCls} onClick={() => apply((v, s) => toggleHeading(v, s, 3))}>H3</button>
+      <button type="button" title={t('md_h2')} aria-pressed={!!(fmt?.heading === 2)} disabled={!showFormatting} className={cn(btnCls, on(fmt?.heading === 2))} onClick={() => apply((v, s) => toggleHeading(v, s, 2))}>H2</button>
+      <button type="button" title={t('md_h3')} aria-pressed={!!(fmt?.heading === 3)} disabled={!showFormatting} className={cn(btnCls, on(fmt?.heading === 3))} onClick={() => apply((v, s) => toggleHeading(v, s, 3))}>H3</button>
 
       {sep}
 
       {/* Inline formatting */}
-      <button type="button" title={`${t('md_bold')} (${MOD}B)`} disabled={!showFormatting} className={cn(btnCls, 'font-bold')} onClick={() => apply((v, s, e) => toggleInline(v, s, e, '**', ph))}>B</button>
-      <button type="button" title={`${t('md_italic')} (${MOD}I)`} disabled={!showFormatting} className={cn(btnCls, 'italic')} onClick={() => apply((v, s, e) => toggleInline(v, s, e, '*', ph))}>I</button>
-      <button type="button" title={t('md_strike')} disabled={!showFormatting} className={cn(btnCls, 'line-through')} onClick={() => apply((v, s, e) => toggleInline(v, s, e, '~~', ph))}>S</button>
-      <button type="button" title={t('md_code')} disabled={!showFormatting} className={btnCls} onClick={() => apply((v, s, e) => toggleInline(v, s, e, '`', t('md_code_ph')))}>
+      <button type="button" title={`${t('md_bold')} (${MOD}B)`} aria-pressed={!!fmt?.bold} disabled={!showFormatting} className={cn(btnCls, 'font-bold', on(fmt?.bold))} onClick={() => apply((v, s, e) => toggleInline(v, s, e, '**', ph))}>B</button>
+      <button type="button" title={`${t('md_italic')} (${MOD}I)`} aria-pressed={!!fmt?.italic} disabled={!showFormatting} className={cn(btnCls, 'italic', on(fmt?.italic))} onClick={() => apply((v, s, e) => toggleInline(v, s, e, '*', ph))}>I</button>
+      <button type="button" title={t('md_strike')} aria-pressed={!!fmt?.strike} disabled={!showFormatting} className={cn(btnCls, 'line-through', on(fmt?.strike))} onClick={() => apply((v, s, e) => toggleInline(v, s, e, '~~', ph))}>S</button>
+      <button type="button" title={t('md_code')} aria-pressed={!!(fmt?.code)} disabled={!showFormatting} className={cn(btnCls, on(fmt?.code))} onClick={() => apply((v, s, e) => toggleInline(v, s, e, '`', t('md_code_ph')))}>
         <Code size={12} strokeWidth={1.5} />
       </button>
 
       {sep}
 
       {/* Block formatting */}
-      <button type="button" title={t('md_quote')} disabled={!showFormatting} className={btnCls} onClick={() => apply((v, s, e) => toggleBlock(v, s, e, 'quote'))}>
+      <button type="button" title={t('md_quote')} aria-pressed={!!(fmt?.block === 'quote')} disabled={!showFormatting} className={cn(btnCls, on(fmt?.block === 'quote'))} onClick={() => apply((v, s, e) => toggleBlock(v, s, e, 'quote'))}>
         <Quote size={12} strokeWidth={1.5} />
       </button>
-      <button type="button" title={t('md_bullets')} disabled={!showFormatting} className={btnCls} onClick={() => apply((v, s, e) => toggleBlock(v, s, e, 'bullet'))}>
+      <button type="button" title={t('md_bullets')} aria-pressed={!!(fmt?.block === 'bullet')} disabled={!showFormatting} className={cn(btnCls, on(fmt?.block === 'bullet'))} onClick={() => apply((v, s, e) => toggleBlock(v, s, e, 'bullet'))}>
         <List size={12} strokeWidth={1.5} />
       </button>
-      <button type="button" title={t('md_numbered')} disabled={!showFormatting} className={btnCls} onClick={() => apply((v, s, e) => toggleBlock(v, s, e, 'numbered'))}>
+      <button type="button" title={t('md_numbered')} aria-pressed={!!(fmt?.block === 'numbered')} disabled={!showFormatting} className={cn(btnCls, on(fmt?.block === 'numbered'))} onClick={() => apply((v, s, e) => toggleBlock(v, s, e, 'numbered'))}>
         <ListOrdered size={12} strokeWidth={1.5} />
       </button>
-      <button type="button" title={t('md_tasks')} disabled={!showFormatting} className={btnCls} onClick={() => apply((v, s, e) => toggleBlock(v, s, e, 'task'))}>
+      <button type="button" title={t('md_tasks')} aria-pressed={!!(fmt?.block === 'task')} disabled={!showFormatting} className={cn(btnCls, on(fmt?.block === 'task'))} onClick={() => apply((v, s, e) => toggleBlock(v, s, e, 'task'))}>
         <CheckSquare size={12} strokeWidth={1.5} />
       </button>
 
@@ -1101,6 +1116,11 @@ function MarkdownToolbar({
       </button>
 
       {sep}
+
+      {/* Sem foco no texto a barra fica desativada: explica por quê */}
+      {!showFormatting && (
+        <span className="ml-2 font-mono text-2xs text-chr-muted hidden md:inline" data-testid="toolbar-hint">{t('md_click_to_format')}</span>
+      )}
 
       {/* Spacer + actions */}
       <div className="flex-1 min-w-[4px]" />
@@ -1804,9 +1824,16 @@ export default function EventView(): React.ReactElement {
       applyTextEdit(ta, toggleInline(ta.value, ta.selectionStart, ta.selectionEnd, key === 'b' ? '**' : '*', t('md_link_ph')), activeBodyChange)
       return
     }
-    if (e.key === 'Tab' && !mod && !e.shiftKey) {
+    if (e.key === 'Tab' && !mod) {
+      // Em lista (ou com várias linhas): Tab vira subitem e Shift+Tab volta um nível.
+      // Em texto comum, Tab insere dois espaços no cursor.
       e.preventDefault()
-      applyTextEdit(ta, { value: ta.value.slice(0, ta.selectionStart) + '  ' + ta.value.slice(ta.selectionEnd), selStart: ta.selectionStart + 2, selEnd: ta.selectionStart + 2 }, activeBodyChange)
+      const { selectionStart: s, selectionEnd: en, value: v } = ta
+      const multiLine = v.slice(s, en).includes('\n')
+      const r = e.shiftKey ? outdentLines(v, s, en)
+        : selectionTouchesList(v, s, en) || multiLine ? indentLines(v, s, en)
+        : { value: v.slice(0, s) + '  ' + v.slice(en), selStart: s + 2, selEnd: s + 2 }
+      applyTextEdit(ta, r, activeBodyChange)
       return
     }
     if (e.key === 'Enter' && !mod && !e.shiftKey && !e.altKey && !e.nativeEvent.isComposing) {
@@ -1906,6 +1933,10 @@ export default function EventView(): React.ReactElement {
   }, [selectedEvent, displayBody, t])
 
   const handlePaste = useCallback(async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    // URL colada com um texto selecionado: vira link [texto](url)
+    const ta = e.currentTarget
+    const link = linkFromPaste(ta.value, ta.selectionStart, ta.selectionEnd, e.clipboardData.getData('text/plain'))
+    if (link) { e.preventDefault(); applyTextEdit(ta, link, activeBodyChange); return }
     if (!selectedEvent) return
     const imageItem = Array.from(e.clipboardData.items).find((i) => i.type.startsWith('image/'))
     if (!imageItem) return
@@ -1919,7 +1950,7 @@ export default function EventView(): React.ReactElement {
       const result = await window.electronAPI.invoke<{ success: boolean; relativePath?: string }>('fs:save-image', ab, `${t('md_image_alt')}.${ext}`, selectedEvent.filePath)
       if (result.success && result.relativePath) insertImageMarkdown(result.relativePath, target)
     } catch { /* ignore */ }
-  }, [selectedEvent, insertImageMarkdown, t])
+  }, [selectedEvent, insertImageMarkdown, activeBodyChange, t])
 
   // Arrastar imagens do sistema para o texto: copia para _assets/ e insere o link
   const handleDrop = useCallback(async (e: React.DragEvent<HTMLTextAreaElement>) => {

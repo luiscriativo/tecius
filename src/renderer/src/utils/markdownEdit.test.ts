@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { continueList, diffRange, insertBlock, insertLink, toggleBlock, toggleHeading, toggleInline, type TextEdit } from './markdownEdit'
+import { unified } from 'unified'
+import remarkParse from 'remark-parse'
+import { continueList, diffRange, formatStateAt, indentLines, insertBlock, insertLink, linkFromPaste, outdentLines, selectionTouchesList, toggleBlock, toggleHeading, toggleInline, type TextEdit } from './markdownEdit'
 
 /** Texto com a seleção marcada: ⟦…⟧ */
 const show = (r: TextEdit) => r.value.slice(0, r.selStart) + '⟦' + r.value.slice(r.selStart, r.selEnd) + '⟧' + r.value.slice(r.selEnd)
@@ -92,5 +94,63 @@ describe('diffRange', () => {
     expect(diffRange('uma palavra', 'uma **palavra**')).toEqual({ start: 4, endA: 11, insert: '**palavra**' })
     expect(diffRange('- item', 'item')).toEqual({ start: 0, endA: 2, insert: '' })
     expect(diffRange('abc', 'abc')).toEqual({ start: 3, endA: 3, insert: '' })
+  })
+})
+
+/** A lista do Markdown tem um subitem de verdade? */
+const isNested = (md: string) => {
+  const l = unified().use(remarkParse).parse(md).children[0] as { type: string; children: Array<{ children: Array<{ type: string }> }> }
+  return l.type === 'list' && l.children.some((it) => it.children.some((c) => c.type === 'list'))
+}
+
+describe('indentLines / outdentLines (Tab / Shift+Tab)', () => {
+  it('vira subitem com o recuo que o Markdown exige', () => {
+    for (const md of ['- a\n- b', '1. a\n2. b', '9. a\n10. b', '- [ ] a\n- [ ] b']) {
+      const at = md.lastIndexOf('\n') + 2
+      const r = indentLines(md, at, at)
+      expect(isNested(r.value), `${md} → ${r.value}`).toBe(true)
+    }
+    expect(indentLines('1. a\n2. b', 7, 7).value).toBe('1. a\n   1. b')
+  })
+  it('várias linhas de uma vez e volta ao nível de cima', () => {
+    expect(indentLines('- a\n- b\n- c', 4, 11).value).toBe('- a\n  - b\n  - c')
+    expect(outdentLines('- a\n  - b\n  - c', 4, 15).value).toBe('- a\n- b\n- c')
+    expect(outdentLines('1. a\n   1. b', 8, 8).value).toBe('1. a\n1. b')
+  })
+  it('detecta se a seleção tem itens de lista', () => {
+    expect(selectionTouchesList('- a', 1, 1)).toBe(true)
+    expect(selectionTouchesList('texto', 1, 1)).toBe(false)
+  })
+})
+
+describe('linkFromPaste', () => {
+  it('colar URL sobre texto cria link', () => {
+    expect(linkFromPaste('veja o site', 7, 11, 'https://tecius.app ')!.value).toBe('veja o [site](https://tecius.app)')
+  })
+  it('não interfere quando não faz sentido', () => {
+    expect(linkFromPaste('veja', 4, 4, 'https://x.com')).toBeNull()          // sem seleção
+    expect(linkFromPaste('veja o site', 7, 11, 'texto comum')).toBeNull()   // não é URL
+    expect(linkFromPaste('https://a.com', 0, 13, 'https://b.com')).toBeNull() // trocar uma URL por outra
+  })
+})
+
+describe('formatStateAt', () => {
+  const at = (marked: string) => { const s = marked.indexOf('|'); return formatStateAt(marked.replace('|', ''), s, s) }
+  it('reconhece a formatação no cursor', () => {
+    expect(at('uma **pal|avra** aqui').bold).toBe(true)
+    expect(at('uma **palavra** aq|ui').bold).toBe(false)
+    expect(at('uma *pal|avra*').italic).toBe(true)
+    expect(at('uma **pal|avra**').italic).toBe(false)
+    expect(at('***am|bos***')).toMatchObject({ bold: true, italic: true })
+    expect(at('~~ri|scado~~').strike).toBe(true)
+    expect(at('`có|digo`').code).toBe(true)
+  })
+  it('título e tipo de bloco da linha', () => {
+    expect(at('## Tí|tulo').heading).toBe(2)
+    expect(at('- [ ] ta|refa').block).toBe('task')
+    expect(at('1. it|em').block).toBe('numbered')
+    expect(at('- it|em').block).toBe('bullet')
+    expect(at('> ci|tação').block).toBe('quote')
+    expect(at('tex|to').block).toBeNull()
   })
 })
