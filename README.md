@@ -6,7 +6,7 @@
 
 **A personal historical timeline manager powered by plain Markdown files.**
 
-*Organize events, periods, and narratives in a visual timeline — fully local, fully yours.*
+*Organize events, periods, and narratives on a visual timeline and a map through time — fully local, fully yours.*
 
 <br />
 
@@ -14,16 +14,16 @@
 [![Latest Release](https://img.shields.io/github/v/release/luiscriativo/tecius?style=flat-square&color=black&label=release)](https://github.com/luiscriativo/tecius/releases/latest)
 [![Electron](https://img.shields.io/badge/Electron-33-black?style=flat-square&logo=electron)](https://www.electronjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-black?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
-[![React](https://img.shields.io/badge/React-18-black?style=flat-square&logo=react)](https://reactjs.org/)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-black?style=flat-square)](#installing)
+[![React](https://img.shields.io/badge/React-18-black?style=flat-square&logo=react)](https://react.dev/)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-black?style=flat-square)](#installing)
 
 <br />
 
-[**⬇ Download for Windows**](https://github.com/luiscriativo/tecius/releases/latest) · [View all releases](https://github.com/luiscriativo/tecius/releases) · [User Guide](docs/GUIDE.md)
+[**⬇ Download**](https://github.com/luiscriativo/tecius/releases/latest) · [All releases](https://github.com/luiscriativo/tecius/releases) · [User Guide](docs/GUIDE.md)
 
 <br />
 
-![Tecius Screenshot](docs/screenshot.png)
+![Tecius — the map view, showing the voyages of the Age of Exploration over the borders of 1500](docs/screenshot.png)
 
 <br />
 
@@ -35,61 +35,66 @@
 
 Tecius is a **desktop app for building and exploring historical timelines** using plain `.md` files stored on your own machine. Inspired by [Obsidian](https://obsidian.md/), it uses a **vault** — just a regular folder — as its database. Every event, timeline, and chronicle is a Markdown file you can open, edit, move, or back up with any tool you already use.
 
-No proprietary formats. No cloud lock-in. No subscriptions. Your data stays exactly where you put it.
+No proprietary formats. No cloud lock-in. No subscriptions. Your data stays exactly where you put it — and the app works fully offline.
 
 ---
 
 ## Why Tecius?
 
-There are many tools for notes and knowledge management. Tecius does something different:
-
 | | Tecius | Notion | Obsidian |
 |---|---|---|---|
 | Visual timeline canvas | ✅ | ❌ | ❌ (plugin only) |
+| Map of events through time | ✅ | ❌ | ❌ |
 | Plain Markdown storage | ✅ | ❌ | ✅ |
 | 100% offline & local | ✅ | ❌ | ✅ |
 | Free, no subscription | ✅ | ❌ | ✅ |
 | Built for chronological data | ✅ | ❌ | ❌ |
 | Chronicles (multi-entry events) | ✅ | ❌ | ❌ |
 
-If you want to map **when things happened** — a biography, a historical research project, a personal diary, a company history — Tecius is purpose-built for that.
+If you want to map **when and where things happened** — a biography, a historical research project, a personal diary, a company history — Tecius is purpose-built for that.
 
 ---
 
 ## Features
 
-**📁 Vault-based storage**
-Open any folder as a vault. Timelines are subfolders; events are `.md` files. The structure is human-readable and fully portable.
-
-**🗓 Canvas & List views**
-Visualize events on a horizontal timeline canvas with smooth zoom (Ctrl+scroll or ± buttons) or switch to a compact list view grouped by year.
+**🗓 Timeline, list and map views**
+- **Timeline** — a horizontal canvas with smooth zoom (Ctrl+scroll or ± buttons), a linear or compressed scale for timelines that span millennia, grouped markers and a minimap. Compare two timelines side by side.
+- **List** — a compact chronological list, grouped by year, decade, century, category or importance.
+- **Map** — watch events happen on a world map through time: drag the time ruler, press play, or turn it into a full-screen **presentation** with the text of each event. Shows the **political borders of each era** (from 123,000 BC to 2010), routes between the stops of a journey, and stays readable with thousands of events.
 
 **📜 Chronicles**
-A single `.md` file can contain multiple events using the `chronicle` type. Perfect for grouping related milestones — a biography, a project history, a series of related facts.
+A single `.md` file can hold several dated entries — a biography, a voyage, a project log. Each entry can have its own place, so a journey draws its route on the map.
 
-**🏷 Categories & Importance**
-Classify events by category (Politics, Art, Science, Music…) and assign an importance level from 1 to 5 to control their visual weight on the timeline.
+**🔎 Search the whole vault**
+Press **Ctrl/⌘+K** to search titles, text, tags, categories and timelines across every timeline in the vault.
 
-**🗂 Sub-timelines**
-Timelines can be nested freely. A subfolder inside a timeline becomes a sub-timeline — navigate through levels with the breadcrumb bar.
+**📁 Vault-based storage**
+Open any folder as a vault. Timelines are subfolders; events are `.md` files. Nested folders become sub-timelines.
 
-**🗑 Internal Trash**
-Deleted events move to an internal trash folder inside the vault. Nothing is permanently removed without your explicit confirmation.
+**🏷 Categories, importance, places and links**
+Classify events by category, give them an importance from 1 to 5, attach a place (point, city, region or country) and link events to each other.
 
-**📦 Asset management**
-Keep images, PDFs, and references alongside your events in the `_assets/` folder. Assets are associated per timeline and can be referenced in event bodies.
+**🖼 Images**
+Paste or drag images into an event — they are copied to an `_assets/` folder next to it. The Images page shows every image in the vault and which ones are no longer used.
 
-**📄 PDF Export**
-Export any timeline as a print-ready PDF directly from the timeline view.
+**📄 Export**
+Export a whole timeline as a print-ready **PDF** or a self-contained **web page (.html)**, or a single event as PDF.
 
-**🔄 Auto-update**
-Built-in updater checks for new releases and downloads them inside the app — no manual re-downloading needed.
+**🌍 Works offline**
+Maps, borders and place search are built into the app. The only online features are optional and off by default: address search on OpenStreetMap and paleogeographic maps of deep time (GPlates).
 
-**🌍 Internationalization**
-Interface available in **Portuguese (PT)** and **English (EN)**.
+**🔄 Updates**
+On Windows the app downloads and installs new versions for you. On macOS it takes you to the download page of the new version.
 
-**🎨 Dark & Light themes**
-Full dark and light mode support with a typographic design system inspired by 19th-century documents.
+**🎨 Light & dark themes · 🌐 English & Portuguese**
+
+<br />
+
+<div align="center">
+
+![Tecius — the chronological list in the light theme](docs/screenshot-list.png)
+
+</div>
 
 ---
 
@@ -101,7 +106,7 @@ Download the latest release for your platform:
 |---|---|
 | **Windows** | [Installer `.exe`](https://github.com/luiscriativo/tecius/releases/latest): `Tecius-Setup-…-x64.exe` (most PCs) or `…-arm64.exe` (Windows on ARM), or the portable `.exe` |
 | **macOS** | [`.dmg`](https://github.com/luiscriativo/tecius/releases/latest): `Tecius-…-arm64.dmg` (Apple Silicon, M1 or newer) or `Tecius-…-x64.dmg` (Intel) |
-| Linux | `.AppImage`, `.deb`, or `.rpm` *(coming soon)* |
+| Linux | *(coming soon)* |
 
 > **macOS "unidentified developer" warning:** Tecius is not notarized by Apple. The first time, right-click the app → **Open** → **Open** (or allow it in System Settings → Privacy & Security).
 
@@ -115,39 +120,53 @@ A vault is just a folder. Here is a typical structure:
 
 ```
 my-vault/
-├── _vault.md                              # Vault title and metadata
+├── _vault.md                              # Vault title (optional)
 │
-├── Amazon History/                        # A timeline
-│   ├── _timeline.md                       # Timeline metadata
-│   ├── 1541-02-12_orellana-expedition.md  # A single event
-│   ├── 1896-12-31_teatro-amazonas.md      # A single event
-│   ├── amazon-rubber-boom.md              # A chronicle (multiple events)
-│   ├── indigenous-peoples.md             # A chronicle
-│   │
-│   └── Monuments & Architecture/          # A sub-timeline
-│       ├── _timeline.md
-│       ├── 1882-10-15_mercado-adolpho-lisboa.md
-│       ├── 1896-12-31_teatro-amazonas-architecture.md
-│       └── manaus-belle-epoque.md         # Chronicle
-│
-└── _assets/
-    └── cover.jpg
+└── Amazon History/                        # A timeline
+    ├── _timeline.md                       # Timeline title, description…
+    ├── 1541-02-12_orellana-expedition.md  # A single event
+    ├── 1896-12-31_teatro-amazonas.md      # A single event
+    ├── amazon-rubber-boom.md              # A chronicle (several dated entries)
+    ├── _assets/                           # Images used by the events above
+    │   └── teatro-amazonas.jpg
+    │
+    └── Monuments & Architecture/          # A sub-timeline
+        ├── _timeline.md
+        ├── 1882-10-15_mercado-adolpho-lisboa.md
+        └── manaus-belle-epoque.md         # Chronicle
 ```
 
-For a full explanation of frontmatter fields, event types, and chronicles, see the **[User Guide](docs/GUIDE.md)**.
+An event is a Markdown file with a small header:
+
+```markdown
+---
+title: "Teatro Amazonas inaugurated"
+date: 1896-12-31
+category: Culture
+importance: 5
+location:
+  name: "Manaus, Brazil"
+  lat: -3.13
+  lng: -60.02
+  precision: city
+---
+
+The opera house of Manaus opens at the height of the rubber boom.
+```
+
+For every field, date format (including BC and millions of years ago), chronicles and the map, see the **[User Guide](docs/GUIDE.md)**.
 
 ---
 
 ## Roadmap
 
-These are features planned or under consideration. Community feedback helps prioritize them.
+Planned or under consideration — feedback helps prioritize:
 
-- [ ] macOS and Linux builds
-- [ ] Timeline export to HTML (shareable static page)
-- [ ] Event linking (reference one event from another)
-- [ ] Search across the entire vault
-- [ ] Custom categories and color theming per timeline
-- [ ] Multiple vault support (quick switching)
+- [ ] Linux builds
+- [ ] Signed and notarized macOS app (enables in-app updates on macOS)
+- [ ] Custom categories and colors per timeline
+- [ ] Quick switching between vaults
+- [ ] Filter the timeline by place
 - [ ] Mobile companion app (read-only)
 
 Have an idea? [Open an issue](https://github.com/luiscriativo/tecius/issues) and let's discuss it.
@@ -158,7 +177,7 @@ Have an idea? [Open an issue](https://github.com/luiscriativo/tecius/issues) and
 
 ### Prerequisites
 
-- **Node.js** 20+ (LTS recommended)
+- **Node.js** 20+ (22 recommended)
 - **npm** 10+
 
 ### Setup
@@ -175,38 +194,31 @@ npm install
 npm run dev
 ```
 
-This starts the Vite dev server with HMR and launches the Electron window. Changes to renderer code apply instantly. Changes to the main process or preload trigger an Electron restart.
+Starts the Vite dev server with hot reload and opens the Electron window. Changes to the interface apply instantly; changes to the main process or preload restart Electron.
 
-### Type checking
-
-```bash
-npm run typecheck
-```
-
-### Linting
+### Checks
 
 ```bash
-npm run lint
-npm run lint:fix
+npm run typecheck   # TypeScript
+npm run lint        # ESLint
+npm test            # Vitest
 ```
 
-### Building for production
+### Building
 
 ```bash
-# Build only (no installer)
-npm run build
-
-# Windows — NSIS installer + portable
-npm run build:win
-
-# macOS — DMG + ZIP
-npm run build:mac
-
-# Linux — AppImage + DEB + RPM
-npm run build:linux
+npm run build       # compile to out/ (no installer)
+npm run build:win   # Windows installer, for local testing
+npm run build:mac   # macOS .dmg/.zip, for local testing
 ```
 
-Output is placed in the `dist/` directory.
+Output goes to `dist/`.
+
+### Releases
+
+Releases are built by **GitHub Actions** ([`.github/workflows/release.yml`](.github/workflows/release.yml)), one machine per platform and architecture — Windows x64 and ARM, macOS Apple Silicon and Intel. To publish a version: **Actions → Release → Run workflow**, choose *patch*, *minor* or *major*. The workflow checks the code, builds every installer, bumps the version, tags it and publishes the release.
+
+Installers built locally contain a single architecture and are meant for testing only.
 
 ---
 
@@ -215,26 +227,26 @@ Output is placed in the `dist/` directory.
 ```
 src/
 ├── main/                        # Electron main process (Node.js)
-│   ├── index.ts                 # Window creation, app lifecycle
-│   ├── ipc/                     # IPC handlers (fs, app, window)
+│   ├── index.ts                 # Window, app lifecycle, auto-update
+│   ├── ipc/                     # IPC handlers: files, app, window, geo
 │   └── services/
 │       └── FileSystemService.ts # All disk operations
 │
 ├── preload/
-│   └── index.ts                 # contextBridge API surface
+│   └── index.ts                 # contextBridge API (allow-listed channels)
 │
 └── renderer/src/                # React application
-    ├── App.tsx                  # Router + page map
-    ├── components/              # Shared UI components
-    │   ├── Sidebar.tsx
-    │   └── timeline/            # Canvas, List, EventPanel…
-    ├── hooks/                   # useVault, useTimeline, useI18n…
-    ├── pages/                   # Home, TimelineView, Settings…
-    ├── stores/                  # Zustand stores
-    ├── types/
-    │   └── chronicler.ts        # Domain types
-    └── utils/
-        └── chroniclerDate.ts    # Date parsing & formatting
+    ├── components/
+    │   ├── timeline/            # Canvas, list, event panel…
+    │   └── map/                 # World map, time ruler, presentation…
+    ├── pages/                   # Home, TimelineView, EventView, Settings…
+    ├── hooks/ · stores/         # useVault, useTimeline… · Zustand stores
+    ├── assets/geo/              # Countries, regions, places and historical borders
+    ├── i18n/                    # English and Portuguese
+    └── utils/                   # Dates, map time scale, export…
+
+scripts/                         # Code protection, data builders, release helpers
+.github/workflows/release.yml    # Release pipeline
 ```
 
 ---
@@ -248,11 +260,13 @@ src/
 | UI framework | [React 18](https://react.dev/) |
 | Language | [TypeScript 5](https://www.typescriptlang.org/) |
 | Styling | [Tailwind CSS 3](https://tailwindcss.com/) |
-| State | [Zustand 5](https://zustand-demo.pmnd.rs/) |
+| State | [Zustand 5](https://zustand.docs.pmnd.rs/) |
 | Routing | [React Router 6](https://reactrouter.com/) |
 | Markdown | [gray-matter](https://github.com/jonschlinkert/gray-matter) + [react-markdown](https://github.com/remarkjs/react-markdown) |
-| Icons | [Lucide React](https://lucide.dev/) |
-| Packaging | [electron-builder](https://www.electron.build/) |
+| Maps | [d3-geo](https://d3js.org/d3-geo) |
+| Icons | [Lucide](https://lucide.dev/) |
+| Tests | [Vitest](https://vitest.dev/) |
+| Packaging | [electron-builder](https://www.electron.build/) + GitHub Actions |
 
 ---
 
@@ -262,12 +276,18 @@ Contributions are very welcome — bug reports, feature suggestions, translation
 
 1. **Fork** the repository
 2. **Create a branch**: `git checkout -b feat/my-feature`
-3. **Commit** following [Conventional Commits](https://www.conventionalcommits.org/): `feat:`, `fix:`, `chore:`, etc.
+3. **Check** your change: `npm run typecheck && npm run lint && npm test`
 4. **Push** and open a **Pull Request** describing what you changed and why
 
 For larger changes, please open an issue first so we can discuss the approach before you invest time coding.
 
 **Good first issues:** look for the [`good first issue`](https://github.com/luiscriativo/tecius/labels/good%20first%20issue) label.
+
+---
+
+## Privacy
+
+Tecius collects no data. Your vault never leaves your computer, and the optional online features are off by default. See the [privacy policy](PRIVACY.md).
 
 ---
 
@@ -281,7 +301,7 @@ Versions up to and including v1.4.2 were released under the MIT license and rema
 
 ### Third-party data
 
-- **Historical borders** — [historical-basemaps](https://github.com/aourednik/historical-basemaps) by André Ourednik and contributors, GPL-3.0 (simplified; see `src/renderer/src/assets/geo/historical/NOTICE.md` and `scripts/build-historical-data.sh`).
+- **Historical borders** — [historical-basemaps](https://github.com/aourednik/historical-basemaps) by André Ourednik and contributors, GPL-3.0 (simplified; see [`NOTICE.md`](src/renderer/src/assets/geo/historical/NOTICE.md) and [`scripts/build-historical-data.sh`](scripts/build-historical-data.sh)).
 - **Present-day countries, regions and places** — [Natural Earth](https://www.naturalearthdata.com), public domain.
 - **Paleogeographic maps** (optional, online) — [GPlates Web Service](https://gws.gplates.org), MERDITH2021 plate model.
 

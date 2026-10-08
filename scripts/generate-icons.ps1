@@ -1,7 +1,8 @@
 Add-Type -AssemblyName System.Drawing
 
-$resourcesDir = "C:\Programas\Ebooks\projeto-base\resources"
-$tempDir = "C:\Programas\Ebooks\projeto-base\resources\_temp-icons"
+# Caminhos relativos ao repositório (o script fica em scripts/)
+$resourcesDir = Join-Path (Split-Path $PSScriptRoot -Parent) "resources"
+$tempDir = Join-Path $resourcesDir "_temp-icons"
 
 if (-not (Test-Path $tempDir)) { New-Item -ItemType Directory -Path $tempDir | Out-Null }
 

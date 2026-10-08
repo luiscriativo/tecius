@@ -57,3 +57,9 @@ coverage/
 # ── Misc ─────────────────────────────────────────────────────────────────────
 *.local
 .cache/
+
+# ── Claude Code ───────────────────────────────────────────────────────────────
+# Só as skills do projeto são versionadas (ex.: tecius-release, usada nas duas
+# máquinas). Configurações locais, rascunhos e mockups ficam fora do repositório.
+.claude/*
+!.claude/skills/
