@@ -36,7 +36,11 @@ import { imageMarkdown } from '@/utils/markdown'
 import { remarkWikiLinks } from '@/utils/wikiLinks'
 import { StaticWikiAnchor, wikiAnchor } from '@/components/WikiLink'
 import { WikiSuggest } from '@/components/WikiSuggest'
+import { Backlinks } from '@/components/Backlinks'
 import { useEventIndexStore } from '@/stores/useEventIndexStore'
+import { useVaultStore } from '@/stores/useVaultStore'
+import { useNotifications } from '@/hooks/useNotifications'
+import { linksToOldTitle, wikiTextFor } from '@/utils/wikiLinks'
 import { applyTextEdit } from '@/utils/textareaEdit'
 import { continueList, formatStateAt, indentLines, insertBlock, insertLink, linkFromPaste, outdentLines, selectionTouchesList, toggleBlock, toggleHeading, toggleInline, type FormatState, type TextEdit } from '@/utils/markdownEdit'
 import { usePref } from '@/hooks/usePref'
@@ -1515,13 +1519,18 @@ export default function EventView(): React.ReactElement {
     setEditSectionBodies(st.sectionBodies)
   }, [])
 
+  // Títulos no início da edição (para perceber renomeações ao sair)
+  const titlesAtStartRef = useRef<{ title: string; entries: Map<string, string> } | null>(null)
+
   // ── Start editing ─────────────────────────────────────────────────────────
   const handleStartEdit = useCallback(() => {
     setSaveError(null)
     skipDirtyRef.current = true
     setIsDirty(false)
     setEditIsRaw(false)
-    applyEditState(editStateFromRaw(selectedEventRaw ?? '', isChronicleRaw(selectedEventRaw ?? '')))
+    const st = editStateFromRaw(selectedEventRaw ?? '', isChronicleRaw(selectedEventRaw ?? ''))
+    applyEditState(st)
+    titlesAtStartRef.current = { title: st.fm.title, entries: new Map(st.entries.map((e) => [e.id, e.title])) }
     preEditRawRef.current = selectedEventRaw ?? null
     editInitializedRef.current = true
     setIsEditing(true)
@@ -1551,6 +1560,18 @@ export default function EventView(): React.ReactElement {
       }
     } else {
       setIsEditing(false)
+      // Títulos renomeados: depois de salvar, oferece atualizar as ligações [[…]]
+      const start = titlesAtStartRef.current
+      if (start && !editIsRaw) {
+        const pairs = editEntries.length === 0
+          ? (start.title.trim() && editFm.title.trim() && start.title.trim() !== editFm.title.trim() ? [{ old: start.title.trim(), now: editFm.title.trim() }] : [])
+          : editEntries.flatMap((en) => {
+              const old = start.entries.get(en.id)?.trim()
+              return old && en.title.trim() && old !== en.title.trim() ? [{ old, now: en.title.trim(), anchor: en.anchor }] : []
+            })
+        if (pairs.length) setPendingRename(pairs)
+        titlesAtStartRef.current = { title: editFm.title, entries: new Map(editEntries.map((e) => [e.id, e.title])) }
+      }
       // If nothing was changed, clear draft state so view shows saved data.
       // This prevents isDraftActive from incorrectly overriding section-level
       // fields (e.g. importance, body) with chronicle-level defaults.
@@ -1558,7 +1579,52 @@ export default function EventView(): React.ReactElement {
         editInitializedRef.current = false
       }
     }
-  }, [isEditing, isDirty, handleStartEdit])
+  }, [isEditing, isDirty, handleStartEdit, editIsRaw, editEntries, editFm])
+
+  // ── Renomear: ligações [[…]] que ainda usam o título antigo ────────────────
+  const { notify } = useNotifications()
+  const vaultPath = useVaultStore((s) => s.vaultPath)
+  const [pendingRename, setPendingRename] = useState<Array<{ old: string; now: string; anchor?: string }>>([])
+  const [renamePrompt, setRenamePrompt] = useState<Array<{ old: string; now: string; newText: string; files: string[]; targets: string[]; count: number }>>([])
+  const [isRenamingLinks, setIsRenamingLinks] = useState(false)
+  // Espera o salvamento terminar, relê o índice e conta as ligações com o nome antigo
+  useEffect(() => {
+    if (!pendingRename.length || isDirty || saveStatus === 'saving' || !vaultPath || !selectedEvent) return
+    const pairs = pendingRename
+    const filePath = selectedEvent.filePath
+    setPendingRename([])
+    void (async () => {
+      await useEventIndexStore.getState().refresh(vaultPath)
+      const docs = useEventIndexStore.getState().docs ?? []
+      const found = pairs.flatMap((p) => {
+        const self = docs.find((d) => d.filePath === filePath && (p.anchor ? d.anchor === p.anchor : !d.anchor || docs.filter((x) => x.filePath === filePath).length === 1))
+        if (!self) return []
+        const r = linksToOldTitle(p.old, self.timelineTitle, docs, self)
+        return r.count ? [{ old: p.old, now: p.now, newText: wikiTextFor(self, docs), ...r }] : []
+      })
+      setRenamePrompt(found)
+    })()
+  }, [pendingRename, isDirty, saveStatus, vaultPath, selectedEvent])
+  useEffect(() => { setRenamePrompt([]) }, [selectedEvent?.filePath])
+  const applyRename = useCallback(async () => {
+    if (!vaultPath) return
+    setIsRenamingLinks(true)
+    try {
+      let total = 0
+      for (const r of renamePrompt) {
+        const res = await window.electronAPI.invoke<{ success: boolean; data?: number }>('fs:rename-wiki-links', r.files, r.targets, r.newText)
+        if (res.success) total += res.data ?? 0
+      }
+      await useEventIndexStore.getState().refresh(vaultPath)
+      const now = renamePrompt[renamePrompt.length - 1]?.now ?? ''
+      notify.success(t('wiki_rename_done'), total === 1 ? t('wiki_rename_done_one', { new: now }) : t('wiki_rename_done_body', { count: total, new: now }))
+      setRenamePrompt([])
+    } catch (err) {
+      notify.error(t('wiki_rename_error'), String(err))
+    } finally {
+      setIsRenamingLinks(false)
+    }
+  }, [renamePrompt, vaultPath, notify, t])
 
   // ── Body change handler ───────────────────────────────────────────────────
   const handleBodyChange = useCallback((v: string) => {
@@ -2313,6 +2379,29 @@ export default function EventView(): React.ReactElement {
         <div ref={viewContentRef} className="flex-1 overflow-y-auto print:overflow-visible print:flex-none print:h-auto">
           <article className={cn(wideLayout ? 'max-w-5xl mx-auto px-8 pt-12 pb-20' : 'max-w-2xl mx-auto px-8 pt-12 pb-20', 'print:max-w-none print:px-12 print:pt-8 print:pb-8')}>
 
+            {/* Renomeou o evento: oferece atualizar as ligações [[…]] com o nome antigo */}
+            {renamePrompt.length > 0 && (
+              <div className="mb-8 chr-card px-4 py-3 flex items-start gap-3 print:hidden" data-testid="rename-links">
+                <Link size={14} strokeWidth={1.5} className="text-timeline-chronicle-text shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  {renamePrompt.map((r) => (
+                    <p key={r.old} className="text-sm text-chr-primary">
+                      {t('wiki_rename_title', { old: r.old, new: r.now })}{' '}
+                      <span className="text-chr-secondary">{r.count === 1 ? t('wiki_rename_body_one') : r.files.length === 1 ? t('wiki_rename_body_file', { count: r.count }) : t('wiki_rename_body', { count: r.count, files: r.files.length })}</span>
+                    </p>
+                  ))}
+                  <div className="flex items-center gap-2 mt-2.5">
+                    <button type="button" onClick={() => void applyRename()} disabled={isRenamingLinks}
+                      className="px-3 py-1 rounded-sm text-xs font-mono border border-timeline-chronicle bg-timeline-chronicle text-surface hover:bg-timeline-chronicle/85 disabled:opacity-50">
+                      {t('wiki_rename_update')}
+                    </button>
+                    <button type="button" onClick={() => setRenamePrompt([])}
+                      className="px-3 py-1 rounded-sm text-xs font-mono text-chr-muted hover:text-chr-primary">{t('wiki_rename_skip')}</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {coverSrc && (
               <img src={coverSrc} alt="" data-testid="event-cover"
                 className="w-full max-h-80 object-cover rounded-sm border border-chr-subtle mb-8" />
@@ -2432,6 +2521,9 @@ export default function EventView(): React.ReactElement {
                 )}
               </div>
             )}
+
+            {/* Eventos que citam este com [[…]] */}
+            <div className="print:hidden"><Backlinks filePath={selectedEvent.filePath} slug={selectedEvent.slug} /></div>
 
             <div className="flex items-center gap-3 mt-14 pt-8 border-t border-chr-subtle print:hidden">
               {selectedEvent.hasSubtimeline && (

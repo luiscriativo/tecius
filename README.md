@@ -66,7 +66,7 @@ If you want to map **when and where things happened** — a biography, a histori
 A single `.md` file can hold several dated entries — a biography, a voyage, a project log. Each entry can have its own place, so a journey draws its route on the map.
 
 **🔗 Linked events**
-Type `[[` in an event's text to link it to any other event of the vault — the list shows titles, dates and timelines, and creates the event if it doesn't exist yet. Links show the date of the event and open it on click.
+Type `[[` in an event's text to link it to any other event of the vault — the list shows titles, dates and timelines, and creates the event if it doesn't exist yet. Links show the date of the event, preview it on hover and open it on click; every event lists where it is **mentioned**, and renaming an event offers to update the links to it.
 
 **🔎 Search the whole vault**
 Press **Ctrl/⌘+K** to search titles, text, tags, categories and timelines across every timeline in the vault.

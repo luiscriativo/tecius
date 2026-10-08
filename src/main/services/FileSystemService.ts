@@ -39,6 +39,11 @@ export interface SearchDoc {
   body: string
   timelineDir: string
   timelineTitle: string
+  /** Nome do local (para o cartão das ligações [[…]]) */
+  place: string
+  /** Trecho de chronicle: âncora e título do chronicle */
+  anchor?: string
+  chronicleTitle?: string
 }
 
 export interface RawTimeline {
@@ -319,6 +324,9 @@ export class FileSystemService {
           body,
           timelineDir: dir,
           timelineTitle,
+          place: fm.location && typeof fm.location === 'object' && 'name' in fm.location ? String((fm.location as { name?: unknown }).name ?? '') : '',
+          anchor: ev.chronicle?.anchor,
+          chronicleTitle: ev.chronicle?.title,
         })
       }
       for (const sub of tl.subtimelines) visit(sub.dirPath, depth + 1)
@@ -915,6 +923,32 @@ export class FileSystemService {
       : `---\ntitle: ${yamlScalar(title)}\ndate: ${dateStr}\nimportance: 3\n---\n\n`
     fs.writeFileSync(filePath, template, 'utf-8')
     return { filePath, slug }
+  }
+
+  /**
+   * Renomeia as ligações [[…]] para um evento (no texto, nunca no cabeçalho):
+   * `[[Antigo]]`, `[[Timeline/Antigo]]` e `[[Antigo|texto]]` (o texto mostrado é mantido).
+   * `oldTargets` são as formas que apontavam para o evento; a comparação ignora
+   * maiúsculas e acentos. Devolve quantas ligações mudaram.
+   */
+  renameWikiLinks(filePaths: string[], oldTargets: string[], newText: string): number {
+    const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()
+    const olds = new Set(oldTargets.map(norm))
+    let changed = 0
+    for (const filePath of new Set(filePaths)) {
+      this.assertWithinVault(filePath)
+      const raw = fs.readFileSync(filePath, 'utf-8')
+      const fmEnd = raw.startsWith('---') ? raw.indexOf('\n---', 3) : -1
+      const cut = fmEnd >= 0 ? raw.indexOf('\n', fmEnd + 4) + 1 || raw.length : 0
+      const head = raw.slice(0, cut)
+      const body = raw.slice(cut).replace(/\[\[([^[\]\n|]+)(\|[^[\]\n]+)?\]\]/g, (m, target: string, alias?: string) => {
+        if (!olds.has(norm(target))) return m
+        changed++
+        return `[[${newText}${alias ?? ''}]]`
+      })
+      if (body !== raw.slice(cut)) fs.writeFileSync(filePath, head + body, 'utf-8')
+    }
+    return changed
   }
 
   moveEventToVaultTrash(eventFilePath: string): void {

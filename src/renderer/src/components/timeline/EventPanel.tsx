@@ -7,6 +7,7 @@ import { useI18n } from '../../hooks/useI18n'
 import { stripAnchors } from '../../utils/anchors'
 import { remarkWikiLinks } from '../../utils/wikiLinks'
 import { wikiAnchor } from '../WikiLink'
+import { Backlinks } from '../Backlinks'
 import { usePref } from '../../hooks/usePref'
 
 
@@ -145,6 +146,7 @@ export function EventPanel({ event, body, isLoading, onClose, onOpenInEditor, on
             <div className="markdown-content selectable">
               <ReactMarkdown remarkPlugins={[remarkGfm, remarkWikiLinks]} components={{ a: wikiAnchor(event.filePath) }}>{displayBody}</ReactMarkdown>
             </div>
+            <Backlinks filePath={event.filePath} slug={event.slug} compact />
           </>
         ) : (
           <p className="font-mono text-xs text-chr-muted italic">{t('no_content')}</p>

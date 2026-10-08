@@ -206,6 +206,9 @@ Dias opened the route later used by [[Vasco da Gama reaches Calicut|Vasco da Gam
 - When two events share a title, the link includes the timeline: `[[Brazil/Foundation]]` — the list writes it for you.
 - If no event has that title, the last option of the list is **Create "…"**: a new event without a date is created in the current timeline (it shows up under **No date** until you fill it in).
 - When reading, a link shows the date of the event and opens it on click — even in another timeline. A link to an event that doesn't exist is dashed; clicking it creates the event.
+- Rest the mouse on a link to see a card with the date, place, timeline and the beginning of the event's text.
+- At the end of every event, **Mentioned in** lists the events that link to it, with the sentence around each mention (in a chronicle, the right section). It also appears in the side panel of the timeline.
+- Renaming an event (or a chronicle section) and going back to reading offers to **update the links** that still use the old name.
 - In PDF and HTML exports, links become plain text.
 
 ### Internal links (header)

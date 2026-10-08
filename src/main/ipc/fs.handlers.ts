@@ -278,6 +278,16 @@ export function registerFsHandlers(): void {
     }
   })
 
+  // ── fs:rename-wiki-links ──────────────────────────────────────────────────
+  // Atualiza as ligações [[…]] para um evento renomeado
+  ipcMain.handle('fs:rename-wiki-links', async (_event, filePaths: string[], oldTargets: string[], newText: string) => {
+    try {
+      return { success: true, data: fileSystemService.renameWikiLinks(filePaths, oldTargets, newText) }
+    } catch (e) {
+      return { success: false, error: String(e) }
+    }
+  })
+
   // ── fs:delete-event ───────────────────────────────────────────────────────
   // Move um arquivo de evento para a lixeira interna do vault
   ipcMain.handle('fs:delete-event', async (_event, eventFilePath: string) => {

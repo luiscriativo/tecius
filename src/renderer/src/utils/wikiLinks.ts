@@ -14,7 +14,15 @@ export interface VaultEventDoc {
   date: string
   timelineDir: string
   timelineTitle: string
+  /** Texto (no 1º trecho de um chronicle vem o arquivo inteiro; nos demais, vazio) */
+  body?: string
+  place?: string
+  /** Trecho de chronicle: âncora e título do chronicle */
+  anchor?: string
+  chronicleTitle?: string
 }
+
+const sameDoc = (a: VaultEventDoc, b: VaultEventDoc) => a.filePath === b.filePath && a.slug === b.slug
 
 /** Minúsculo, sem acentos e com espaços normalizados — para comparar títulos */
 export const normTitle = (s: string) =>
@@ -111,4 +119,82 @@ export function remarkWikiLinks() {
     node.children = out
   }
   return (tree: MdNode) => { walk(tree) }
+}
+
+// ── Menções ("Mencionado em") e renomeação ───────────────────────────────────
+
+/**
+ * Texto de cada evento do vault. Num chronicle o arquivo inteiro vem no 1º trecho;
+ * aqui ele é dividido pelos marcadores `^âncora` (o texto até um marcador é daquele
+ * trecho; o que sobra depois do último fica com o último).
+ */
+export function eventTexts(docs: VaultEventDoc[]): Array<{ doc: VaultEventDoc; text: string }> {
+  const out: Array<{ doc: VaultEventDoc; text: string }> = []
+  const byFile = new Map<string, VaultEventDoc[]>()
+  for (const d of docs) byFile.set(d.filePath, [...(byFile.get(d.filePath) ?? []), d])
+  for (const group of byFile.values()) {
+    const body = group.find((d) => d.body)?.body ?? ''
+    if (group.length === 1 || !group.some((d) => d.anchor)) { out.push({ doc: group[0], text: body }); continue }
+    const markers = [...body.matchAll(/\^([\w-]+)\s*$/gm)]
+    let prev = 0
+    markers.forEach((m, i) => {
+      const end = i === markers.length - 1 ? body.length : m.index! + m[0].length
+      const doc = group.find((d) => d.anchor === m[1])
+      if (doc) out.push({ doc, text: body.slice(prev, i === markers.length - 1 ? body.length : m.index!) })
+      prev = end
+    })
+    for (const d of group) if (!out.some((o) => sameDoc(o.doc, d))) out.push({ doc: d, text: '' })
+  }
+  return out
+}
+
+/** Trecho de texto em volta de uma posição (sem marcações de Markdown), para mostrar o contexto */
+export function snippetAround(text: string, at: number, width = 140): string {
+  const ls = text.lastIndexOf('\n\n', at) + 1
+  const ne = text.indexOf('\n\n', at)
+  let para = text.slice(ls, ne < 0 ? text.length : ne)
+  let pos = at - ls
+  if (para.length > width) {
+    const start = Math.max(0, Math.min(pos - width / 2, para.length - width))
+    para = (start > 0 ? '…' : '') + para.slice(start, start + width) + (start + width < para.length ? '…' : '')
+    pos -= start
+  }
+  return para
+    .replace(/\s*\^[\w-]+\s*$/gm, '')
+    .replace(/\[\[([^[\]\n|]+)(?:\|([^[\]\n]+))?\]\]/g, (_m, t: string, l?: string) => (l ?? t).trim())
+    .replace(/[*_~`#>]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/** Eventos que citam `target` com [[…]] (um por evento, com o trecho em volta da menção) */
+export function findBacklinks(target: VaultEventDoc, docs: VaultEventDoc[]): Array<{ doc: VaultEventDoc; snippet: string }> {
+  const out: Array<{ doc: VaultEventDoc; snippet: string }> = []
+  for (const { doc, text } of eventTexts(docs)) {
+    if (sameDoc(doc, target) || !text.includes('[[')) continue
+    for (const m of text.matchAll(WIKI_LINK_RE)) {
+      const hit = resolveWikiLink(parseWikiLink(m[1]).target, docs, doc.timelineDir)
+      if (hit && sameDoc(hit, target)) { out.push({ doc, snippet: snippetAround(text, m.index!) }); break }
+    }
+  }
+  return out
+}
+
+/**
+ * Ligações que usam o título antigo de um evento renomeado: as formas `[[Antigo]]`
+ * e `[[Timeline/Antigo]]`. Se outro evento ainda tem o título antigo, `[[Antigo]]`
+ * é dele — só a forma com a timeline conta.
+ */
+export function linksToOldTitle(oldTitle: string, timelineTitle: string, docs: VaultEventDoc[], self: { filePath: string }): { files: string[]; count: number; targets: string[] } {
+  const plain = normTitle(oldTitle), qualified = normTitle(`${timelineTitle}/${oldTitle}`)
+  const stillUsed = docs.some((d) => d.filePath !== self.filePath && normTitle(d.title) === plain)
+  const accepts = (t: string) => normTitle(t) === qualified || (!stillUsed && normTitle(t) === plain)
+  const files = new Set<string>()
+  let count = 0
+  for (const { doc, text } of eventTexts(docs)) {
+    for (const m of text.matchAll(WIKI_LINK_RE)) {
+      if (accepts(parseWikiLink(m[1]).target)) { files.add(doc.filePath); count++ }
+    }
+  }
+  return { files: [...files], count, targets: stillUsed ? [`${timelineTitle}/${oldTitle}`] : [oldTitle, `${timelineTitle}/${oldTitle}`] }
 }

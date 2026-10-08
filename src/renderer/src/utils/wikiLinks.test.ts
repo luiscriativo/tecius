@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { unified } from 'unified'
 import remarkParse from 'remark-parse'
-import { completeWikiLink, openWikiQuery, parseWikiLink, remarkWikiLinks, resolveWikiLink, suggestWikiTargets, wikiTextFor, type VaultEventDoc } from './wikiLinks'
+import { completeWikiLink, eventTexts, findBacklinks, linksToOldTitle, openWikiQuery, parseWikiLink, remarkWikiLinks, resolveWikiLink, snippetAround, suggestWikiTargets, wikiTextFor, type VaultEventDoc } from './wikiLinks'
 
 const doc = (title: string, timelineTitle: string, date = '1500'): VaultEventDoc =>
   ({ filePath: `/v/${timelineTitle}/${title}.md`, slug: title, title, date, timelineDir: `/v/${timelineTitle}`, timelineTitle })
@@ -73,5 +73,41 @@ describe('remarkWikiLinks', () => {
   })
   it('não mexe em código', () => {
     expect(links('use `[[Título]]` para ligar')).toEqual([])
+  })
+})
+
+describe('menções e renomeação', () => {
+  const tord = { ...doc('Tratado de Tordesilhas', 'Descobrimentos', '1494'), body: 'Divide o mundo.' }
+  const cabral = { ...doc('Cabral chega ao Brasil', 'Descobrimentos', '1500'), body: 'A frota avista a costa, dentro do limite do [[Tratado de Tordesilhas]].' }
+  // Chronicle: o arquivo inteiro vem no 1º trecho
+  const chr = (title: string, anchor: string, body = ''): VaultEventDoc => ({ filePath: '/v/Brasil/viagem.md', slug: 'viagem__' + anchor, title, date: '1501', timelineDir: '/v/Brasil', timelineTitle: 'Brasil', anchor, chronicleTitle: 'Viagem', body })
+  const v1 = chr('Partida', 'partida', 'Saem de Lisboa. ^partida\n\nNa costa, lembram o [[tratado de tordesilhas|tratado]]. ^costa\n\nVoltam. ^volta')
+  const v2 = chr('Costa', 'costa'), v3 = chr('Volta', 'volta')
+  const all = [tord, cabral, v1, v2, v3]
+
+  it('divide o texto do chronicle pelos trechos', () => {
+    const t = eventTexts(all)
+    expect(t.find((x) => x.doc === v2)!.text).toContain('[[tratado de tordesilhas|tratado]]')
+    expect(t.find((x) => x.doc === v1)!.text).not.toContain('tratado')
+  })
+  it('acha quem menciona — no trecho certo do chronicle', () => {
+    const b = findBacklinks(tord, all)
+    expect(b.map((x) => x.doc.title)).toEqual(['Cabral chega ao Brasil', 'Costa'])
+    expect(b[1].snippet).toBe('Na costa, lembram o tratado.')
+    expect(findBacklinks(cabral, all)).toEqual([])
+  })
+  it('trecho em volta da menção, sem marcações', () => {
+    expect(snippetAround('Um **dois** [[Três|três]] quatro. ^x', 12)).toBe('Um dois três quatro.')
+  })
+  it('ligações para o título antigo', () => {
+    // "Tratado de Tordesilhas" foi renomeado: nenhum outro evento tem o nome antigo
+    const renamed = [{ ...tord, title: 'Tratado de Tordesillas' }, cabral, v1, v2, v3]
+    expect(linksToOldTitle('Tratado de Tordesilhas', 'Descobrimentos', renamed, tord)).toEqual({
+      files: ['/v/Descobrimentos/Cabral chega ao Brasil.md', '/v/Brasil/viagem.md'], count: 2,
+      targets: ['Tratado de Tordesilhas', 'Descobrimentos/Tratado de Tordesilhas'],
+    })
+    // Outro evento ainda se chama assim: só a forma com a timeline é deste
+    const other = { ...doc('Tratado de Tordesilhas', 'Outra'), body: '' }
+    expect(linksToOldTitle('Tratado de Tordesilhas', 'Descobrimentos', [...renamed, other], tord).count).toBe(0)
   })
 })
