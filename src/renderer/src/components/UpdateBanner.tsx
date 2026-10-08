@@ -11,6 +11,9 @@
  * 2. Usuário clica "Baixar" → progresso em tempo real com barra
  * 3. Download concluído → botão "Reiniciar e instalar"
  * 4. App fecha, instala a nova versão e reinicia automaticamente
+ *
+ * Atualização manual (macOS sem certificado da Apple, ver main/index.ts): o botão
+ * "Baixar no site" abre a página da release no navegador e o banner fecha.
  */
 
 import { useEffect, useState } from 'react'
@@ -19,7 +22,7 @@ import { useI18n } from '@/hooks/useI18n'
 
 type UpdateState =
   | { phase: 'idle' }
-  | { phase: 'available'; version: string }
+  | { phase: 'available'; version: string; manual: boolean }
   | { phase: 'downloading'; version: string; percent: number }
   | { phase: 'ready'; version: string }
 
@@ -30,11 +33,11 @@ export function UpdateBanner(): React.ReactElement | null {
 
   useEffect(() => {
     const unsubAvailable = window.electronAPI.on('update:available', (info) => {
-      const data = info as { version: string }
+      const data = info as { version: string; manual?: boolean }
       setState((prev) => {
         // electron-updater re-dispara update-available durante o download — ignorar
         if (prev.phase === 'downloading' || prev.phase === 'ready') return prev
-        return { phase: 'available', version: data.version }
+        return { phase: 'available', version: data.version, manual: !!data.manual }
       })
       setDismissed(false)
     })
@@ -62,6 +65,12 @@ export function UpdateBanner(): React.ReactElement | null {
   }, [])
 
   const handleDownload = async (): Promise<void> => {
+    if (state.phase === 'available' && state.manual) {
+      // O main abre a página da release no navegador; não há download no app
+      await window.electronAPI.invoke('update:download').catch(() => {})
+      setDismissed(true)
+      return
+    }
     setState((prev) =>
       prev.phase === 'available'
         ? { phase: 'downloading', version: prev.version, percent: 0 }
@@ -156,7 +165,7 @@ export function UpdateBanner(): React.ReactElement | null {
               onClick={handleDownload}
               className="font-mono text-xs text-chr-primary border border-chr-subtle px-2.5 py-0.5 rounded-sm hover:bg-active transition-colors duration-100"
             >
-              {t('update_download')}
+              {state.manual ? t('update_download_site') : t('update_download')}
             </button>
           )}
           {isReady && (

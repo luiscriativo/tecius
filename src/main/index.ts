@@ -10,7 +10,8 @@
  */
 
 import { app, BrowserWindow, shell, nativeTheme, protocol, net, ipcMain, Menu } from 'electron'
-import { join } from 'path'
+import { join, resolve } from 'path'
+import { spawnSync } from 'child_process'
 import { pathToFileURL } from 'url'
 import { autoUpdater } from 'electron-updater'
 import { registerIpcHandlers } from './ipc'
@@ -240,17 +241,37 @@ app.on('before-quit', () => {
 
 // ── Auto-updater ─────────────────────────────────────────────────────────────
 
+const RELEASES_URL = 'https://github.com/luiscriativo/tecius/releases'
+
+/**
+ * No macOS, o atualizador nativo só instala uma versão nova se o app estiver
+ * assinado com certificado de desenvolvedor da Apple (Team ID). Sem ele (build
+ * com assinatura ad-hoc), a atualização é manual: o aviso abre a página da
+ * release para baixar o .dmg. Com certificado, volta sozinha ao fluxo automático.
+ */
+function canInstallUpdates(): boolean {
+  if (process.platform !== 'darwin') return true
+  const bundle = resolve(process.execPath, '..', '..', '..')   // .../Tecius.app
+  const r = spawnSync('codesign', ['-dv', bundle], { encoding: 'utf8' })
+  return /TeamIdentifier=(?!not set)/.test(`${r.stdout ?? ''}${r.stderr ?? ''}`)
+}
+
 function setupAutoUpdater(): void {
+  const manual = !canInstallUpdates()
+  let availableVersion: string | null = null
+
   // Não baixa automaticamente — o usuário decide quando instalar
   autoUpdater.autoDownload = false
   // Instala automaticamente ao fechar o app quando já baixado
-  autoUpdater.autoInstallOnAppQuit = true
+  autoUpdater.autoInstallOnAppQuit = !manual
 
   // Informa o renderer quando uma nova versão está disponível
   autoUpdater.on('update-available', (info) => {
+    availableVersion = info.version
     mainWindow?.webContents.send('update:available', {
       version: info.version,
       releaseNotes: info.releaseNotes,
+      manual,
     })
   })
 
@@ -286,8 +307,12 @@ function setupAutoUpdater(): void {
     autoUpdater.quitAndInstall(false, true)
   })
 
-  // Usuário confirmou o download no banner
+  // Usuário confirmou o download no banner (atualização manual: abre a página da release)
   ipcMain.handle('update:download', async () => {
+    if (manual) {
+      await shell.openExternal(availableVersion ? `${RELEASES_URL}/tag/v${availableVersion}` : `${RELEASES_URL}/latest`)
+      return
+    }
     try {
       await autoUpdater.downloadUpdate()
     } catch (err) {
