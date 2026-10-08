@@ -13,7 +13,8 @@ description: >
 # Tecius Release
 
 Os instaladores são gerados pelo GitHub Actions (`.github/workflows/release.yml`), não
-nesta máquina: cada sistema e arquitetura (Windows x64/ARM, Mac Apple Silicon/Intel) é
+nesta máquina: cada sistema e arquitetura (Windows x64/ARM, Mac Apple Silicon/Intel,
+Linux x64/ARM) é
 compilado numa máquina própria, porque o bytecode do `scripts/protect.js` é específico da
 arquitetura. O workflow sobe a versão, faz o commit "Versão X.Y.Z" na `main`, cria a tag
 e publica a release — só se todos os builds passarem.
@@ -97,8 +98,15 @@ for(const j of (await get(r.jobs_url)).jobs){const bad=j.steps.find(s=>s.conclus
 console.log(' ',j.name.padEnd(22),j.status,j.conclusion??'',bad?'FALHOU em: '+bad.name:'')}})()"
 ```
 
-Etapas: **Versão** → **Checagem** (typecheck + testes) → 4× **Build** → **Release**.
-Leva ~15 minutos.
+Etapas: **Versão** → **Checagem** (typecheck + testes) → 6× **Build** (mac-arm64, mac-x64,
+win-x64, win-arm64, linux-x64, linux-arm64) → **Release**. Leva ~15–20 minutos.
+
+**Máquina travada:** um build normal leva ~10 min. Se um job ficar parado num passo muito
+mais que isso (já aconteceu no `npm ci` do mac-x64), é instabilidade do GitHub, não do
+código. O workflow tem limites (45 min por build, 12 min no `npm ci`, com uma nova
+tentativa), então ele falha sozinho; sem esperar, peça ao usuário para cancelar o run. O
+cancelamento pode levar alguns minutos — se não pegar, **"…" → Force cancel**. Só uma
+release roda por vez: um run novo fica na fila até o anterior terminar ou ser cancelado.
 
 **Se falhar:** diga qual job e qual passo falharam. Os logs exigem login: peça ao usuário
 para abrir o run, clicar no job com ✗ e colar as últimas linhas do erro. Nada foi gravado
@@ -108,17 +116,29 @@ de novo.
 
 ## Passo 6 — Conferir e concluir
 
+Confere a release publicada contra a lista de arquivos esperada para a versão (nomes no
+padrão `Tecius-<versão>-<sistema>-<arquitetura>`, definidos no `electron-builder.yml`):
+
 ```bash
-node -e "fetch('https://api.github.com/repos/luiscriativo/tecius/releases/latest',{headers:{'User-Agent':'x'}}).then(r=>r.json()).then(r=>console.log(r.tag_name,r.assets.map(a=>a.name).join(', ')))"
+node -e "
+fetch('https://api.github.com/repos/luiscriativo/tecius/releases/latest',{headers:{'User-Agent':'x'}}).then(r=>r.json()).then(r=>{
+const v=r.tag_name.replace(/^v/,''),T='Tecius-'+v+'-';
+const exp=['win-x64-setup.exe','win-x64-setup.exe.blockmap','win-x64-portable.exe','win-arm64-setup.exe','win-arm64-setup.exe.blockmap',
+ 'mac-arm64.dmg','mac-x64.dmg','linux-x86_64.AppImage','linux-amd64.deb','linux-x86_64.rpm','linux-arm64.AppImage','linux-arm64.deb','linux-aarch64.rpm']
+ .map(f=>T+f).concat(['latest.yml','latest-mac.yml','latest-linux.yml','latest-linux-arm64.yml','SHA256SUMS.txt']);
+const got=r.assets.map(a=>a.name);
+console.log(r.tag_name,r.draft?'(rascunho)':'publicada',got.length+' arquivos');
+console.log('faltando:',exp.filter(n=>!got.includes(n)).join(', ')||'nada');
+console.log('a mais:',got.filter(n=>!exp.includes(n)).join(', ')||'nada');})"
 ```
 
-Confirme que a tag é a versão nova e que há `Tecius-Setup-X.Y.Z-x64.exe`,
-`…-arm64.exe`, `…-portable-x64.exe`, os dois `.dmg`, os dois `.zip` do Mac,
-`latest.yml` e `latest-mac.yml`. Então:
+Esperado: a versão nova, **18 arquivos**, nada faltando e nada a mais. A descrição da
+release começa com a tabela **Downloads** (gerada pelo workflow). Então:
 
 > 🚀 **Tecius X.Y.Z publicada:** https://github.com/luiscriativo/tecius/releases/latest
 >
-> - Os apps instalados no Windows mostram o aviso de atualização ao abrir (≈8 s depois).
+> - Os apps instalados mostram o aviso de atualização ao abrir (≈8 s depois). No Windows e
+>   no AppImage do Linux, baixam e instalam pelo app.
 > - No Mac, o aviso leva à página para baixar o `.dmg` (sem certificado da Apple não há
 >   atualização automática).
 > - **Faça Sync no VS Code** para trazer o commit "Versão X.Y.Z" antes do próximo trabalho.
