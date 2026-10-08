@@ -426,7 +426,7 @@ export function MapView({ timeline, onEventClick }: MapViewProps) {
                 <span className="block font-serif text-base leading-tight text-chr-primary">{formatYear(shownBorders.year)}</span>
               </div>
             )}
-            <p className="absolute left-3 bottom-2 px-1.5 py-0.5 rounded-sm bg-surface/80 font-mono text-[9px] text-chr-muted pointer-events-none" data-testid="borders-credit">
+            <p className="absolute left-3 bottom-2 px-1.5 py-0.5 rounded-sm bg-surface/80 font-mono text-2xs text-chr-muted pointer-events-none" data-testid="borders-credit">
               {t('map_borders_credit', { license: BORDERS_SOURCE.license })}
             </p>
           </>

@@ -31,7 +31,7 @@ const PAD = 14          // margem lateral da régua (px)
 const SNAP_DRAG = 8     // ímã durante o arraste (px)
 const SNAP_DROP = 16    // ímã ao soltar (px)
 const LABEL_GAP = 12    // espaço mínimo entre dois rótulos (px)
-const CHAR_W = 6.2      // largura média de um caractere do rótulo (fonte mono 10px)
+const CHAR_W = 6.8      // largura média de um caractere do rótulo (fonte mono 11px)
 const MIN_DOT_SPACING = 4 // abaixo disso (px por data), as marcas viram só histograma
 const H = 64            // altura da régua (px)
 const AXIS = 34         // altura do eixo dentro dela (px)
@@ -136,7 +136,7 @@ export function TimeScrubber({ scale, counts, value, onChange, window: win, aria
 
       {/* Rótulos */}
       {labels.map((l, i) => (
-        <text key={i} x={l.x} y={AXIS + 20} textAnchor={l.anchor} fontSize={10} fontFamily="var(--font-mono)" fill={css.muted}>{l.text}</text>
+        <text key={i} x={l.x} y={AXIS + 20} textAnchor={l.anchor} fontSize={11} fontFamily="var(--font-mono)" fill={css.muted}>{l.text}</text>
       ))}
     </>
   ), [bins, inner, scale.breaks, showDots, stopXs, counts, labels])

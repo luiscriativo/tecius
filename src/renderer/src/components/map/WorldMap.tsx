@@ -230,7 +230,7 @@ export function WorldMap({
     for (const s of candidates) {
       if (placed.length >= MAX_LABELS) break
       const x = s.centroid[0] * view.k + view.x, y = s.centroid[1] * view.k + view.y
-      const w = s.name.length * 6 + 6
+      const w = s.name.length * 6.8 + 6   // fonte mono 11px
       if (x - w / 2 < 4 || x + w / 2 > size.w - 4 || y < 10 || y > size.h - 10) continue
       if (placed.some((p) => Math.abs(p.x - x) < (p.w + w) / 2 && Math.abs(p.y - y) < 14)) continue
       placed.push({ x, y, w, text: s.name })
@@ -544,7 +544,7 @@ export function WorldMap({
           {borderLabels.length > 0 && (
             <g pointerEvents="none" data-border-labels>
               {borderLabels.map((l, i) => (
-                <text key={i} x={l.x} y={l.y} textAnchor="middle" dy="0.35em" fontSize={10} fontFamily="var(--font-mono)"
+                <text key={i} x={l.x} y={l.y} textAnchor="middle" dy="0.35em" fontSize={11} fontFamily="var(--font-mono)"
                   fill={css.muted} stroke={css.ocean} strokeWidth={2} strokeOpacity={0.6} strokeLinejoin="round" paintOrder="stroke">{l.text}</text>
               ))}
             </g>

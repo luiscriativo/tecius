@@ -245,7 +245,7 @@ export function TimelineAxis({
           ) : (
             <span
               key={`ml-${year}-${month}`}
-              className="absolute font-mono text-[10px] font-bold select-none leading-none pointer-events-none"
+              className="absolute font-mono text-[11px] font-bold select-none leading-none pointer-events-none"
               style={{ left, top: labelZoneTop + 3, marginLeft: 2, color: 'var(--axis-label)' }}
             >
               {label}
@@ -274,7 +274,7 @@ export function TimelineAxis({
           showLabel && (
             <span
               key={`dl-${sortKey}`}
-              className="absolute font-mono text-[9px] select-none leading-none pointer-events-none"
+              className="absolute font-mono text-[10px] select-none leading-none pointer-events-none"
               style={{ left, top: labelZoneTop + 3, marginLeft: 1, color: 'var(--axis-label)', opacity: 0.85 }}
             >
               {day}

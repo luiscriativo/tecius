@@ -113,10 +113,10 @@ export function ClusterDot({ events, hasSelected, onClusterClick, style, tooltip
             </p>
           ))}
           {events.length > 5 && (
-            <p className="font-mono text-2xs text-chr-muted mt-1 opacity-60">{t('more_count', { count: events.length - 5 })}</p>
+            <p className="font-mono text-2xs text-chr-muted mt-1">{t('more_count', { count: events.length - 5 })}</p>
           )}
           {hasChronicle && !allChronicle && (
-            <p className="font-mono text-2xs text-chr-muted mt-1.5 opacity-60">{t('legend_chronicle_event')}</p>
+            <p className="font-mono text-2xs text-chr-muted mt-1.5">{t('legend_chronicle_event')}</p>
           )}
         </div>
       </div>

@@ -134,7 +134,7 @@ function NewEventModal({ timelineDirPath: _timelineDirPath, onConfirm, onCancel,
                 </div>
               </div>
             ) : (
-              <p className="mt-1 font-mono text-2xs text-chr-muted opacity-60">
+              <p className="mt-1 font-mono text-2xs text-chr-muted">
                 {t('will_be_created_as')} <span className="text-chr-secondary">{autoSlug}.md</span>
               </p>
             )}
@@ -201,7 +201,7 @@ function ClusterPanel({ events, onEventClick, onContextMenu, onClose }: ClusterP
             {t(sameDate ? (events.length === 1 ? 'cluster_date_one' : 'cluster_date_other') : (events.length === 1 ? 'cluster_period_one' : 'cluster_period_other'), { count: events.length })}
           </p>
           {hasChronicle && !allChronicle && (
-            <p className="font-mono text-2xs text-chr-muted mt-1 opacity-50">{t('legend_chronicle_event')}</p>
+            <p className="font-mono text-2xs text-chr-muted mt-1">{t('legend_chronicle_event')}</p>
           )}
         </div>
         <button
@@ -241,7 +241,7 @@ function ClusterPanel({ events, onEventClick, onContextMenu, onClose }: ClusterP
                 </span>
               )}
               {e.frontmatter.category && (
-                <span className="font-mono text-2xs text-chr-muted opacity-60 block truncate mt-0.5">
+                <span className="font-mono text-2xs text-chr-muted block truncate mt-0.5">
                   {e.frontmatter.category}
                 </span>
               )}

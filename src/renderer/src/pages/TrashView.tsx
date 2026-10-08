@@ -315,7 +315,7 @@ export default function TrashView(): React.ReactElement {
             })}
 
             {/* Nota informativa */}
-            <p className="font-mono text-2xs text-chr-muted opacity-50 pt-2 text-center">
+            <p className="font-mono text-2xs text-chr-muted pt-2 text-center">
               {t('trash_footer')}
             </p>
           </div>

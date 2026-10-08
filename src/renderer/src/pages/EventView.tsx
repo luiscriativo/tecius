@@ -652,7 +652,7 @@ function CategoryInput({ value, onChange, suggestions }: { value: string; onChan
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         placeholder={t('category_ph')}
         spellCheck={false}
-        className="font-mono text-[10px] font-medium tracking-[0.06em] uppercase px-1.5 py-0.5 rounded-sm border bg-subtle text-chr-secondary border-chr-subtle outline-none focus:border-chr transition-colors placeholder:text-chr-muted/30 w-32"
+        className="font-mono text-2xs font-medium tracking-[0.06em] uppercase px-1.5 py-0.5 rounded-sm border bg-subtle text-chr-secondary border-chr-subtle outline-none focus:border-chr transition-colors placeholder:text-chr-muted/60 w-32"
       />
       {open && filtered.length > 0 && (
         <div className="absolute top-full left-0 mt-0.5 bg-surface border border-chr-subtle rounded-sm shadow-card z-50 min-w-full overflow-hidden">
@@ -661,7 +661,7 @@ function CategoryInput({ value, onChange, suggestions }: { value: string; onChan
               key={c}
               type="button"
               onMouseDown={(e) => { e.preventDefault(); onChange(c); setOpen(false) }}
-              className="block w-full text-left px-2 py-1 font-mono text-[10px] uppercase tracking-[0.06em] text-chr-secondary hover:bg-hover transition-colors"
+              className="block w-full text-left px-2 py-1 font-mono text-2xs uppercase tracking-[0.06em] text-chr-secondary hover:bg-hover transition-colors"
             >
               {c}
             </button>
@@ -739,7 +739,7 @@ function EditHeader({ fm, onChange, hasEntries, chrDescription, onChrDescChange,
           <DateInput
             value={fm.date}
             onChange={(v) => set('date', v)}
-            className="font-mono text-sm text-timeline-chronicle-text bg-transparent outline-none border-0 w-28 placeholder:text-chr-muted/30"
+            className="font-mono text-sm text-timeline-chronicle-text bg-transparent outline-none border-0 w-28 placeholder:text-chr-muted/60"
           />
           <label className="flex items-center gap-1.5 cursor-pointer">
             <input type="checkbox" checked={fm.circa} onChange={(e) => set('circa', e.target.checked)} className="w-3 h-3 accent-chr-primary" />
@@ -749,11 +749,11 @@ function EditHeader({ fm, onChange, hasEntries, chrDescription, onChrDescChange,
             <DateInput
               value={fm.dateEnd}
               onChange={(v) => set('dateEnd', v)}
-              className="font-mono text-sm text-chr-muted bg-transparent outline-none border-0 placeholder:text-chr-muted/30"
+              className="font-mono text-sm text-chr-muted bg-transparent outline-none border-0 placeholder:text-chr-muted/60"
             />
           ) : (
             <button type="button" onClick={() => set('hasDateEnd', true)}
-              className="font-mono text-2xs text-chr-muted/40 hover:text-chr-muted transition-colors">
+              className="font-mono text-2xs text-chr-muted hover:text-chr-primary transition-colors">
               + data fim
             </button>
           )}
@@ -769,7 +769,7 @@ function EditHeader({ fm, onChange, hasEntries, chrDescription, onChrDescChange,
         placeholder={t('event_title_placeholder')}
         spellCheck={false}
         rows={1}
-        className="w-full font-serif text-display text-chr-primary bg-transparent border-0 outline-none focus:outline-none placeholder:text-chr-muted/15 leading-tight block mb-5 resize-none overflow-hidden"
+        className="w-full font-serif text-display text-chr-primary bg-transparent border-0 outline-none focus:outline-none placeholder:text-chr-muted/60 leading-tight block mb-5 resize-none overflow-hidden"
       />
 
       {/* Description — chronicle only */}
@@ -780,14 +780,14 @@ function EditHeader({ fm, onChange, hasEntries, chrDescription, onChrDescChange,
           placeholder={t('chronicle_desc_placeholder')}
           spellCheck={false}
           rows={2}
-          className="w-full font-sans text-base italic text-chr-secondary bg-transparent outline-none resize-none border-l-2 border-chr-subtle pl-4 mb-5 placeholder:text-chr-muted/20 leading-relaxed block"
+          className="w-full font-sans text-base italic text-chr-secondary bg-transparent outline-none resize-none border-l-2 border-chr-subtle pl-4 mb-5 placeholder:text-chr-muted/60 leading-relaxed block"
           onInput={(e) => { const el = e.currentTarget; el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px' }}
         />
       )}
 
       {/* Tags */}
       <div className="flex flex-wrap items-center gap-1.5 pb-8 border-b border-chr-subtle">
-        <Tag size={12} strokeWidth={1.5} className="text-chr-muted/40 shrink-0 mr-0.5" />
+        <Tag size={12} strokeWidth={1.5} className="text-chr-muted shrink-0 mr-0.5" />
         {fm.tags.map((tag, i) => (
           <button key={i} type="button"
             onClick={() => set('tags', fm.tags.filter((_, j) => j !== i))}
@@ -810,11 +810,11 @@ function EditHeader({ fm, onChange, hasEntries, chrDescription, onChrDescChange,
             }}
             onBlur={() => { if (tagInput.trim()) addTag(tagInput); else setAddingTag(false) }}
             placeholder={t('new_tag_ph')}
-            className="font-mono text-[10px] text-chr-primary bg-transparent outline-none w-20 placeholder:text-chr-muted/40"
+            className="font-mono text-2xs text-chr-primary bg-transparent outline-none w-20 placeholder:text-chr-muted/60"
           />
         ) : (
           <button type="button" onClick={() => { setAddingTag(true); setTimeout(() => tagRef.current?.focus(), 0) }}
-            className="font-mono text-[10px] text-chr-muted/50 hover:text-chr-muted transition-colors">
+            className="font-mono text-2xs text-chr-muted hover:text-chr-primary transition-colors">
             + tag
           </button>
         )}
@@ -837,7 +837,7 @@ function AddPartButton({ onClick, className }: { onClick: () => void; className?
       >
         <Plus size={14} strokeWidth={1.5} />
       </button>
-      <span className="font-mono text-2xs tracking-widest uppercase text-chr-muted/60 select-none">
+      <span className="font-mono text-2xs tracking-widest uppercase text-chr-muted select-none">
         {t('add_section')}
       </span>
     </div>
@@ -943,13 +943,13 @@ function SectionBlocksEditor({ entries, sectionBodies, onEntriesChange, onBodyCh
                   onChange={(v) => updateEntry(entry.id, { date: v })}
                   onFocus={() => setFrozenOrder(sorted.map((e) => e.id))}
                   onBlur={(e) => handleDateBlur(entry.id, e)}
-                  className="font-mono text-sm text-timeline-chronicle-text bg-transparent border-0 outline-none focus:outline-none placeholder:text-chr-muted/30 w-32"
+                  className="font-mono text-sm text-timeline-chronicle-text bg-transparent border-0 outline-none focus:outline-none placeholder:text-chr-muted/60 w-32"
                 />
                 <div className="flex-1 min-w-0 px-3">
                   <LocationChip location={entry.location} onClick={() => onEditEntryLocation(entry.id)} />
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="font-mono text-xs text-chr-muted/30 select-none tabular-nums">
+                  <span className="font-mono text-xs text-chr-muted/70 select-none tabular-nums">
                     {String(idx + 1).padStart(2, '0')}
                   </span>
                   <button
@@ -977,7 +977,7 @@ function SectionBlocksEditor({ entries, sectionBodies, onEntriesChange, onBodyCh
                 placeholder={t('section_title_ph')}
                 spellCheck={false}
                 rows={1}
-                className="w-full font-serif text-2xl text-chr-primary bg-transparent border-0 outline-none focus:outline-none placeholder:text-chr-muted/20 mb-5 leading-tight resize-none overflow-hidden"
+                className="w-full font-serif text-2xl text-chr-primary bg-transparent border-0 outline-none focus:outline-none placeholder:text-chr-muted/60 mb-5 leading-tight resize-none overflow-hidden"
               />
 
               {/* Body textarea — open, auto-height */}
@@ -994,7 +994,7 @@ function SectionBlocksEditor({ entries, sectionBodies, onEntriesChange, onBodyCh
                 spellCheck={false}
                 rows={1}
                 data-section-id={entry.id}
-                className="w-full resize-none overflow-hidden outline-none block font-mono text-sm text-chr-primary leading-relaxed bg-transparent border-0 focus:outline-none focus:ring-0 placeholder:text-chr-muted/30"
+                className="w-full resize-none overflow-hidden outline-none block font-mono text-sm text-chr-primary leading-relaxed bg-transparent border-0 focus:outline-none focus:ring-0 placeholder:text-chr-muted/60"
                 onInput={(e) => {
                   const el = e.currentTarget
                   el.style.height = 'auto'
@@ -1049,7 +1049,7 @@ function MarkdownToolbar({
     'text-chr-muted border border-transparent',
     'hover:bg-hover hover:text-chr-primary hover:border-chr-subtle',
     'transition-colors duration-100 shrink-0 select-none',
-    'disabled:opacity-25 disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-chr-muted disabled:hover:border-transparent'
+    'disabled:opacity-50 disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-chr-muted disabled:hover:border-transparent'
   )
   const sep = <div className="w-px h-4 bg-chr-subtle mx-0.5 shrink-0" />
 
@@ -2048,7 +2048,7 @@ export default function EventView(): React.ReactElement {
             disabled={!prevEvent || isEditing}
             title={prevEvent?.frontmatter.title}
             className={cn('flex items-center gap-1 px-3 py-1.5 text-xs font-mono transition-colors',
-              prevEvent && !isEditing ? 'text-chr-muted hover:text-chr-primary hover:bg-hover' : 'text-chr-muted opacity-30 cursor-default')}
+              prevEvent && !isEditing ? 'text-chr-muted hover:text-chr-primary hover:bg-hover' : 'text-chr-muted opacity-50 cursor-default')}
           >
             <ChevronLeft size={12} strokeWidth={1.5} />{t('previous')}
           </button>
@@ -2060,7 +2060,7 @@ export default function EventView(): React.ReactElement {
             disabled={!nextEvent || isEditing}
             title={nextEvent?.frontmatter.title}
             className={cn('flex items-center gap-1 px-3 py-1.5 text-xs font-mono transition-colors',
-              nextEvent && !isEditing ? 'text-chr-muted hover:text-chr-primary hover:bg-hover' : 'text-chr-muted opacity-30 cursor-default')}
+              nextEvent && !isEditing ? 'text-chr-muted hover:text-chr-primary hover:bg-hover' : 'text-chr-muted opacity-50 cursor-default')}
           >
             {t('next')}<ChevronRight size={12} strokeWidth={1.5} />
           </button>

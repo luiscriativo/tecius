@@ -124,8 +124,8 @@
 
     --text-primary:      240 238 232;   /* #F0EEE8 */
     --text-secondary:    160 158 150;   /* #A09E96 */
-    --text-muted:        100 98 92;     /* #64625C */
-    --text-disabled:     70 68 64;      /* #464440 */
+    --text-muted:        138 136 128;   /* #888680 — datas, rótulos: 5.4:1 no fundo, 5.1:1 nos painéis (como no claro) */
+    --text-disabled:     90 88 82;      /* #5A5852 — desabilitado (antes quase invisível: 1.9:1) */
     --text-inverse:      10 10 8;       /* #0A0A08 */
 
     --border-strong:     226 224 218;   /* #E2E0DA */

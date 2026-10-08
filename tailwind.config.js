@@ -76,8 +76,9 @@ module.exports = {
 
       // ── Escala tipografica ──
       fontSize: {
-        '2xs': ['10px', { lineHeight: '1.4', letterSpacing: '0.04em' }],
-        xs:    ['11px', { lineHeight: '1.5' }],
+        // 2xs/xs subiram 1px (eram 10/11px): pequenos demais para leitura, sobretudo no tema escuro
+        '2xs': ['11px', { lineHeight: '1.4', letterSpacing: '0.04em' }],
+        xs:    ['12px', { lineHeight: '1.5' }],
         sm:    ['13px', { lineHeight: '1.5' }],
         base:  ['15px', { lineHeight: '1.65' }],
         lg:    ['17px', { lineHeight: '1.5' }],

@@ -459,25 +459,26 @@ export function TimelineCanvas({
       />
 
       {/* Rodapé */}
-      <div className="shrink-0 px-5 py-2 border-t border-chr-subtle flex items-center justify-between">
-        <span className="font-mono text-2xs text-chr-muted">
+      {/* O resumo ocupa o espaço que sobra (quebra em 2 linhas se precisar); os controles não quebram */}
+      <div className="shrink-0 px-5 py-2 border-t border-chr-subtle flex items-center justify-between gap-4">
+        <span className="min-w-0 flex-1 font-mono text-2xs text-chr-muted">
           {nEvents(activeEvents.length)}
           {filterPaths && (
-            <span className="opacity-60"> {t('of_total', { total: timeline.events.length })}</span>
+            <span> {t('of_total', { total: timeline.events.length })}</span>
           )}
           {timeline.dateRange.spanYears > 0 && (
             <> · {formatYear(minDate.year)} – {formatYear(maxDate.year)} ({formatSpan(timeline.dateRange.spanYears)})</>
           )}
           {compare && <span className="text-timeline-chronicle-text"> · {t('compare_with_short', { title: compare.meta.title, count: compareEvents.length })}</span>}
           {pixelGroups.length < activeEvents.length && (
-            <span className="opacity-50">
+            <span>
               {' · '}{t('canvas_unique_positions', { count: pixelGroups.length })}
             </span>
           )}
         </span>
 
         {/* Escala + controles de zoom */}
-        <div className="flex items-center gap-3">
+        <div className="shrink-0 flex items-center gap-3 whitespace-nowrap">
           <div className="flex items-center border border-chr-subtle rounded-sm overflow-hidden" title={t('scale_hint')} data-testid="scale-toggle">
             {(['linear', 'compressed'] as const).map((m) => (
               <button key={m} type="button" onClick={() => setScalePref(m)} aria-pressed={mode === m}
@@ -487,7 +488,7 @@ export function TimelineCanvas({
               </button>
             ))}
           </div>
-          <span className="font-mono text-2xs text-chr-muted opacity-40 hidden sm:inline">{t('canvas_zoom_hint')}</span>
+          <span className="font-mono text-2xs text-chr-muted hidden 2xl:inline">{t('canvas_zoom_hint')}</span>
           <button
             onClick={zoomOut}
             disabled={zoom <= 0.5}

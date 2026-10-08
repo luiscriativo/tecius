@@ -802,11 +802,11 @@ export function TimelineList({
         <div className="pt-4 border-t border-chr-subtle">
           <span className="font-mono text-2xs text-chr-muted">
             {filterPaths
-              ? <>{nEvents(baseEvents.length)}<span className="opacity-60"> {t('of_total', { total: timeline.events.length })}</span></>
+              ? <>{nEvents(baseEvents.length)}<span> {t('of_total', { total: timeline.events.length })}</span></>
               : nEvents(timeline.events.length)
             }
             {footerGroupLabel && (
-              <span className="opacity-60">
+              <span>
                 {' · '}{t('grouped_by')} {footerGroupLabel}
               </span>
             )}
