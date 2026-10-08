@@ -1,17 +1,19 @@
 # Release do Tecius
 #
-# Como usar: suba a versão no package.json, faça o commit e envie uma tag igual:
-#   git tag v1.5.0 && git push origin v1.5.0
-# O workflow gera os instaladores de cada sistema e cria um RASCUNHO de release
-# no GitHub com tudo anexado. Confira e clique em "Publish release" — só então o
-# auto-update dos apps instalados enxerga a versão nova.
+# Como lançar uma versão (um clique, nada a fazer no computador):
+#   Actions → Release → Run workflow → escolha o tipo de versão → Run workflow
+#     patch  1.5.0 → 1.5.1   só correções
+#     minor  1.5.0 → 1.6.0   funcionalidades novas
+#     major  1.5.0 → 2.0.0   mudança grande
+#     teste  só gera os builds (artefatos do run), sem versão nem release
+# O workflow checa o código, gera os instaladores de cada sistema e, só se tudo
+# passar, grava a versão nova no package.json (commit "Versão X.Y.Z" na main),
+# cria a tag e publica a release — os apps instalados já veem a atualização.
+# Desmarcando "Publicar", a release fica como rascunho para revisar antes.
+# Depois, no VS Code, faça Sync/Pull para trazer o commit da versão.
 #
-# Sem acesso para enviar tags (ex.: login do GitHub pelo Google, sem token): use
-# Actions → Release → Run workflow e informe a versão (ex.: v1.5.0). O workflow
-# cria a tag no commit escolhido e o rascunho da release — ou usa um rascunho
-# que já exista com esse nome, mantendo a descrição.
-# Sem informar a versão, Run workflow só gera os builds, como artefatos, sem
-# criar release — serve para testar.
+# Também funciona enviando uma tag (versão já atualizada no package.json):
+#   git tag v1.5.0 && git push origin v1.5.0   → cria um rascunho
 #
 # Por que uma máquina por arquitetura: o scripts/protect.js compila o processo
 # principal em bytecode com o Electron da máquina que faz o build, e esse
@@ -26,25 +28,65 @@ on:
     tags: ['v*']
   workflow_dispatch:
     inputs:
-      tag:
-        description: 'Versão a lançar (ex.: v1.5.0). Vazio = só testar os builds, sem release.'
-        required: false
-        default: ''
+      versao:
+        description: 'Tipo de versão (patch = correções, minor = novidades, major = mudança grande, teste = só builds)'
+        type: choice
+        options: [patch, minor, major, teste]
+        default: patch
+      publicar:
+        description: 'Publicar direto (desmarque para deixar como rascunho e revisar antes)'
+        type: boolean
+        default: true
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release
   cancel-in-progress: false
 
 permissions:
   contents: read
 
-env:
-  # Versão da release: a tag enviada, ou a informada no Run workflow (vazio = sem release)
-  RELEASE_TAG: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.tag }}
-
 jobs:
+  prepare:
+    name: Versão
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      release: ${{ steps.v.outputs.release }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        name: Calcular a versão
+        env:
+          BUMP: ${{ inputs.versao }}
+        run: |
+          CURRENT="$(node -p "require('./package.json').version")"
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            # Tag enviada à mão: a versão já está no package.json
+            if [ "v$CURRENT" != "$GITHUB_REF_NAME" ]; then
+              echo "::error::A tag $GITHUB_REF_NAME não bate com a versão do package.json (v$CURRENT)."
+              exit 1
+            fi
+            VERSION="$CURRENT"; RELEASE=true
+          elif [ "$BUMP" = "teste" ]; then
+            VERSION="$CURRENT"; RELEASE=false
+          else
+            if [ "$GITHUB_REF_NAME" != "main" ]; then
+              echo "::error::Lance versões a partir da branch main (o run foi em $GITHUB_REF_NAME)."
+              exit 1
+            fi
+            VERSION="$(npx --yes semver@7 -i "$BUMP" "$CURRENT")"; RELEASE=true
+            if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null; then
+              echo "::error::A tag v$VERSION já existe no GitHub."
+              exit 1
+            fi
+          fi
+          echo "Versão: $CURRENT → $VERSION (release: $RELEASE)"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "release=$RELEASE" >> "$GITHUB_OUTPUT"
+
   check:
     name: Checagem
+    needs: prepare
     runs-on: ubuntu-latest
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
@@ -54,21 +96,13 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - name: Versão igual à do package.json
-        if: env.RELEASE_TAG != ''
-        run: |
-          VERSION="v$(node -p "require('./package.json').version")"
-          if [ "$VERSION" != "$RELEASE_TAG" ]; then
-            echo "::error::A versão $RELEASE_TAG não bate com a do package.json ($VERSION)."
-            exit 1
-          fi
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
 
   build:
     name: Build ${{ matrix.name }}
-    needs: check
+    needs: [prepare, check]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: true
@@ -97,6 +131,9 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Versão ${{ needs.prepare.outputs.version }}
+        # Só nesta máquina: o commit da versão é feito no fim, se tudo passar
+        run: npm version ${{ needs.prepare.outputs.version }} --no-git-tag-version --allow-same-version
       - name: Build
         run: npm run build
       - name: Proteção (bytecode + ofuscação)
@@ -116,12 +153,16 @@ jobs:
             dist/latest*.yml
 
   release:
-    name: Rascunho da release
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/') || inputs.tag != ''
+    name: Release
+    needs: [prepare, build]
+    if: needs.prepare.outputs.release == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+      TAG: v${{ needs.prepare.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -134,25 +175,28 @@ jobs:
       - name: Juntar os builds
         run: |
           npm install --prefix "$RUNNER_TEMP/yaml" --no-save --no-package-lock js-yaml@4
-          NODE_PATH="$RUNNER_TEMP/yaml/node_modules" node scripts/merge-update-info.cjs builds release
-      - name: Criar a tag (Run workflow com versão)
-        # Tag criada com o token do workflow não dispara outro run. Ela já existe ao
-        # publicar o rascunho, então publicar também não dispara nada.
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+          NODE_PATH="$RUNNER_TEMP/yaml/node_modules" node scripts/merge-update-info.cjs builds "$RUNNER_TEMP/release"
+      - name: Gravar a versão (commit + tag)
+        # Run workflow: grava a versão nova na main e cria a tag, juntos (--atomic).
+        # Se a main recebeu commits durante o run, o push falha e nada é gravado:
+        # é só rodar de novo. Push com o token do workflow não dispara outro run.
+        if: github.ref_type != 'tag'
         run: |
-          if git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG" >/dev/null; then
-            echo "::error::A tag $RELEASE_TAG já existe no GitHub. Para refazer os builds dela, rode o workflow a partir da tag."
-            exit 1
-          fi
-          git tag "$RELEASE_TAG" "$GITHUB_SHA"
-          git push origin "refs/tags/$RELEASE_TAG"
-      - name: Criar ou atualizar o rascunho
-        env:
-          GH_TOKEN: ${{ github.token }}
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          npm version "$VERSION" --no-git-tag-version
+          git commit -am "Versão $VERSION"
+          git tag "$TAG"
+          git push --atomic origin HEAD:main "refs/tags/$TAG"
+      - name: Criar a release
         run: |
-          # Um rascunho já criado no site com este nome é aproveitado (mantém a descrição)
-          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release upload "$RELEASE_TAG" release/* --clobber
+          # Anexa tudo com a release ainda em rascunho: os apps instalados só a
+          # enxergam completa, depois de publicada
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$RUNNER_TEMP"/release/* --clobber
           else
-            gh release create "$RELEASE_TAG" release/* --draft --title "Tecius ${RELEASE_TAG#v}" --generate-notes
+            gh release create "$TAG" "$RUNNER_TEMP"/release/* --draft --title "Tecius $VERSION" --generate-notes
           fi
+      - name: Publicar
+        if: github.ref_type != 'tag' && inputs.publicar
+        run: gh release edit "$TAG" --draft=false --latest
