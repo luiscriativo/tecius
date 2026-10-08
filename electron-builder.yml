@@ -62,12 +62,13 @@ win:
       arch:
         - x64
 
-# Nomes com a arquitetura: cada uma é gerada numa máquina própria no CI
+# Nomes no padrão Tecius-<versão>-<sistema>-<arquitetura> (como Logseq, Mattermost,
+# MarkText): cada arquitetura é gerada numa máquina própria no CI
 # (.github/workflows/release.yml) e o auto-update escolhe o arquivo pelo nome
 # (procura "x64" / "arm64"). O bytecode do processo principal é específico da
 # arquitetura, então um instalador não pode levar as duas.
 nsis:
-  artifactName: ${productName}-Setup-${version}-${arch}.${ext}
+  artifactName: ${productName}-${version}-win-${arch}-setup.${ext}
   oneClick: false
   allowToChangeInstallationDirectory: true
   allowElevation: true
@@ -89,21 +90,19 @@ mac:
     - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
   notarize: false
   icon: resources/icon.png
-  artifactName: ${productName}-${version}-${arch}.${ext}
+  artifactName: ${productName}-${version}-mac-${arch}.${ext}
   # Code signing (configure when ready)
   # identity: "Developer ID Application: Your Name (TEAM_ID)"
+  # Só .dmg: sem certificado da Apple a atualização no Mac é manual (o aviso leva ao
+  # .dmg), então o .zip — que só o atualizador automático usa — não é publicado
   target:
     - target: dmg
       arch:
         - x64
         - arm64
-    - target: zip
-      arch:
-        - x64
-        - arm64
 
 portable:
-  artifactName: ${productName}-${version}-portable-${arch}.${ext}
+  artifactName: ${productName}-${version}-win-${arch}-portable.${ext}
 
 dmg:
   title: Tecius
@@ -116,10 +115,17 @@ dmg:
 # ── Linux configuration ───────────────────────────────────────────────────────
 linux:
   icon: resources/icon.png
+  executableName: tecius
+  artifactName: ${productName}-${version}-linux-${arch}.${ext}
   maintainer: luiscriativo <luiscriativo@gmail.com>
-  category: Utility
-  synopsis: Electron application with React and TypeScript
-  description: A robust and scalable Electron desktop application
+  vendor: luiscriativo
+  category: Education
+  synopsis: Personal historical timeline manager
+  description: >-
+    Organize events, periods and narratives on a visual timeline and a map
+    through time, stored as plain Markdown files in a folder on your computer.
+  # AppImage roda em qualquer distribuição e se atualiza sozinho; .deb (Debian/Ubuntu)
+  # e .rpm (Fedora/openSUSE) instalam pelo gerenciador de pacotes
   target:
     - target: AppImage
       arch:
@@ -128,9 +134,11 @@ linux:
     - target: deb
       arch:
         - x64
+        - arm64
     - target: rpm
       arch:
         - x64
+        - arm64
 
 deb:
   packageCategory: utils

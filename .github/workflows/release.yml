@@ -15,6 +15,9 @@
 # Também funciona enviando uma tag (versão já atualizada no package.json):
 #   git tag v1.5.0 && git push origin v1.5.0   → cria um rascunho
 #
+# Gera Windows (x64, ARM), macOS (Apple Silicon, Intel) e Linux (x64, ARM: AppImage,
+# .deb e .rpm). Os arquivos seguem o padrão Tecius-<versão>-<sistema>-<arquitetura>.
+#
 # Por que uma máquina por arquitetura: o scripts/protect.js compila o processo
 # principal em bytecode com o Electron da máquina que faz o build, e esse
 # bytecode é específico da arquitetura. Os nomes dos arquivos levam a
@@ -110,16 +113,22 @@ jobs:
         include:
           - name: mac-arm64
             os: macos-15
-            args: --mac dmg zip --arm64
+            args: --mac dmg --arm64
           - name: mac-x64
             os: macos-15-intel
-            args: --mac dmg zip --x64
+            args: --mac dmg --x64
           - name: win-x64
             os: windows-latest
             args: --win nsis portable --x64
           - name: win-arm64
             os: windows-11-arm
             args: --win nsis --arm64
+          - name: linux-x64
+            os: ubuntu-latest
+            args: --linux AppImage deb rpm --x64
+          - name: linux-arm64
+            os: ubuntu-24.04-arm
+            args: --linux AppImage deb rpm --arm64
     env:
       # Sem certificado: o macOS recebe assinatura ad-hoc (scripts/adhoc-sign.js).
       # Com um Developer ID, configure CSC_LINK / CSC_KEY_PASSWORD como secrets e remova esta linha.
@@ -130,6 +139,18 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - name: Dependências do Linux
+        # rpm: para gerar o .rpm. Na máquina ARM o electron-builder não tem o fpm
+        # (ferramenta do .deb/.rpm) pronto para baixar: usa o instalado aqui.
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q rpm libarchive-tools
+          if [ "$(uname -m)" = "aarch64" ]; then
+            sudo apt-get install -y -q ruby ruby-dev build-essential
+            sudo gem install --no-document fpm
+            echo "USE_SYSTEM_FPM=true" >> "$GITHUB_ENV"
+          fi
       - run: npm ci
       - name: Versão ${{ needs.prepare.outputs.version }}
         # Só nesta máquina: o commit da versão é feito no fim, se tudo passar
@@ -145,11 +166,14 @@ jobs:
           name: build-${{ matrix.name }}
           if-no-files-found: error
           retention-days: 7
+          # .blockmap só do Windows: é o que permite baixar só a diferença na atualização
           path: |
             dist/*.exe
+            dist/*.exe.blockmap
             dist/*.dmg
-            dist/*.zip
-            dist/*.blockmap
+            dist/*.AppImage
+            dist/*.deb
+            dist/*.rpm
             dist/latest*.yml
 
   release:
@@ -176,6 +200,27 @@ jobs:
         run: |
           npm install --prefix "$RUNNER_TEMP/yaml" --no-save --no-package-lock js-yaml@4
           NODE_PATH="$RUNNER_TEMP/yaml/node_modules" node scripts/merge-update-info.cjs builds "$RUNNER_TEMP/release"
+      - name: Somas de verificação e tabela de downloads
+        run: |
+          cd "$RUNNER_TEMP/release"
+          sha256sum -- * > SHA256SUMS.txt
+          V="$VERSION"; R="https://github.com/${GITHUB_REPOSITORY}/releases/download/v$V"
+          {
+            echo "## Downloads"
+            echo
+            echo "| System | File |"
+            echo "|---|---|"
+            echo "| **Windows** (most PCs) | [Tecius-$V-win-x64-setup.exe]($R/Tecius-$V-win-x64-setup.exe) · [portable]($R/Tecius-$V-win-x64-portable.exe) |"
+            echo "| **Windows on ARM** | [Tecius-$V-win-arm64-setup.exe]($R/Tecius-$V-win-arm64-setup.exe) |"
+            echo "| **macOS** Apple Silicon (M1 or newer) | [Tecius-$V-mac-arm64.dmg]($R/Tecius-$V-mac-arm64.dmg) |"
+            echo "| **macOS** Intel | [Tecius-$V-mac-x64.dmg]($R/Tecius-$V-mac-x64.dmg) |"
+            echo "| **Linux** x64 | [AppImage]($R/Tecius-$V-linux-x86_64.AppImage) · [.deb]($R/Tecius-$V-linux-amd64.deb) · [.rpm]($R/Tecius-$V-linux-x86_64.rpm) |"
+            echo "| **Linux** ARM | [AppImage]($R/Tecius-$V-linux-arm64.AppImage) · [.deb]($R/Tecius-$V-linux-arm64.deb) · [.rpm]($R/Tecius-$V-linux-aarch64.rpm) |"
+            echo
+            echo "macOS: the app is not notarized — the first time, right-click it → **Open**. Windows: SmartScreen may ask to confirm (**More info → Run anyway**). Checksums: \`SHA256SUMS.txt\`."
+            echo
+          } > "$RUNNER_TEMP/notes.md"
+          ls -la
       - name: Gravar a versão (commit + tag)
         # Run workflow: grava a versão nova na main e cria a tag, juntos (--atomic).
         # Se a main recebeu commits durante o run, o push falha e nada é gravado:
@@ -195,7 +240,7 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "$RUNNER_TEMP"/release/* --clobber
           else
-            gh release create "$TAG" "$RUNNER_TEMP"/release/* --draft --title "Tecius $VERSION" --generate-notes
+            gh release create "$TAG" "$RUNNER_TEMP"/release/* --draft --title "Tecius $VERSION" --notes-file "$RUNNER_TEMP/notes.md" --generate-notes
           fi
       - name: Publicar
         if: github.ref_type != 'tag' && inputs.publicar

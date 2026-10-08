@@ -4,7 +4,7 @@
   "description": "Tecius — Sistema pessoal de timelines visuais",
   "license": "GPL-3.0-or-later",
   "main": "./out/main/index.js",
-  "homepage": ".",
+  "homepage": "https://github.com/luiscriativo/tecius",
   "author": {
     "name": "luiscriativo",
     "email": "luiscriativo@github.com"

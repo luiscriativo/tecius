@@ -15,7 +15,7 @@
 [![Electron](https://img.shields.io/badge/Electron-33-black?style=flat-square&logo=electron)](https://www.electronjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-black?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-18-black?style=flat-square&logo=react)](https://react.dev/)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-black?style=flat-square)](#installing)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-black?style=flat-square)](#installing)
 
 <br />
 
@@ -84,7 +84,7 @@ Export a whole timeline as a print-ready **PDF** or a self-contained **web page 
 Maps, borders and place search are built into the app. The only online features are optional and off by default: address search on OpenStreetMap and paleogeographic maps of deep time (GPlates).
 
 **🔄 Updates**
-On Windows the app downloads and installs new versions for you. On macOS it takes you to the download page of the new version.
+On Windows and with the Linux AppImage, the app downloads and installs new versions for you. On macOS it takes you to the download page of the new version.
 
 **🎨 Light & dark themes · 🌐 English & Portuguese**
 
@@ -102,13 +102,22 @@ On Windows the app downloads and installs new versions for you. On macOS it take
 
 Download the latest release for your platform:
 
-| Platform | Download |
+Download from the **[latest release](https://github.com/luiscriativo/tecius/releases/latest)** — the release notes start with a table of which file to pick:
+
+| Platform | File |
 |---|---|
-| **Windows** | [Installer `.exe`](https://github.com/luiscriativo/tecius/releases/latest): `Tecius-Setup-…-x64.exe` (most PCs) or `…-arm64.exe` (Windows on ARM), or the portable `.exe` |
-| **macOS** | [`.dmg`](https://github.com/luiscriativo/tecius/releases/latest): `Tecius-…-arm64.dmg` (Apple Silicon, M1 or newer) or `Tecius-…-x64.dmg` (Intel) |
-| Linux | *(coming soon)* |
+| **Windows** (most PCs) | `Tecius-<version>-win-x64-setup.exe` — or `…-win-x64-portable.exe` to run without installing |
+| **Windows on ARM** | `Tecius-<version>-win-arm64-setup.exe` |
+| **macOS** Apple Silicon (M1 or newer) | `Tecius-<version>-mac-arm64.dmg` |
+| **macOS** Intel | `Tecius-<version>-mac-x64.dmg` |
+| **Linux** x64 | `Tecius-<version>-linux-x86_64.AppImage` (any distribution) · `…-linux-amd64.deb` (Debian, Ubuntu) · `…-linux-x86_64.rpm` (Fedora, openSUSE) |
+| **Linux** ARM | `Tecius-<version>-linux-arm64.AppImage` · `…-linux-arm64.deb` · `…-linux-aarch64.rpm` |
+
+Each release also includes `SHA256SUMS.txt` to verify the downloads.
 
 > **macOS "unidentified developer" warning:** Tecius is not notarized by Apple. The first time, right-click the app → **Open** → **Open** (or allow it in System Settings → Privacy & Security).
+
+> **Linux AppImage:** make it executable (`chmod +x Tecius-*.AppImage`) and run it. The AppImage updates itself; `.deb` and `.rpm` are installed and updated through your package manager.
 
 > **Windows SmartScreen warning:** Tecius is unsigned (code signing certificates are expensive). Click "More info" → "Run anyway" to proceed. The app is fully open source — you can read every line of code in this repository.
 
@@ -162,7 +171,6 @@ For every field, date format (including BC and millions of years ago), chronicle
 
 Planned or under consideration — feedback helps prioritize:
 
-- [ ] Linux builds
 - [ ] Signed and notarized macOS app (enables in-app updates on macOS)
 - [ ] Custom categories and colors per timeline
 - [ ] Quick switching between vaults
@@ -209,14 +217,14 @@ npm test            # Vitest
 ```bash
 npm run build       # compile to out/ (no installer)
 npm run build:win   # Windows installer, for local testing
-npm run build:mac   # macOS .dmg/.zip, for local testing
+npm run build:mac   # macOS .dmg, for local testing
 ```
 
 Output goes to `dist/`.
 
 ### Releases
 
-Releases are built by **GitHub Actions** ([`.github/workflows/release.yml`](.github/workflows/release.yml)), one machine per platform and architecture — Windows x64 and ARM, macOS Apple Silicon and Intel. To publish a version: **Actions → Release → Run workflow**, choose *patch*, *minor* or *major*. The workflow checks the code, builds every installer, bumps the version, tags it and publishes the release.
+Releases are built by **GitHub Actions** ([`.github/workflows/release.yml`](.github/workflows/release.yml)), one machine per platform and architecture — Windows x64 and ARM, macOS Apple Silicon and Intel, Linux x64 and ARM. To publish a version: **Actions → Release → Run workflow**, choose *patch*, *minor* or *major*. The workflow checks the code, builds every installer, bumps the version, tags it and publishes the release.
 
 Installers built locally contain a single architecture and are meant for testing only.
 
