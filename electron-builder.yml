@@ -30,6 +30,9 @@ extraResources:
   - from: src/renderer/src/assets/geo/historical/NOTICE.md
     to: NOTICE-historical-borders.md
 
+# ── Assinatura ad-hoc no macOS sem certificado (ver scripts/adhoc-sign.js) ─────
+afterSign: scripts/adhoc-sign.js
+
 # ── Application metadata ─────────────────────────────────────────────────────
 extraMetadata:
   main: out/main/index.js
@@ -59,7 +62,12 @@ win:
       arch:
         - x64
 
+# Nomes com a arquitetura: cada uma é gerada numa máquina própria no CI
+# (.github/workflows/release.yml) e o auto-update escolhe o arquivo pelo nome
+# (procura "x64" / "arm64"). O bytecode do processo principal é específico da
+# arquitetura, então um instalador não pode levar as duas.
 nsis:
+  artifactName: ${productName}-Setup-${version}-${arch}.${ext}
   oneClick: false
   allowToChangeInstallationDirectory: true
   allowElevation: true
@@ -81,6 +89,7 @@ mac:
     - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
   notarize: false
   icon: resources/icon.png
+  artifactName: ${productName}-${version}-${arch}.${ext}
   # Code signing (configure when ready)
   # identity: "Developer ID Application: Your Name (TEAM_ID)"
   target:
@@ -92,6 +101,9 @@ mac:
       arch:
         - x64
         - arm64
+
+portable:
+  artifactName: ${productName}-${version}-portable-${arch}.${ext}
 
 dmg:
   title: Tecius

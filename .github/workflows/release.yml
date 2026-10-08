@@ -1,0 +1,133 @@
+# Release do Tecius
+#
+# Como usar: suba a versão no package.json, faça o commit e envie uma tag igual:
+#   git tag v1.5.0 && git push origin v1.5.0
+# O workflow gera os instaladores de cada sistema e cria um RASCUNHO de release
+# no GitHub com tudo anexado. Confira e clique em "Publish release" — só então o
+# auto-update dos apps instalados enxerga a versão nova.
+#
+# Rodar manualmente (aba Actions → Release → Run workflow) só gera os builds, como
+# artefatos do workflow, sem criar release — serve para testar antes de uma tag.
+#
+# Por que uma máquina por arquitetura: o scripts/protect.js compila o processo
+# principal em bytecode com o Electron da máquina que faz o build, e esse
+# bytecode é específico da arquitetura. Os nomes dos arquivos levam a
+# arquitetura (electron-builder.yml) e o scripts/merge-update-info.cjs junta os
+# latest*.yml de cada máquina num só por sistema.
+
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Checagem
+    runs-on: ubuntu-latest
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Tag igual à versão do package.json
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          VERSION="v$(node -p "require('./package.json').version")"
+          if [ "$VERSION" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::A tag $GITHUB_REF_NAME não bate com a versão do package.json ($VERSION)."
+            exit 1
+          fi
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
+  build:
+    name: Build ${{ matrix.name }}
+    needs: check
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - name: mac-arm64
+            os: macos-15
+            args: --mac dmg zip --arm64
+          - name: mac-x64
+            os: macos-15-intel
+            args: --mac dmg zip --x64
+          - name: win-x64
+            os: windows-latest
+            args: --win nsis portable --x64
+          - name: win-arm64
+            os: windows-11-arm
+            args: --win nsis --arm64
+    env:
+      # Sem certificado: o macOS recebe assinatura ad-hoc (scripts/adhoc-sign.js).
+      # Com um Developer ID, configure CSC_LINK / CSC_KEY_PASSWORD como secrets e remova esta linha.
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Build
+        run: npm run build
+      - name: Proteção (bytecode + ofuscação)
+        run: node scripts/protect.js
+      - name: Empacotar
+        run: npx electron-builder ${{ matrix.args }} --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.name }}
+          if-no-files-found: error
+          retention-days: 7
+          path: |
+            dist/*.exe
+            dist/*.dmg
+            dist/*.zip
+            dist/*.blockmap
+            dist/latest*.yml
+
+  release:
+    name: Rascunho da release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: build-*
+          path: builds
+      - name: Juntar os builds
+        run: |
+          npm install --prefix "$RUNNER_TEMP/yaml" --no-save --no-package-lock js-yaml@4
+          NODE_PATH="$RUNNER_TEMP/yaml/node_modules" node scripts/merge-update-info.cjs builds release
+      - name: Criar ou atualizar o rascunho
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" release/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" release/* --draft --title "Tecius ${GITHUB_REF_NAME#v}" --generate-notes
+          fi

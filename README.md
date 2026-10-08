@@ -99,9 +99,11 @@ Download the latest release for your platform:
 
 | Platform | Download |
 |---|---|
-| **Windows** | [Tecius Setup .exe](https://github.com/luiscriativo/tecius/releases/latest) (installer) or portable `.exe` |
-| macOS | `.dmg` *(coming soon)* |
+| **Windows** | [Installer `.exe`](https://github.com/luiscriativo/tecius/releases/latest): `Tecius-Setup-…-x64.exe` (most PCs) or `…-arm64.exe` (Windows on ARM), or the portable `.exe` |
+| **macOS** | [`.dmg`](https://github.com/luiscriativo/tecius/releases/latest): `Tecius-…-arm64.dmg` (Apple Silicon, M1 or newer) or `Tecius-…-x64.dmg` (Intel) |
 | Linux | `.AppImage`, `.deb`, or `.rpm` *(coming soon)* |
+
+> **macOS "unidentified developer" warning:** Tecius is not notarized by Apple. The first time, right-click the app → **Open** → **Open** (or allow it in System Settings → Privacy & Security).
 
 > **Windows SmartScreen warning:** Tecius is unsigned (code signing certificates are expensive). Click "More info" → "Run anyway" to proceed. The app is fully open source — you can read every line of code in this repository.
 
