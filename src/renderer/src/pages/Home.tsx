@@ -7,7 +7,7 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BookOpen, ChevronRight, FolderOpen, RefreshCw, X, Library, Pencil, Check, Plus } from 'lucide-react'
+import { BookOpen, ChevronRight, FolderOpen, RefreshCw, X, Library, Pencil, Check, Plus, MoreHorizontal, LogOut } from 'lucide-react'
 import { useVaultStore } from '@/stores/useVaultStore'
 import { useVault } from '@/hooks/useVault'
 import { useTimeline } from '@/hooks/useTimeline'
@@ -15,6 +15,7 @@ import { useTimelineStore } from '@/stores/useTimelineStore'
 import { useNavigationStore } from '@/stores/useNavigationStore'
 import { useI18n } from '@/hooks/useI18n'
 import { cn } from '@/utils/cn'
+import { ConfirmModal } from '@/components/ConfirmModal'
 import type { TimelineRef } from '@/types/chronicler'
 
 // ── Card de timeline ──────────────────────────────────────────────────────────
@@ -194,7 +195,21 @@ export function HomePage(): React.ReactElement {
     if (e.key === 'Escape') cancelRename()
   }
 
+  // ── Menu do vault (ações raras, longe do clique acidental) ─────────────────
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [confirmClose, setConfirmClose] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!menuOpen) return
+    const onDown = (e: MouseEvent) => { if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false) }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenuOpen(false) }
+    document.addEventListener('mousedown', onDown)
+    window.addEventListener('keydown', onKey)
+    return () => { document.removeEventListener('mousedown', onDown); window.removeEventListener('keydown', onKey) }
+  }, [menuOpen])
+
   const handleCloseVault = () => {
+    setConfirmClose(false)
     setCurrentTimeline(null)
     resetNav({ title: '', dirPath: '' })
     clearVault()
@@ -285,42 +300,59 @@ export function HomePage(): React.ReactElement {
 
             <div className="w-px h-4 bg-chr-subtle hidden sm:block" />
 
-            {/* Renomear */}
+            {/* Ações do vault: num menu (fechar ficava ao lado de renomear e era clicado sem querer) */}
             {!isRenaming && (
-              <button
-                onClick={startRename}
-                className={cn(
-                  'flex items-center gap-1.5 px-2.5 py-1.5 rounded-sm',
-                  'font-mono text-xs text-chr-muted',
-                  'border border-chr-subtle',
-                  'hover:border-chr hover:text-chr-secondary',
-                  'transition-colors duration-150'
+              <div ref={menuRef} className="relative">
+                <button
+                  onClick={() => setMenuOpen((v) => !v)}
+                  title={t('vault_actions')}
+                  aria-label={t('vault_actions')}
+                  aria-haspopup="menu"
+                  aria-expanded={menuOpen}
+                  data-testid="vault-menu"
+                  className={cn(
+                    'flex items-center justify-center w-7 h-7 rounded-sm text-chr-muted',
+                    'border border-chr-subtle hover:border-chr hover:text-chr-secondary transition-colors duration-150',
+                    menuOpen && 'border-chr text-chr-secondary'
+                  )}
+                >
+                  <MoreHorizontal size={14} strokeWidth={1.5} />
+                </button>
+                {menuOpen && (
+                  <div role="menu" className="absolute right-0 top-full mt-1 z-30 w-52 chr-card shadow-card-hover py-1">
+                    {([
+                      ['rename', <Pencil key="i" size={12} strokeWidth={1.5} />, t('home_rename_vault'), () => startRename()],
+                      ['reveal', <FolderOpen key="i" size={12} strokeWidth={1.5} />, t('vault_reveal'), () => window.electronAPI.send('fs:reveal-vault')],
+                    ] as const).map(([id, icon, label, run]) => (
+                      <button key={id} role="menuitem" data-testid={`vault-menu-${id}`}
+                        onClick={() => { setMenuOpen(false); run() }}
+                        className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm text-chr-primary hover:bg-hover">
+                        <span className="text-chr-muted">{icon}</span>{label}
+                      </button>
+                    ))}
+                    <div className="my-1 h-px bg-chr-subtle" />
+                    <button role="menuitem" data-testid="vault-menu-close"
+                      onClick={() => { setMenuOpen(false); setConfirmClose(true) }}
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm text-chr-secondary hover:bg-hover">
+                      <span className="text-chr-muted"><LogOut size={12} strokeWidth={1.5} /></span>{t('close_vault')}…
+                    </button>
+                  </div>
                 )}
-                title={t('home_rename_vault')}
-              >
-                <Pencil size={11} strokeWidth={1.5} />
-                {t('rename')}
-              </button>
+              </div>
             )}
-
-            {/* Fechar vault */}
-            <button
-              onClick={handleCloseVault}
-              title={t('close_vault')}
-              className={cn(
-                'flex items-center gap-1.5 px-2.5 py-1.5 rounded-sm',
-                'font-mono text-xs text-chr-muted',
-                'border border-chr-subtle',
-                'hover:border-chr hover:text-chr-secondary',
-                'transition-colors duration-150'
-              )}
-            >
-              <X size={11} strokeWidth={1.5} />
-              {t('close_vault')}
-            </button>
           </div>
         </div>
       </header>
+
+      {confirmClose && (
+        <ConfirmModal
+          title={t('close_vault_confirm_title', { name: vaultInfo.title || t('default_vault_title') })}
+          description={t('close_vault_confirm_desc')}
+          confirmLabel={t('close_vault')}
+          onConfirm={handleCloseVault}
+          onCancel={() => setConfirmClose(false)}
+        />
+      )}
 
       {/* Conteúdo principal */}
       <div className="flex-1 overflow-y-auto px-8 py-6">

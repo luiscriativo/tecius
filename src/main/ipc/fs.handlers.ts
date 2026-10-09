@@ -75,6 +75,13 @@ export function registerFsHandlers(): void {
     }
   })
 
+  // ── fs:reveal-vault ───────────────────────────────────────────────────────
+  // Abre a pasta do vault no Finder / Explorer
+  ipcMain.on('fs:reveal-vault', () => {
+    const p = fileSystemService.getVaultPath()
+    if (p) void shell.openPath(p)
+  })
+
   // ── fs:open-in-editor ─────────────────────────────────────────────────────
   // Abre o arquivo no editor externo padrao do sistema
   ipcMain.on('fs:open-in-editor', (_event, filePath: string) => {

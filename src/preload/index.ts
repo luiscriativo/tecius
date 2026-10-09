@@ -65,6 +65,7 @@ const SEND_CHANNELS = [
   'window:close',
   'window:set-title',
   'fs:open-in-editor',
+  'fs:reveal-vault',
   'update:install',
 ] as const
 
