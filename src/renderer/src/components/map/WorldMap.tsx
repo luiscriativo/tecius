@@ -19,6 +19,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { geoCircle, geoGraticule10, geoNaturalEarth1, geoPath } from 'd3-geo'
+import { bestCenterLng } from '@/utils/geoFit'
 import type { Feature, FeatureCollection, Geometry } from 'geojson'
 import { Minus, Plus, Maximize } from 'lucide-react'
 import { loadCountries, loadRegions, type AreaFeatures } from '@/utils/geoData'
@@ -190,10 +191,13 @@ export function WorldMap({
   const needsRegions = areas.some((a) => a.areaCode?.includes('-'))
   useEffect(() => { if (needsRegions && !regions) loadRegions().then(setRegions) }, [needsRegions, regions])
 
+  // Longitude no centro do mapa: zero, ou o Pacífico quando os pontos enquadrados
+  // estão dos dois lados dele (senão ficavam um em cada borda)
+  const [centerLng, setCenterLng] = useState(0)
   const projection = useMemo(() => {
     const w = Math.max(size.w, 10), h = Math.max(size.h, 10)
-    return geoNaturalEarth1().fitExtent([[12, 12], [w - 12, h - 12]], { type: 'Sphere' })
-  }, [size.w, size.h])
+    return geoNaturalEarth1().rotate([-centerLng, 0]).fitExtent([[12, 12], [w - 12, h - 12]], { type: 'Sphere' })
+  }, [size.w, size.h, centerLng])
   const path = useMemo(() => geoPath(projection), [projection])
 
   // Caminhos do mapa base (recalculados só quando a projeção muda)
@@ -359,10 +363,17 @@ export function WorldMap({
   useEffect(() => stopAnim, [stopAnim])
 
   // Enquadra marcadores/áreas
+  const pendingFitRef = useRef(false)
   const fit = useCallback((animate = false) => {
     if (!size.w || !size.h) return
     const only = fitIds ? new Set(fitIds) : null
     if (only && only.size === 0) return
+    // Antes do zoom, o centro do mapa: se mudar, a projeção gira e o enquadramento
+    // acontece de novo com ela (sem animação — o mapa todo muda de lugar)
+    const lngs = [...markers.filter((m) => !only || only.has(m.id)).map((m) => m.lng),
+      ...areas.filter((a) => !only || only.has(a.id)).map((a) => a.lng)]
+    const center = bestCenterLng(lngs)
+    if (center !== centerLng) { pendingFitRef.current = true; setCenterLng(center); return }
     const pts: Array<[number, number]> = []
     for (const m of markers) { if (only && !only.has(m.id)) continue; const p = projection([m.lng, m.lat]); if (p) pts.push(p) }
     for (const a of areas) {
@@ -382,7 +393,12 @@ export function WorldMap({
     const k = Math.max(MIN_K, Math.min(maxK, (size.w * 0.7) / bw, (size.h * 0.7) / bh))
     const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2
     apply({ k, x: size.w / 2 - cx * k, y: size.h / 2 - cy * k })
-  }, [markers, areas, fitIds, focusMaxZoom, projection, size.w, size.h, animateTo, stopAnim])
+  }, [markers, areas, fitIds, focusMaxZoom, projection, size.w, size.h, animateTo, stopAnim, centerLng])
+  useEffect(() => {
+    if (!pendingFitRef.current) return
+    pendingFitRef.current = false
+    fit(false)
+  }, [projection, fit])
 
   // Conversão entre a vista em pixels e a vista geográfica (independe do tamanho)
   const toGeo = useCallback((v: { k: number; x: number; y: number }, proj: typeof projection, w: number, h: number): GeoView | null => {

@@ -49,6 +49,7 @@ import { usePref } from '@/hooks/usePref'
 import { useEventRelations } from '@/hooks/useEventRelations'
 import { useOpenEvent } from '@/hooks/useOpenEvent'
 import { docKey, type VaultEventDoc } from '@/utils/wikiLinks'
+import { relationLines } from '@/utils/relationGeometry'
 import type { EventLocation } from '@/types/chronicler'
 import { oneOf } from '@/utils/prefs'
 import type { TranslationKey } from '@/i18n/translations'
@@ -352,18 +353,10 @@ export function MapView({ timeline, onEventClick }: MapViewProps) {
       id: docKey(r.doc), lng: r.loc.lng, lat: r.loc.lat, areaCode: r.loc.area, radiusKm: effectiveRadiusKm(r.loc),
     }))
     const self = withLoc.find((r) => r.role === 'self')
-    // Uma linha por lugar de destino (grade de ~3°): com centenas de ligados no
-    // mesmo lugar, linhas quase iguais viravam feixes grossos. Muitas: mais claras
-    const byPlace = new Map<string, MapLine>()
-    if (self) {
-      for (const r of withLoc) {
-        if (r.role === 'self' || (r.loc.lng === self.loc.lng && r.loc.lat === self.loc.lat)) continue
-        const kind = r.role === 'cites' ? 'link' as const : 'backlink' as const
-        const key = `${kind}|${Math.round(r.loc.lng / 3)}|${Math.round(r.loc.lat / 3)}`
-        if (!byPlace.has(key)) byPlace.set(key, { id: `rel-${key}`, coords: [[self.loc.lng, self.loc.lat], [r.loc.lng, r.loc.lat]], kind })
-      }
-    }
-    const lines = [...byPlace.values()].map((l, _i, all) => ({ ...l, opacity: all.length > 12 ? 0.6 : 1 }))
+    // Uma linha por lugar de destino (centenas de ligados no mesmo lugar viravam feixes grossos)
+    const lines: MapLine[] = self
+      ? relationLines([self.loc.lng, self.loc.lat], withLoc.flatMap((r) => (r.role === 'self' ? [] : [{ lng: r.loc.lng, lat: r.loc.lat, role: r.role }])))
+      : []
     return { markers, areas, lines, missing: relItems.length - withLoc.length }
   }, [relItems])
   const markers = relOn ? relLayers.markers : timeMarkers

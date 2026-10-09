@@ -36,6 +36,7 @@ import { cn } from '../../utils/cn'
 import { useI18n } from '../../hooks/useI18n'
 import { useEventRelations } from '../../hooks/useEventRelations'
 import { docKey } from '../../utils/wikiLinks'
+import { relationArcs } from '../../utils/relationGeometry'
 
 // ── TimelineMinimap ────────────────────────────────────────────────────────────
 
@@ -323,24 +324,8 @@ export function TimelineCanvas({
     if (!rel || !selectedEvent) return []
     const pos = new Map<string, { lane: number; px: number }>()
     for (const g of pixelGroups) for (const e of g.events) pos.set(docKey(e), { lane: g.lane, px: g.px })
-    const from = pos.get(docKey(selectedEvent))
-    if (!from) return []
-    // Um arco por grupo de destino (com milhares de eventos, vários ligados caem no
-    // mesmo ponto agrupado: arcos repetidos viravam um leque ilegível) e a contagem
-    const byTarget = new Map<string, { key: string; from: typeof from; to: typeof from; dir: 'out' | 'in'; count: number }>()
-    const seen = new Set<string>()
-    const add = (d: { filePath: string; slug: string }, dir: 'out' | 'in') => {
-      const to = pos.get(docKey(d))
-      if (!to || (to.px === from.px && to.lane === from.lane) || seen.has(`${dir}${docKey(d)}`)) return
-      seen.add(`${dir}${docKey(d)}`)
-      const key = `${dir}|${to.lane}|${to.px}`
-      const a = byTarget.get(key)
-      if (a) a.count++
-      else byTarget.set(key, { key, from, to, dir, count: 1 })
-    }
-    rel.cites.forEach((d) => add(d, 'out'))
-    rel.citedBy.forEach((d) => add(d, 'in'))
-    return [...byTarget.values()]
+    // Um arco por grupo de destino, com a contagem (arcos repetidos viravam um leque ilegível)
+    return relationArcs(docKey(selectedEvent), pos, rel.cites.map(docKey), rel.citedBy.map(docKey))
   }, [rel, selectedEvent, pixelGroups])
   // Tamanho da zona dos pontos (os arcos são desenhados em pixels dela)
   const [zone, setZone] = useState<HTMLDivElement | null>(null)
