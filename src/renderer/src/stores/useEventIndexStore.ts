@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { VaultEventDoc } from '@/utils/wikiLinks'
 import { useVaultStore } from '@/stores/useVaultStore'
+import { useTimelineStore } from '@/stores/useTimelineStore'
 
 /**
  * Todos os eventos do vault (título, data, timeline), para as ligações [[…]]:
@@ -50,4 +51,6 @@ export function ensureEventIndex(vaultPath: string | null): void {
 // Eventos criados, apagados ou renomeados recarregam o vault: o índice fica desatualizado
 useVaultStore.subscribe((state, prev) => {
   if (state.vaultInfo !== prev.vaultInfo) useEventIndexStore.getState().markStale()
+  // Outro vault: as relações abertas no mapa eram de um evento do anterior
+  if (state.vaultPath !== prev.vaultPath) useTimelineStore.getState().setMapRelations(null)
 })

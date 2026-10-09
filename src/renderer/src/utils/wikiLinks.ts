@@ -155,19 +155,24 @@ export function remarkWikiLinks() {
 export function eventTexts(docs: VaultEventDoc[]): Array<{ doc: VaultEventDoc; text: string }> {
   const out: Array<{ doc: VaultEventDoc; text: string }> = []
   const byFile = new Map<string, VaultEventDoc[]>()
-  for (const d of docs) byFile.set(d.filePath, [...(byFile.get(d.filePath) ?? []), d])
+  for (const d of docs) {
+    const g = byFile.get(d.filePath)
+    if (g) g.push(d)
+    else byFile.set(d.filePath, [d])
+  }
   for (const group of byFile.values()) {
     const body = group.find((d) => d.body)?.body ?? ''
     if (group.length === 1 || !group.some((d) => d.anchor)) { out.push({ doc: group[0], text: body }); continue }
     const markers = [...body.matchAll(/\^([\w-]+)\s*$/gm)]
     let prev = 0
+    const done = new Set<VaultEventDoc>()
     markers.forEach((m, i) => {
       const end = i === markers.length - 1 ? body.length : m.index! + m[0].length
       const doc = group.find((d) => d.anchor === m[1])
-      if (doc) out.push({ doc, text: body.slice(prev, i === markers.length - 1 ? body.length : m.index!) })
+      if (doc && !done.has(doc)) { out.push({ doc, text: body.slice(prev, i === markers.length - 1 ? body.length : m.index!) }); done.add(doc) }
       prev = end
     })
-    for (const d of group) if (!out.some((o) => sameDoc(o.doc, d))) out.push({ doc: d, text: '' })
+    for (const d of group) if (!done.has(d)) out.push({ doc: d, text: '' })
   }
   return out
 }
@@ -236,7 +241,8 @@ export function eventRelations(self: VaultEventDoc, docs: VaultEventDoc[]): { ci
  */
 export function linksToOldTitle(oldTitle: string, timelineTitle: string, docs: VaultEventDoc[], self: { filePath: string }): { files: string[]; count: number; targets: string[] } {
   const plain = normTitle(oldTitle), qualified = normTitle(`${timelineTitle}/${oldTitle}`)
-  const stillUsed = docs.some((d) => d.filePath !== self.filePath && normTitle(d.title) === plain)
+  // Trechos vinculados repetem o título do original (o índice ainda tem o antigo): não contam
+  const stillUsed = docs.some((d) => !d.ref && d.filePath !== self.filePath && normTitle(d.title) === plain)
   const accepts = (t: string) => normTitle(t) === qualified || (!stillUsed && normTitle(t) === plain)
   const files = new Set<string>()
   let count = 0
@@ -244,6 +250,8 @@ export function linksToOldTitle(oldTitle: string, timelineTitle: string, docs: V
     for (const m of text.matchAll(WIKI_LINK_RE)) {
       if (accepts(parseWikiLink(m[1]).target)) { files.add(doc.filePath); count++ }
     }
+    // Trecho vinculado ao evento renomeado: o `ref:` também é atualizado
+    if (doc.ref && accepts(doc.ref)) { files.add(doc.filePath); count++ }
   }
   return { files: [...files], count, targets: stillUsed ? [`${timelineTitle}/${oldTitle}`] : [oldTitle, `${timelineTitle}/${oldTitle}`] }
 }

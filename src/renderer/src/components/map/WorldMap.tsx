@@ -193,7 +193,8 @@ export function WorldMap({
 
   // Longitude no centro do mapa: zero, ou o Pacífico quando os pontos enquadrados
   // estão dos dois lados dele (senão ficavam um em cada borda)
-  const [centerLng, setCenterLng] = useState(0)
+  // Vista guardada no meio do Pacífico (o mapa estava girado): reabre girado também
+  const [centerLng, setCenterLng] = useState(() => (initialView && Math.abs(initialView.lng) > 100 ? Math.round(initialView.lng) : 0))
   const projection = useMemo(() => {
     const w = Math.max(size.w, 10), h = Math.max(size.h, 10)
     return geoNaturalEarth1().rotate([-centerLng, 0]).fitExtent([[12, 12], [w - 12, h - 12]], { type: 'Sphere' })

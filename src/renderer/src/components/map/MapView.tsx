@@ -47,6 +47,7 @@ import { useTimelineStore } from '@/stores/useTimelineStore'
 import { useI18n } from '@/hooks/useI18n'
 import { usePref } from '@/hooks/usePref'
 import { useEventRelations } from '@/hooks/useEventRelations'
+import { useEventIndexStore } from '@/stores/useEventIndexStore'
 import { useOpenEvent } from '@/hooks/useOpenEvent'
 import { docKey, type VaultEventDoc } from '@/utils/wikiLinks'
 import { relationLines } from '@/utils/relationGeometry'
@@ -87,6 +88,12 @@ export function MapView({ timeline, onEventClick }: MapViewProps) {
   const setMapRelations = useTimelineStore((s) => s.setMapRelations)
   const rel = useEventRelations(relTarget)
   const relOn = relTarget !== null
+  // O evento das relações sumiu (apagado, ou outro vault): volta ao mapa normal
+  const indexDocs = useEventIndexStore((s) => s.docs)
+  const indexLoading = useEventIndexStore((s) => s.loading)
+  useEffect(() => {
+    if (relTarget && indexDocs && !indexLoading && !indexDocs.some((d) => d.filePath === relTarget.filePath && d.slug === relTarget.slug)) setMapRelations(null)
+  }, [relTarget, indexDocs, indexLoading, setMapRelations])
   const openDoc = useOpenEvent()
   /** O evento e os ligados a ele, com local e papel (cada um uma vez) */
   const relItems = useMemo(() => {

@@ -493,7 +493,8 @@ interface EditState {
 /** Converte o único trecho restante em evento simples (dados do trecho passam ao evento) */
 function collapseToSingle(fm: EditFm, entry: EntryEdit, entryBody: string, chrDesc: string): EditState {
   const next: EditFm = { ...fm, title: entry.title || fm.title, date: entry.date || fm.date, location: entry.location ?? fm.location, extra: { ...fm.extra } }
-  const { importance, category, tags, ...entryExtra } = entry.extra
+  // `ref` não passa ao evento: vinculado só um trecho de chronicle; sozinho, vira cópia comum
+  const { importance, category, tags, ref: _ref, ...entryExtra } = entry.extra
   if (importance) next.importance = parseInt(importance) || next.importance
   if (category) next.category = unquoteYaml(category)
   if (tags) next.tags = tagsFromRaw(tags)

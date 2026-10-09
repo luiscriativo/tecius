@@ -120,6 +120,9 @@ function sanitizeFrontmatter(data: Record<string, unknown>): Record<string, unkn
  * (`title: ${...}`). Valores com caracteres especiais (ex: "Guerra: início")
  * gerariam YAML inválido e o arquivo seria ignorado na leitura.
  */
+/** Título normalizado para comparar alvos [[…]]: sem acentos, minúsculo, espaços simples */
+const normTarget = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()
+
 function yamlScalar(value: string): string {
   const needsQuotes =
     value === '' ||
@@ -331,7 +334,8 @@ export class FileSystemService {
           timelineTitle,
           place: fm.location && typeof fm.location === 'object' && 'name' in fm.location ? String((fm.location as { name?: unknown }).name ?? '') : '',
           location: fm.location && typeof fm.location === 'object' ? fm.location : undefined,
-          ref: fm.ref ? String(fm.ref) : undefined,
+          // Só trechos de chronicle podem ser vinculados (um evento comum com `ref` não é espelho)
+          ref: ev.chronicle && fm.ref ? String(fm.ref) : undefined,
           anchor: ev.chronicle?.anchor,
           chronicleTitle: ev.chronicle?.title,
         })
@@ -343,7 +347,7 @@ export class FileSystemService {
   }
 
   // ── Trechos vinculados: o evento original pelo título ─────────────────────
-  private refIndex: { sig: string; docs: SearchDoc[] } | null = null
+  private refIndex: { sig: string; byTitle: Map<string, SearchDoc[]>; byTimeline: Map<string, SearchDoc[]> } | null = null
 
   /** Assinatura do vault (caminho + data de alteração de cada .md): o índice só é refeito se mudar */
   private vaultSignature(): string {
@@ -364,24 +368,33 @@ export class FileSystemService {
   }
 
   /**
-   * Evento de um alvo `[[…]]` (título, ou Timeline/Título), sem diferenciar
-   * maiúsculas e acentos; prefere a timeline do trecho. Ignora outros espelhos
-   * e o próprio arquivo.
+   * Resolve alvos `[[…]]` (título, ou Timeline/Título) sem diferenciar maiúsculas
+   * e acentos; prefere a timeline do trecho. Ignora espelhos e o próprio arquivo.
+   * Criado uma vez por leitura de timeline: o vault só é percorrido uma vez, e o
+   * índice de títulos só é refeito se algum arquivo mudou.
    */
-  private resolveRef(target: string, contextDir: string, selfFile: string): SearchDoc | null {
+  private refResolver(): (target: string, contextDir: string, selfFile: string) => SearchDoc | null {
     const sig = this.vaultSignature()
-    if (this.refIndex?.sig !== sig) this.refIndex = { sig, docs: this.buildSearchIndex() }
-    const docs = this.refIndex.docs.filter((d) => !d.ref && d.filePath !== selfFile)
-    const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()
-    const t = norm(target)
-    const exact = docs.filter((d) => norm(d.title) === t)
-    if (exact.length) return exact.find((d) => d.timelineDir === contextDir) ?? exact[0]
-    for (let i = target.indexOf('/'); i > 0; i = target.indexOf('/', i + 1)) {
-      const tl = norm(target.slice(0, i)), title = norm(target.slice(i + 1))
-      const hit = docs.find((d) => norm(d.title) === title && norm(d.timelineTitle) === tl)
-      if (hit) return hit
+    if (this.refIndex?.sig !== sig) {
+      const byTitle = new Map<string, SearchDoc[]>(), byTimeline = new Map<string, SearchDoc[]>()
+      for (const d of this.buildSearchIndex()) {
+        if (d.ref) continue
+        const t = normTarget(d.title), k = `${normTarget(d.timelineTitle)}/${t}`
+        byTitle.set(t, [...(byTitle.get(t) ?? []), d])
+        byTimeline.set(k, [...(byTimeline.get(k) ?? []), d])
+      }
+      this.refIndex = { sig, byTitle, byTimeline }
     }
-    return null
+    const { byTitle, byTimeline } = this.refIndex
+    return (target, contextDir, selfFile) => {
+      const exact = (byTitle.get(normTarget(target)) ?? []).filter((d) => d.filePath !== selfFile)
+      if (exact.length) return exact.find((d) => d.timelineDir === contextDir) ?? exact[0]
+      for (let i = target.indexOf('/'); i > 0; i = target.indexOf('/', i + 1)) {
+        const hit = (byTimeline.get(`${normTarget(target.slice(0, i))}/${normTarget(target.slice(i + 1))}`) ?? []).find((d) => d.filePath !== selfFile)
+        if (hit) return hit
+      }
+      return null
+    }
   }
 
   /**
@@ -390,6 +403,8 @@ export class FileSystemService {
   readTimeline(timelinePath: string, resolveRefs = true): RawTimeline {
     if (!this.vaultPath) throw new Error(tm('err_no_vault'))
     const vaultPath = this.vaultPath
+    // Trechos vinculados: o resolvedor só é criado se a timeline tiver algum
+    let resolver: ReturnType<FileSystemService['refResolver']> | null = null
 
     const meta = this.readTimelineMeta(timelinePath)
     const relativePath = path.relative(vaultPath, timelinePath)
@@ -440,7 +455,8 @@ export class FileSystemService {
             // Trecho vinculado: título, data e local vêm do evento original (o
             // arquivo guarda uma cópia, usada se o original não for encontrado)
             const ref = entry.ref ? String(entry.ref) : ''
-            const orig = ref && resolveRefs ? this.resolveRef(ref, timelinePath, filePath) : null
+            if (ref && resolveRefs && !resolver) resolver = this.refResolver()
+            const orig = ref && resolver ? resolver(ref, timelinePath, filePath) : null
             if (orig) dateStr = orig.date || dateStr
             if (!dateStr) return
 
@@ -986,7 +1002,8 @@ export class FileSystemService {
   }
 
   /**
-   * Renomeia as ligações [[…]] para um evento (no texto, nunca no cabeçalho):
+   * Renomeia as ligações [[…]] para um evento (no texto; no cabeçalho, só o
+   * `ref:` de trechos vinculados):
    * `[[Antigo]]`, `[[Timeline/Antigo]]` e `[[Antigo|texto]]` (o texto mostrado é mantido).
    * `oldTargets` são as formas que apontavam para o evento; a comparação ignora
    * maiúsculas e acentos. Devolve quantas ligações mudaram.
@@ -1000,13 +1017,21 @@ export class FileSystemService {
       const raw = fs.readFileSync(filePath, 'utf-8')
       const fmEnd = raw.startsWith('---') ? raw.indexOf('\n---', 3) : -1
       const cut = fmEnd >= 0 ? raw.indexOf('\n', fmEnd + 4) + 1 || raw.length : 0
-      const head = raw.slice(0, cut)
+      // No cabeçalho, só o `ref:` dos trechos vinculados (o resto não é ligação)
+      let refChanged = 0
+      const head = raw.slice(0, cut).replace(/^(\s+ref:[ \t]*)(.+)$/gm, (m, pre: string, val: string) => {
+        const v = val.trim().replace(/^"(.*)"$/, '$1').replace(/^'(.*)'$/, '$1')
+        if (!olds.has(norm(v))) return m
+        refChanged++
+        return pre + yamlScalar(newText)
+      })
+      changed += refChanged
       const body = raw.slice(cut).replace(/\[\[([^[\]\n|]+)(\|[^[\]\n]+)?\]\]/g, (m, target: string, alias?: string) => {
         if (!olds.has(norm(target))) return m
         changed++
         return `[[${newText}${alias ?? ''}]]`
       })
-      if (body !== raw.slice(cut)) fs.writeFileSync(filePath, head + body, 'utf-8')
+      if (body !== raw.slice(cut) || refChanged) fs.writeFileSync(filePath, head + body, 'utf-8')
     }
     return changed
   }

@@ -139,3 +139,16 @@ describe('trechos vinculados (espelhos)', () => {
     expect(findBacklinks(orig, all)).toEqual([{ doc: mirror, snippet: 'Avista terra, enfim.', linked: true }])
   })
 })
+
+describe('renomear com trechos vinculados', () => {
+  // "Fundação" foi renomeado para "Fundação de São Paulo"; um trecho vinculado ainda tem o título antigo no índice
+  const orig = { ...doc('Fundação de São Paulo', 'Brasil', '1554'), body: '' }
+  const citer = { ...doc('Jesuítas', 'Brasil', '1553'), body: 'Antes da [[Fundação]].' }
+  const mirror: VaultEventDoc = { filePath: '/v/P/vida.md', slug: 'vida__chr1', title: 'Fundação', date: '1554', timelineDir: '/v/P', timelineTitle: 'P', anchor: 'f', chronicleTitle: 'Vida', ref: 'Fundação', body: 'Texto. ^f' }
+  it('o espelho não faz o título antigo parecer "ainda em uso" e o ref: entra na contagem', () => {
+    const r = linksToOldTitle('Fundação', 'Brasil', [orig, citer, mirror], orig)
+    expect(r.targets).toEqual(['Fundação', 'Brasil/Fundação'])
+    expect(r.count).toBe(2)
+    expect(r.files.sort()).toEqual(['/v/Brasil/Jesuítas.md', '/v/P/vida.md'])
+  })
+})

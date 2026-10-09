@@ -38,3 +38,11 @@ describe('renameWikiLinks', () => {
     expect(() => svc.renameWikiLinks([path.join(os.tmpdir(), 'fora.md')], ['X'], 'Y')).toThrow()
   })
 })
+
+describe('renameWikiLinks — trechos vinculados', () => {
+  it('atualiza o ref: do trecho vinculado (e só ele no cabeçalho)', () => {
+    const v = write('v.md', '---\ntype: chronicle\ntitle: "Vida"\nentries:\n  - title: "Fundação"\n    date: 1554\n    ref: "Fundação"\n  - title: "Outra"\n    date: 1600\n    ref: Outra\n---\n\nTexto. ^a\n')
+    expect(svc.renameWikiLinks([v], ['Fundação'], 'Fundação de São Paulo')).toBe(1)
+    expect(read(v)).toBe('---\ntype: chronicle\ntitle: "Vida"\nentries:\n  - title: "Fundação"\n    date: 1554\n    ref: Fundação de São Paulo\n  - title: "Outra"\n    date: 1600\n    ref: Outra\n---\n\nTexto. ^a\n')
+  })
+})
