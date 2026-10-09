@@ -44,25 +44,43 @@ export function parseWikiLink(inner: string): { target: string; label: string } 
  * Encontra o evento de um alvo. Com títulos repetidos, `Timeline/Título` escolhe a
  * timeline; sem isso, vale o da timeline atual (`contextDir`) e depois o primeiro.
  */
-export function resolveWikiLink(target: string, allDocs: VaultEventDoc[], contextDir?: string): VaultEventDoc | null {
-  const docs = allDocs.filter((d) => !d.ref)
-  const pick = (list: VaultEventDoc[]) => list.find((d) => d.timelineDir === contextDir) ?? list[0] ?? null
-  const t = normTitle(target)
-  const exact = docs.filter((d) => normTitle(d.title) === t)
-  if (exact.length) return pick(exact)
+/**
+ * Índice dos títulos (montado uma vez por lista de eventos): com milhares de
+ * eventos e ligações, comparar todos os títulos a cada [[…]] travava o app.
+ * Espelhos (trechos vinculados) não são alvo de ligações.
+ */
+const titleIndexCache = new WeakMap<VaultEventDoc[], { byTitle: Map<string, VaultEventDoc[]>; byTimeline: Map<string, VaultEventDoc[]> }>()
+function titleIndex(docs: VaultEventDoc[]) {
+  let idx = titleIndexCache.get(docs)
+  if (!idx) {
+    idx = { byTitle: new Map(), byTimeline: new Map() }
+    for (const d of docs) {
+      if (d.ref) continue
+      const t = normTitle(d.title), k = `${normTitle(d.timelineTitle)}/${t}`
+      idx.byTitle.set(t, [...(idx.byTitle.get(t) ?? []), d])
+      idx.byTimeline.set(k, [...(idx.byTimeline.get(k) ?? []), d])
+    }
+    titleIndexCache.set(docs, idx)
+  }
+  return idx
+}
+
+export function resolveWikiLink(target: string, docs: VaultEventDoc[], contextDir?: string): VaultEventDoc | null {
+  const idx = titleIndex(docs)
+  const exact = idx.byTitle.get(normTitle(target))
+  if (exact?.length) return exact.find((d) => d.timelineDir === contextDir) ?? exact[0]
   // Timeline/Título — o título pode ter "/", então testa cada divisão
   for (let i = target.indexOf('/'); i > 0; i = target.indexOf('/', i + 1)) {
-    const tl = normTitle(target.slice(0, i)), title = normTitle(target.slice(i + 1))
-    const hit = docs.filter((d) => normTitle(d.title) === title && normTitle(d.timelineTitle) === tl)
-    if (hit.length) return hit[0]
+    const hit = idx.byTimeline.get(`${normTitle(target.slice(0, i))}/${normTitle(target.slice(i + 1))}`)
+    if (hit?.length) return hit[0]
   }
   return null
 }
 
 /** Texto a escrever entre `[[ ]]` para um evento: o título, ou `Timeline/Título` se o título se repete */
 export function wikiTextFor(doc: VaultEventDoc, docs: VaultEventDoc[]): string {
-  const t = normTitle(doc.title)
-  const repeated = docs.some((d) => !d.ref && d !== doc && d.filePath + d.slug !== doc.filePath + doc.slug && normTitle(d.title) === t)
+  const same = titleIndex(docs).byTitle.get(normTitle(doc.title)) ?? []
+  const repeated = same.some((d) => d.filePath + d.slug !== doc.filePath + doc.slug)
   return repeated ? `${doc.timelineTitle}/${doc.title}` : doc.title
 }
 

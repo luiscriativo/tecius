@@ -325,14 +325,22 @@ export function TimelineCanvas({
     for (const g of pixelGroups) for (const e of g.events) pos.set(docKey(e), { lane: g.lane, px: g.px })
     const from = pos.get(docKey(selectedEvent))
     if (!from) return []
-    const out: Array<{ key: string; from: typeof from; to: typeof from; dir: 'out' | 'in' }> = []
+    // Um arco por grupo de destino (com milhares de eventos, vários ligados caem no
+    // mesmo ponto agrupado: arcos repetidos viravam um leque ilegível) e a contagem
+    const byTarget = new Map<string, { key: string; from: typeof from; to: typeof from; dir: 'out' | 'in'; count: number }>()
+    const seen = new Set<string>()
     const add = (d: { filePath: string; slug: string }, dir: 'out' | 'in') => {
       const to = pos.get(docKey(d))
-      if (to && (to.px !== from.px || to.lane !== from.lane) && !out.some((a) => a.key === docKey(d))) out.push({ key: docKey(d), from, to, dir })
+      if (!to || (to.px === from.px && to.lane === from.lane) || seen.has(`${dir}${docKey(d)}`)) return
+      seen.add(`${dir}${docKey(d)}`)
+      const key = `${dir}|${to.lane}|${to.px}`
+      const a = byTarget.get(key)
+      if (a) a.count++
+      else byTarget.set(key, { key, from, to, dir, count: 1 })
     }
     rel.cites.forEach((d) => add(d, 'out'))
     rel.citedBy.forEach((d) => add(d, 'in'))
-    return out
+    return [...byTarget.values()]
   }, [rel, selectedEvent, pixelGroups])
   // Tamanho da zona dos pontos (os arcos são desenhados em pixels dela)
   const [zone, setZone] = useState<HTMLDivElement | null>(null)
@@ -418,6 +426,8 @@ export function TimelineCanvas({
               const x0 = Math.max(0, viewLeft - 32 - viewWidth), w = viewWidth * 3
               const laneH = zoneSize.h / lanes.length
               const X = (px: number) => (px / canvasWidth) * zoneSize.w - x0
+              // Muitos arcos: mais claros, para o leque não cobrir a timeline
+              const dim = arcs.length > 12 ? 0.45 : 1
               const Y = (lane: number) => (lane + 0.5) * laneH
               return (
                 <svg className="absolute top-0 pointer-events-none" style={{ left: x0 }} width={w} height={zoneSize.h} data-testid="relation-arcs">
@@ -428,9 +438,14 @@ export function TimelineCanvas({
                     return (
                       <g key={a.key} data-arc={a.dir}>
                         <path d={`M${x1},${y1} Q${(x1 + x2) / 2},${cy} ${x2},${y2}`} fill="none" stroke="rgb(var(--chronicle-dot))"
-                          strokeOpacity={a.dir === 'out' ? 0.75 : 0.55} strokeWidth={a.dir === 'out' ? 1.5 : 1.2}
+                          strokeOpacity={(a.dir === 'out' ? 0.75 : 0.55) * dim} strokeWidth={a.dir === 'out' ? 1.5 : 1.2}
                           strokeDasharray={a.dir === 'in' ? '1.5 3' : undefined} strokeLinecap="round" />
                         <circle cx={x2} cy={y2} r={8} fill="none" stroke="rgb(var(--chronicle-dot))" strokeOpacity={0.6} strokeWidth={1.2} />
+                        {/* Quantos ligados há naquele grupo: junto do destino (no topo das curvas os números se amontoavam) */}
+                        {a.count > 1 && (
+                          <text x={x2} y={y2 + (a.dir === 'out' ? -17 : 25)} textAnchor="middle" className="font-mono" fontSize={9}
+                            fill="rgb(var(--chronicle-dot))" data-arc-count={a.count}>{a.count}</text>
+                        )}
                       </g>
                     )
                   })}
