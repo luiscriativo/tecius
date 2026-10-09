@@ -57,7 +57,7 @@ export function RelationsMapButton({ filePath, slug, compact }: { filePath: stri
   const navigate = useNavigate()
   const rel = useEventRelations({ filePath, slug })
   const n = rel ? rel.cites.length + rel.citedBy.length : 0
-  if (!n || rel?.self.fio) return null
+  if (!n) return null
   const open = () => {
     const s = useTimelineStore.getState()
     s.setMapRelations({ filePath, slug })

@@ -25,7 +25,7 @@
  *   pontilhadas até ele. Substitui o tempo até sair (faixa no topo).
  */
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight, Layers, Link2, Pause, Play, Presentation, X } from 'lucide-react'
 import { PresentationPanel } from './PresentationPanel'
 import { GroupPanel } from './GroupPanel'
@@ -57,8 +57,6 @@ import type { ChroniclerEvent, TimelineData } from '@/types/chronicler'
 interface MapViewProps {
   timeline: TimelineData
   onEventClick: (event: ChroniclerEvent) => void
-  /** Faixa no topo do mapa (modo Fio); desliga as relações */
-  header?: ReactNode
 }
 
 const FOLLOW_DEBOUNCE_MS = 250
@@ -74,7 +72,7 @@ const GRAN_LABEL: Record<TimeGranularity, TranslationKey> = {
   decade: 'map_gran_decade', century: 'map_gran_century', millennium: 'map_gran_millennium',
 }
 
-export function MapView({ timeline, onEventClick, header }: MapViewProps) {
+export function MapView({ timeline, onEventClick }: MapViewProps) {
   const { t } = useI18n()
   const language = useAppStore((s) => s.language)
   const paleoEnabled = useAppStore((s) => s.paleoMaps)
@@ -84,8 +82,7 @@ export function MapView({ timeline, onEventClick, header }: MapViewProps) {
 
   const located = useMemo(() => timeline.events.filter((e) => e.location && !e.undated), [timeline.events])
   // ── Relações [[…]] ──────────────────────────────────────────────────────
-  const relTargetStore = useTimelineStore((s) => s.mapRelations)
-  const relTarget = header ? null : relTargetStore
+  const relTarget = useTimelineStore((s) => s.mapRelations)
   const setMapRelations = useTimelineStore((s) => s.setMapRelations)
   const rel = useEventRelations(relTarget)
   const relOn = relTarget !== null
@@ -338,10 +335,9 @@ export function MapView({ timeline, onEventClick, header }: MapViewProps) {
       const coords = sorted.map(posOf).filter((p): p is [number, number] => !!p)
       const distinct = coords.filter((c, i) => i === 0 || c[0] !== coords[i - 1][0] || c[1] !== coords[i - 1][1])
       const opacity = view.get(sorted[sorted.length - 1].slug)!.opacity
-      // Num fio (header) a rota é o assunto: linha cheia
-      return distinct.length >= 2 ? [{ id: file, coords: distinct, opacity, kind: header ? 'relation' as const : undefined }] : []
+      return distinct.length >= 2 ? [{ id: file, coords: distinct, opacity }] : []
     })
-  }, [visible, view, paleo, !!header]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [visible, view, paleo]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Relações: pontos de todos os ligados; rota dos citados em ordem de data;
   // linha pontilhada de cada um que cita até o evento
@@ -499,12 +495,6 @@ export function MapView({ timeline, onEventClick, header }: MapViewProps) {
           </>
         )}
 
-        {header && (
-          <div className="absolute inset-x-0 top-3 flex justify-center px-3 pointer-events-none">
-            <div className="pointer-events-auto max-w-full">{header}</div>
-          </div>
-        )}
-
         {relOn && (
           <div className="absolute inset-x-0 top-3 flex justify-center px-3 pointer-events-none">
             <div className="pointer-events-auto max-w-full flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 chr-card shadow-card" data-testid="map-relations-bar">
@@ -577,7 +567,7 @@ export function MapView({ timeline, onEventClick, header }: MapViewProps) {
                   <span className="block font-mono text-2xs text-timeline-chronicle-text">{e.date.display}</span>
                   {e.location?.name && <span className="block font-mono text-2xs text-chr-muted truncate">{e.location.name}</span>}
                 </button>
-                {!header && <RelationsButton event={e} onShow={() => setMapRelations(e)} />}
+                <RelationsButton event={e} onShow={() => setMapRelations(e)} />
               </div>
             ))}
           </div>

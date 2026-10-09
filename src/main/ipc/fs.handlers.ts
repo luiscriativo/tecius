@@ -288,18 +288,6 @@ export function registerFsHandlers(): void {
     }
   })
 
-  // ── fs:set-fio ────────────────────────────────────────────────────────────
-  // Paradas de um fio (lista no cabeçalho); null deixa de ser fio
-  ipcMain.handle('fs:set-fio', async (_event, filePath: string, list: string[] | null) => {
-    try {
-      if (list !== null && (!Array.isArray(list) || list.some((x) => typeof x !== 'string'))) throw new Error('invalid fio')
-      fileSystemService.setFio(filePath, list)
-      return { success: true }
-    } catch (e) {
-      return { success: false, error: String(e) }
-    }
-  })
-
   // ── fs:delete-event ───────────────────────────────────────────────────────
   // Move um arquivo de evento para a lixeira interna do vault
   ipcMain.handle('fs:delete-event', async (_event, eventFilePath: string) => {

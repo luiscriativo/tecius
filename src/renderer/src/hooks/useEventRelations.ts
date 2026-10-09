@@ -2,11 +2,10 @@ import { useEffect, useMemo } from 'react'
 import { ensureEventIndex, useEventIndexStore } from '@/stores/useEventIndexStore'
 import { useVaultStore } from '@/stores/useVaultStore'
 import { eventRelations, type VaultEventDoc } from '@/utils/wikiLinks'
-import { fioView } from '@/utils/fio'
 
 /**
  * Relações [[…]] de um evento (os que ele cita e os que citam ele), pelo índice
- * do vault (num fio, as paradas no lugar das ligações). `null` enquanto o índice carrega ou se o evento não está nele.
+ * do vault. `null` enquanto o índice carrega ou se o evento não está nele.
  */
 export function useEventRelations(ev: { filePath: string; slug: string } | null):
   { self: VaultEventDoc; cites: VaultEventDoc[]; citedBy: VaultEventDoc[] } | null {
@@ -17,10 +16,6 @@ export function useEventRelations(ev: { filePath: string; slug: string } | null)
   const filePath = ev?.filePath, slug = ev?.slug
   return useMemo(() => {
     const self = docs?.find((d) => d.filePath === filePath && d.slug === slug)
-    if (!self || !docs) return null
-    const rel = eventRelations(self, docs)
-    // Num fio, "cita" são as paradas (as menções ficam de fora)
-    const fio = fioView(self, docs)
-    return fio ? { self, cites: fio.stops.flatMap((s) => (s.doc ? [s.doc] : [])), citedBy: rel.citedBy } : { self, ...rel }
+    return self && docs ? { self, ...eventRelations(self, docs) } : null
   }, [docs, filePath, slug])
 }

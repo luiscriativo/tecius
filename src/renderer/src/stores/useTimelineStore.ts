@@ -42,8 +42,6 @@ interface TimelineState {
   timelineFocus: TimelineFocus | null
   /** Evento cujas relações [[…]] o mapa está mostrando (em vez do tempo) */
   mapRelations: { filePath: string; slug: string } | null
-  /** Fio aberto no mapa (as paradas no tempo, com a rota) */
-  mapFio: { filePath: string; slug: string } | null
 
   setCurrentTimeline: (t: TimelineData | null) => void
   setSelectedEvent: (e: ChroniclerEvent | null) => void
@@ -56,7 +54,6 @@ interface TimelineState {
   setMapView: (dirPath: string, view: MapGeoView) => void
   setTimelineFocus: (f: TimelineFocus | null) => void
   setMapRelations: (ev: { filePath: string; slug: string } | null) => void
-  setMapFio: (ev: { filePath: string; slug: string } | null) => void
   cacheTimeline: (path: string, data: TimelineData) => void
   getCached: (path: string) => TimelineData | undefined
   deleteCached: (path: string) => void
@@ -77,7 +74,6 @@ export const useTimelineStore = create<TimelineState>()((set, get) => ({
   mapViews: readPref('map.views', {}, isMapViews),
   timelineFocus: null,
   mapRelations: null,
-  mapFio: null,
 
   setCurrentTimeline: (t) => set({ currentTimeline: t }),
   setSelectedEvent: (e) => set({ selectedEvent: e }),
@@ -97,9 +93,7 @@ export const useTimelineStore = create<TimelineState>()((set, get) => ({
     mapViewsSaveTimer = setTimeout(() => writePref('map.views', get().mapViews), 400)
   },
   setTimelineFocus: (f) => set({ timelineFocus: f }),
-  // Relações e fio são modos alternativos do mapa: abrir um fecha o outro
-  setMapRelations: (ev) => set(ev ? { mapRelations: { filePath: ev.filePath, slug: ev.slug }, mapFio: null } : { mapRelations: null }),
-  setMapFio: (ev) => set(ev ? { mapFio: { filePath: ev.filePath, slug: ev.slug }, mapRelations: null } : { mapFio: null }),
+  setMapRelations: (ev) => set({ mapRelations: ev ? { filePath: ev.filePath, slug: ev.slug } : null }),
   cacheTimeline: (path, data) => {
     const cache = new Map(get().cache)
     if (cache.size > 30) {

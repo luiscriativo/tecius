@@ -213,22 +213,6 @@ Dias opened the route later used by [[Vasco da Gama reaches Calicut|Vasco da Gam
 - **Relations on the timeline:** with an event selected, arcs join it to the events it cites (above the line) and to those that cite it (below, dotted), when they are in the same view.
 - In PDF and HTML exports, links become plain text.
 
-### Threads (Fio) — a story told by stops
-
-A **thread** is an ordinary event that tells a story through other events of the vault: a person's life, a voyage, the chain of a discovery. At the end of an event, **Turn into a thread**: the events it links with `[[ ]]` become its **stops**.
-
-- **Stops vs mentions.** Every link written in a thread becomes a stop automatically (when you finish editing). Links that are only context can be turned into a **mention** in the thread panel (*just a mention*); the text doesn't change. A mention can be put back with *add to thread*.
-- **Order by date**, always: write the text in any order. Stops can come from any timeline, and **add stop** adds an event without citing it in the text. The panel warns about stops with no place (they don't appear on the map), no date, not cited in the text, or not found.
-- **See on map:** the time ruler has only the dates of the stops, and the route is drawn up to the moment of the cursor — press Play to follow the story stop by stop, with the trail of the previous ones. **Leave thread** returns to the normal map.
-- **In threads:** every event shows the threads it is part of. A fact exists once and many stories can go through it.
-- In the file, the stops are a list in the header (renaming an event updates it too):
-
-```yaml
-fio:
-  - "Belmonte"
-  - "Cabral chega ao Brasil"
-```
-
 ### Internal links (header)
 
 ```yaml

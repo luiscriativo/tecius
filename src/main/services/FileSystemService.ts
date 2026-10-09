@@ -9,7 +9,6 @@ import path from 'path'
 import { tm } from '../i18n'
 import fs from 'fs'
 import matter from 'gray-matter'
-import { renameInFio, setFioInRaw } from './fioFrontmatter'
 
 // Tipos compartilhados com o renderer via IPC
 export interface RawEvent {
@@ -44,8 +43,6 @@ export interface SearchDoc {
   place: string
   /** Local como está no cabeçalho (o renderer valida): para as relações no mapa */
   location?: unknown
-  /** Fio: paradas (alvos [[…]]); presente só em eventos que são um fio */
-  fio?: string[]
   /** Trecho de chronicle: âncora e título do chronicle */
   anchor?: string
   chronicleTitle?: string
@@ -331,7 +328,6 @@ export class FileSystemService {
           timelineTitle,
           place: fm.location && typeof fm.location === 'object' && 'name' in fm.location ? String((fm.location as { name?: unknown }).name ?? '') : '',
           location: fm.location && typeof fm.location === 'object' ? fm.location : undefined,
-          fio: !ev.chronicle && 'fio' in fm ? (Array.isArray(fm.fio) ? fm.fio.map(String) : []) : undefined,
           anchor: ev.chronicle?.anchor,
           chronicleTitle: ev.chronicle?.title,
         })
@@ -933,8 +929,7 @@ export class FileSystemService {
   }
 
   /**
-   * Renomeia as ligações [[…]] para um evento (no texto e nas paradas de um fio;
-   * o resto do cabeçalho não muda):
+   * Renomeia as ligações [[…]] para um evento (no texto, nunca no cabeçalho):
    * `[[Antigo]]`, `[[Timeline/Antigo]]` e `[[Antigo|texto]]` (o texto mostrado é mantido).
    * `oldTargets` são as formas que apontavam para o evento; a comparação ignora
    * maiúsculas e acentos. Devolve quantas ligações mudaram.
@@ -954,20 +949,9 @@ export class FileSystemService {
         changed++
         return `[[${newText}${alias ?? ''}]]`
       })
-      // Paradas de um fio, no cabeçalho
-      const fio = renameInFio(head, olds, newText)
-      changed += fio.changed
-      if (body !== raw.slice(cut) || fio.changed) fs.writeFileSync(filePath, fio.raw + body, 'utf-8')
+      if (body !== raw.slice(cut)) fs.writeFileSync(filePath, head + body, 'utf-8')
     }
     return changed
-  }
-
-  /** Grava as paradas de um fio no cabeçalho do evento (`null` deixa de ser fio) */
-  setFio(filePath: string, list: string[] | null): void {
-    this.assertWithinVault(filePath)
-    const raw = fs.readFileSync(filePath, 'utf-8')
-    const next = setFioInRaw(raw, list)
-    if (next !== raw) fs.writeFileSync(filePath, next, 'utf-8')
   }
 
   moveEventToVaultTrash(eventFilePath: string): void {

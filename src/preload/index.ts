@@ -49,7 +49,6 @@ const INVOKE_CHANNELS = [
   'fs:create-event',
   'fs:delete-event',
   'fs:rename-wiki-links',
-  'fs:set-fio',
   'fs:rename-event-file',
   'fs:rename-vault',
   'update:check',
