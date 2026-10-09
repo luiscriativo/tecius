@@ -11,6 +11,7 @@ import { DateInput } from '../components/DateInput'
 import type { ChroniclerEvent } from '../types/chronicler'
 import { isMultiPart } from '../utils/events'
 import { MapView } from '../components/map/MapView'
+import { FioMapView } from '../components/map/FioMapView'
 import { useTimelineStore } from '../stores/useTimelineStore'
 import { useVaultStore } from '../stores/useVaultStore'
 import { toTimelineData } from '../hooks/useTimeline'
@@ -401,6 +402,7 @@ interface TimelineViewProps {
 export default function TimelineView({ initialPath, initialTitle }: TimelineViewProps) {
   const navigate = useNavigate()
   const { reloadVault } = useVault()
+  const mapFio = useTimelineStore((s) => s.mapFio)
   const {
     currentTimeline,
     selectedEvent,
@@ -761,7 +763,8 @@ export default function TimelineView({ initialPath, initialTitle }: TimelineView
           )}
 
           {viewMode === 'map' && (
-            <MapView timeline={currentTimeline} onEventClick={handleEventClick} />
+            mapFio ? <FioMapView target={mapFio} />
+              : <MapView timeline={currentTimeline} onEventClick={handleEventClick} />
           )}
 
           {/* Painel lateral direito — abre ao clicar em cluster */}

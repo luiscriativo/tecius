@@ -8,6 +8,7 @@ import { stripAnchors } from '../../utils/anchors'
 import { remarkWikiLinks } from '../../utils/wikiLinks'
 import { wikiAnchor } from '../WikiLink'
 import { Backlinks, RelationsMapButton } from '../Backlinks'
+import { FioPanel } from '../FioPanel'
 import { usePref } from '../../hooks/usePref'
 
 
@@ -146,6 +147,7 @@ export function EventPanel({ event, body, isLoading, onClose, onOpenInEditor, on
             <div className="markdown-content selectable">
               <ReactMarkdown remarkPlugins={[remarkGfm, remarkWikiLinks]} components={{ a: wikiAnchor(event.filePath) }}>{displayBody}</ReactMarkdown>
             </div>
+            <FioPanel filePath={event.filePath} slug={event.slug} compact />
             <Backlinks filePath={event.filePath} slug={event.slug} compact />
             <RelationsMapButton filePath={event.filePath} slug={event.slug} compact />
           </>

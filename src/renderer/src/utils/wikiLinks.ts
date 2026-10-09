@@ -19,6 +19,8 @@ export interface VaultEventDoc {
   place?: string
   /** Local como está no cabeçalho (validar com parseLocation) */
   location?: unknown
+  /** Fio: paradas (alvos [[…]]); presente só em eventos que são um fio */
+  fio?: string[]
   /** Trecho de chronicle: âncora e título do chronicle */
   anchor?: string
   chronicleTitle?: string
@@ -215,5 +217,7 @@ export function linksToOldTitle(oldTitle: string, timelineTitle: string, docs: V
       if (accepts(parseWikiLink(m[1]).target)) { files.add(doc.filePath); count++ }
     }
   }
+  // Paradas de fios (no cabeçalho), quando não citadas no texto
+  for (const d of docs) for (const t of d.fio ?? []) if (accepts(t)) { files.add(d.filePath); count++ }
   return { files: [...files], count, targets: stillUsed ? [`${timelineTitle}/${oldTitle}`] : [oldTitle, `${timelineTitle}/${oldTitle}`] }
 }

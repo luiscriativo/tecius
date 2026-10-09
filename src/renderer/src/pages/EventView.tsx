@@ -37,7 +37,10 @@ import { remarkWikiLinks } from '@/utils/wikiLinks'
 import { StaticWikiAnchor, wikiAnchor } from '@/components/WikiLink'
 import { WikiSuggest } from '@/components/WikiSuggest'
 import { Backlinks, RelationsMapButton } from '@/components/Backlinks'
+import { FioPanel } from '@/components/FioPanel'
+import { autoAddStops } from '@/utils/fio'
 import { useEventIndexStore } from '@/stores/useEventIndexStore'
+import { useTimelineStore } from '@/stores/useTimelineStore'
 import { useVaultStore } from '@/stores/useVaultStore'
 import { useNotifications } from '@/hooks/useNotifications'
 import { linksToOldTitle, wikiTextFor } from '@/utils/wikiLinks'
@@ -1519,6 +1522,8 @@ export default function EventView(): React.ReactElement {
     setEditSectionBodies(st.sectionBodies)
   }, [])
 
+  // Texto no início da edição: num fio, as ligações novas entram como paradas
+  const bodyAtStartRef = useRef<string | null>(null)
   // Títulos no início da edição (para perceber renomeações ao sair)
   const titlesAtStartRef = useRef<{ title: string; entries: Map<string, string> } | null>(null)
 
@@ -1531,6 +1536,7 @@ export default function EventView(): React.ReactElement {
     const st = editStateFromRaw(selectedEventRaw ?? '', isChronicleRaw(selectedEventRaw ?? ''))
     applyEditState(st)
     titlesAtStartRef.current = { title: st.fm.title, entries: new Map(st.entries.map((e) => [e.id, e.title])) }
+    bodyAtStartRef.current = st.entries.length === 0 ? st.body : null
     preEditRawRef.current = selectedEventRaw ?? null
     editInitializedRef.current = true
     setIsEditing(true)
@@ -1571,6 +1577,10 @@ export default function EventView(): React.ReactElement {
             })
         if (pairs.length) setPendingRename(pairs)
         titlesAtStartRef.current = { title: editFm.title, entries: new Map(editEntries.map((e) => [e.id, e.title])) }
+        if (bodyAtStartRef.current !== null && editEntries.length === 0 && bodyAtStartRef.current !== editBody) {
+          setPendingFio({ before: bodyAtStartRef.current, after: editBody })
+          bodyAtStartRef.current = editBody
+        }
       }
       // If nothing was changed, clear draft state so view shows saved data.
       // This prevents isDraftActive from incorrectly overriding section-level
@@ -1579,7 +1589,7 @@ export default function EventView(): React.ReactElement {
         editInitializedRef.current = false
       }
     }
-  }, [isEditing, isDirty, handleStartEdit, editIsRaw, editEntries, editFm])
+  }, [isEditing, isDirty, handleStartEdit, editIsRaw, editEntries, editFm, editBody])
 
   // ── Renomear: ligações [[…]] que ainda usam o título antigo ────────────────
   const { notify } = useNotifications()
@@ -1606,6 +1616,40 @@ export default function EventView(): React.ReactElement {
     })()
   }, [pendingRename, isDirty, saveStatus, vaultPath, selectedEvent])
   useEffect(() => { setRenamePrompt([]) }, [selectedEvent?.filePath])
+
+  // ── Fio: relê o arquivo depois de gravar as paradas (o próximo editar parte dele) ──
+  const rereadEvent = useCallback(async () => {
+    const ev = useTimelineStore.getState().selectedEvent
+    if (!ev) return
+    editInitializedRef.current = false
+    const r = await window.electronAPI.invoke<{ success: boolean; data?: { body: string; raw: string } }>('fs:read-event', ev.filePath)
+    if (r.success && r.data && useTimelineStore.getState().selectedEvent?.filePath === ev.filePath) {
+      useTimelineStore.getState().setSelectedEventRaw(r.data.raw)
+      useTimelineStore.getState().setSelectedEventBody(r.data.body)
+    }
+  }, [])
+  // Entrada automática: depois de salvar e sair da edição, ligações novas viram paradas
+  const [pendingFio, setPendingFio] = useState<{ before: string; after: string } | null>(null)
+  useEffect(() => {
+    if (!pendingFio || isEditing || isDirty || saveStatus === 'saving' || !vaultPath || !selectedEvent) return
+    const { before, after } = pendingFio
+    const filePath = selectedEvent.filePath, slug = selectedEvent.slug
+    setPendingFio(null)
+    void (async () => {
+      await useEventIndexStore.getState().refresh(vaultPath)
+      const docs = useEventIndexStore.getState().docs ?? []
+      const self = docs.find((d) => d.filePath === filePath && d.slug === slug)
+      const next = self?.fio ? autoAddStops(self.fio, before, after, docs, self) : null
+      if (!next) return
+      const r = await window.electronAPI.invoke<{ success: boolean }>('fs:set-fio', filePath, next)
+      if (!r.success) return
+      await useEventIndexStore.getState().refresh(vaultPath)
+      await rereadEvent()
+      const n = next.length - self!.fio!.length
+      notify.success(n === 1 ? t('fio_auto_added_one') : t('fio_auto_added', { count: n }), next.slice(-n).join(' · '))
+    })()
+  }, [pendingFio, isEditing, isDirty, saveStatus, vaultPath, selectedEvent, rereadEvent, notify, t])
+  useEffect(() => { setPendingFio(null) }, [selectedEvent?.filePath])
   const applyRename = useCallback(async () => {
     if (!vaultPath) return
     setIsRenamingLinks(true)
@@ -2524,6 +2568,8 @@ export default function EventView(): React.ReactElement {
 
             {/* Eventos que citam este com [[…]] */}
             <div className="print:hidden">
+              <FioPanel filePath={selectedEvent.filePath} slug={selectedEvent.slug}
+                editable={!isEditing && !selectedEvent.chronicle} onChanged={rereadEvent} />
               <Backlinks filePath={selectedEvent.filePath} slug={selectedEvent.slug} />
               <RelationsMapButton filePath={selectedEvent.filePath} slug={selectedEvent.slug} />
             </div>
