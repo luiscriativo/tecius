@@ -19,6 +19,8 @@ export interface VaultEventDoc {
   place?: string
   /** Local como está no cabeçalho (validar com parseLocation) */
   location?: unknown
+  /** Trecho vinculado a outro evento (alvo [[…]]): um espelho, não é alvo de ligações */
+  ref?: string
   /** Trecho de chronicle: âncora e título do chronicle */
   anchor?: string
   chronicleTitle?: string
@@ -42,7 +44,8 @@ export function parseWikiLink(inner: string): { target: string; label: string } 
  * Encontra o evento de um alvo. Com títulos repetidos, `Timeline/Título` escolhe a
  * timeline; sem isso, vale o da timeline atual (`contextDir`) e depois o primeiro.
  */
-export function resolveWikiLink(target: string, docs: VaultEventDoc[], contextDir?: string): VaultEventDoc | null {
+export function resolveWikiLink(target: string, allDocs: VaultEventDoc[], contextDir?: string): VaultEventDoc | null {
+  const docs = allDocs.filter((d) => !d.ref)
   const pick = (list: VaultEventDoc[]) => list.find((d) => d.timelineDir === contextDir) ?? list[0] ?? null
   const t = normTitle(target)
   const exact = docs.filter((d) => normTitle(d.title) === t)
@@ -59,7 +62,7 @@ export function resolveWikiLink(target: string, docs: VaultEventDoc[], contextDi
 /** Texto a escrever entre `[[ ]]` para um evento: o título, ou `Timeline/Título` se o título se repete */
 export function wikiTextFor(doc: VaultEventDoc, docs: VaultEventDoc[]): string {
   const t = normTitle(doc.title)
-  const repeated = docs.some((d) => d !== doc && d.filePath + d.slug !== doc.filePath + doc.slug && normTitle(d.title) === t)
+  const repeated = docs.some((d) => !d.ref && d !== doc && d.filePath + d.slug !== doc.filePath + doc.slug && normTitle(d.title) === t)
   return repeated ? `${doc.timelineTitle}/${doc.title}` : doc.title
 }
 
@@ -72,6 +75,7 @@ export function suggestWikiTargets(query: string, docs: VaultEventDoc[], context
     return (q && t.startsWith(q) ? 2 : 0) + (d.timelineDir === contextDir ? 1 : 0)
   }
   return docs
+    .filter((d) => !d.ref)
     .map((d) => ({ d, s: score(d) }))
     .filter((x) => x.s >= 0)
     .sort((a, b) => b.s - a.s || a.d.title.localeCompare(b.d.title))
@@ -169,11 +173,19 @@ export function snippetAround(text: string, at: number, width = 140): string {
     .trim()
 }
 
-/** Eventos que citam `target` com [[…]] (um por evento, com o trecho em volta da menção) */
-export function findBacklinks(target: VaultEventDoc, docs: VaultEventDoc[]): Array<{ doc: VaultEventDoc; snippet: string }> {
-  const out: Array<{ doc: VaultEventDoc; snippet: string }> = []
+/**
+ * Eventos que citam `target` com [[…]] (um por evento, com o trecho em volta da
+ * menção) e trechos vinculados a ele (`linked`, com o começo do texto do trecho)
+ */
+export function findBacklinks(target: VaultEventDoc, docs: VaultEventDoc[]): Array<{ doc: VaultEventDoc; snippet: string; linked?: boolean }> {
+  const out: Array<{ doc: VaultEventDoc; snippet: string; linked?: boolean }> = []
   for (const { doc, text } of eventTexts(docs)) {
-    if (sameDoc(doc, target) || !text.includes('[[')) continue
+    if (sameDoc(doc, target)) continue
+    if (doc.ref) {
+      const hit = resolveWikiLink(doc.ref, docs, doc.timelineDir)
+      if (hit && sameDoc(hit, target)) { out.push({ doc, snippet: snippetAround(text, 0), linked: true }); continue }
+    }
+    if (!text.includes('[[')) continue
     for (const m of text.matchAll(WIKI_LINK_RE)) {
       const hit = resolveWikiLink(parseWikiLink(m[1]).target, docs, doc.timelineDir)
       if (hit && sameDoc(hit, target)) { out.push({ doc, snippet: snippetAround(text, m.index!) }); break }

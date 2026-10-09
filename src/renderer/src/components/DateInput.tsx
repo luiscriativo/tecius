@@ -282,3 +282,9 @@ export function DateInput({ value, onChange, placeholder, className, onFocus, on
     </span>
   )
 }
+
+/** A data no mesmo formato do campo, só para leitura (ex.: seção vinculada) */
+export function DateText({ value, className }: { value: string; className?: string }) {
+  const language = useAppStore((s) => s.language)
+  return <span className={className}>{isoToDisplay(value, getFormat(language))}</span>
+}

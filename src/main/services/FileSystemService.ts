@@ -8,6 +8,7 @@
 import path from 'path'
 import { tm } from '../i18n'
 import fs from 'fs'
+import { createHash } from 'crypto'
 import matter from 'gray-matter'
 
 // Tipos compartilhados com o renderer via IPC
@@ -43,6 +44,8 @@ export interface SearchDoc {
   place: string
   /** Local como está no cabeçalho (o renderer valida): para as relações no mapa */
   location?: unknown
+  /** Trecho vinculado a outro evento (alvo [[…]]): é um espelho dele */
+  ref?: string
   /** Trecho de chronicle: âncora e título do chronicle */
   anchor?: string
   chronicleTitle?: string
@@ -304,7 +307,7 @@ export class FileSystemService {
     const docs: SearchDoc[] = []
     const visit = (dir: string, depth: number): void => {
       if (depth > 12) return
-      const tl = this.readTimeline(dir)
+      const tl = this.readTimeline(dir, false)
       const timelineTitle = tl.meta.title ? String(tl.meta.title) : path.basename(dir)
       const bodies = new Map<string, string>()
       for (const ev of tl.events) {
@@ -328,6 +331,7 @@ export class FileSystemService {
           timelineTitle,
           place: fm.location && typeof fm.location === 'object' && 'name' in fm.location ? String((fm.location as { name?: unknown }).name ?? '') : '',
           location: fm.location && typeof fm.location === 'object' ? fm.location : undefined,
+          ref: fm.ref ? String(fm.ref) : undefined,
           anchor: ev.chronicle?.anchor,
           chronicleTitle: ev.chronicle?.title,
         })
@@ -338,10 +342,52 @@ export class FileSystemService {
     return docs
   }
 
+  // ── Trechos vinculados: o evento original pelo título ─────────────────────
+  private refIndex: { sig: string; docs: SearchDoc[] } | null = null
+
+  /** Assinatura do vault (caminho + data de alteração de cada .md): o índice só é refeito se mudar */
+  private vaultSignature(): string {
+    const hash = createHash('md5')
+    const walk = (dir: string, depth: number): void => {
+      if (depth > 14) return
+      let list: fs.Dirent[]
+      try { list = fs.readdirSync(dir, { withFileTypes: true }) } catch { return }
+      for (const e of list) {
+        if (e.name.startsWith('.')) continue
+        const p = path.join(dir, e.name)
+        if (e.isDirectory()) walk(p, depth + 1)
+        else if (e.name.endsWith('.md')) { try { hash.update(`${p}:${fs.statSync(p).mtimeMs}\n`) } catch { /* sumiu */ } }
+      }
+    }
+    if (this.vaultPath) walk(this.vaultPath, 0)
+    return hash.digest('hex')
+  }
+
+  /**
+   * Evento de um alvo `[[…]]` (título, ou Timeline/Título), sem diferenciar
+   * maiúsculas e acentos; prefere a timeline do trecho. Ignora outros espelhos
+   * e o próprio arquivo.
+   */
+  private resolveRef(target: string, contextDir: string, selfFile: string): SearchDoc | null {
+    const sig = this.vaultSignature()
+    if (this.refIndex?.sig !== sig) this.refIndex = { sig, docs: this.buildSearchIndex() }
+    const docs = this.refIndex.docs.filter((d) => !d.ref && d.filePath !== selfFile)
+    const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()
+    const t = norm(target)
+    const exact = docs.filter((d) => norm(d.title) === t)
+    if (exact.length) return exact.find((d) => d.timelineDir === contextDir) ?? exact[0]
+    for (let i = target.indexOf('/'); i > 0; i = target.indexOf('/', i + 1)) {
+      const tl = norm(target.slice(0, i)), title = norm(target.slice(i + 1))
+      const hit = docs.find((d) => norm(d.title) === title && norm(d.timelineTitle) === tl)
+      if (hit) return hit
+    }
+    return null
+  }
+
   /**
    * Le uma timeline: parseia todos os .md de uma pasta, retorna eventos ordenados.
    */
-  readTimeline(timelinePath: string): RawTimeline {
+  readTimeline(timelinePath: string, resolveRefs = true): RawTimeline {
     if (!this.vaultPath) throw new Error(tm('err_no_vault'))
     const vaultPath = this.vaultPath
 
@@ -381,16 +427,22 @@ export class FileSystemService {
           rawEntries.forEach((raw, i) => {
             if (!raw || typeof raw !== 'object') return
             const entry = raw as Record<string, unknown>
-            if (!entry.date) return
 
             // Converte Date do yaml para string (sanitizeFrontmatter não desce em arrays)
-            let dateStr: string
+            let dateStr = ''
             if (entry.date instanceof Date) {
               const d = entry.date as Date
               dateStr = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
-            } else {
+            } else if (entry.date) {
               dateStr = String(entry.date)
             }
+
+            // Trecho vinculado: título, data e local vêm do evento original (o
+            // arquivo guarda uma cópia, usada se o original não for encontrado)
+            const ref = entry.ref ? String(entry.ref) : ''
+            const orig = ref && resolveRefs ? this.resolveRef(ref, timelinePath, filePath) : null
+            if (orig) dateStr = orig.date || dateStr
+            if (!dateStr) return
 
             events.push({
               filePath,
@@ -398,7 +450,7 @@ export class FileSystemService {
               slug: `${slug}__chr${i}`,
               frontmatter: {
                 type: 'event',
-                title: String(entry.title ?? entry.label ?? tm('default_entry_title', { n: i + 1 })),
+                title: orig ? orig.title : String(entry.title ?? entry.label ?? tm('default_entry_title', { n: i + 1 })),
                 date: dateStr,
                 category: entry.category ?? sanitized.category,
                 importance: entry.importance ?? sanitized.importance ?? 3,
@@ -406,7 +458,12 @@ export class FileSystemService {
                   : Array.isArray(sanitized.tags) ? sanitized.tags
                   : undefined,
                 // Local do trecho; sem local próprio, herda o do evento
-                location: entry.location ?? sanitized.location,
+                location: orig ? (orig.location ?? undefined) : entry.location ?? sanitized.location,
+                ...(ref ? {
+                  ref,
+                  ...(orig ? { refFilePath: orig.filePath, refSlug: orig.slug, refTimelineDir: orig.timelineDir, refTimelineTitle: orig.timelineTitle }
+                    : resolveRefs ? { refMissing: true } : {}),
+                } : {}),
               },
               hasSubtimeline: false,
               subtimelinePath: undefined,

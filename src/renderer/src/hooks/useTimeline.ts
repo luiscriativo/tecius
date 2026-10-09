@@ -120,6 +120,16 @@ export function useTimeline() {
         setCurrentTimeline(cached)
         clearSelection()
         if (pushNav) push({ title, dirPath })
+        // Seções vinculadas mostram dados de outros eventos, que podem ter mudado:
+        // relê em segundo plano e troca se ainda for a timeline aberta
+        if (cached.events.some((e) => (e.frontmatter as unknown as Record<string, unknown>).ref)) {
+          void window.electronAPI.invoke<{ success: boolean; data?: RawTimeline }>('fs:read-timeline', dirPath).then((r) => {
+            if (!r.success || !r.data) return
+            const data = toTimelineData(r.data)
+            cacheTimeline(dirPath, data)
+            if (useTimelineStore.getState().currentTimeline?.dirPath === dirPath) setCurrentTimeline(data)
+          }).catch(() => {})
+        }
         return
       }
 

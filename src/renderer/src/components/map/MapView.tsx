@@ -20,9 +20,9 @@
  *   (GroupPanel), como o cluster da timeline — vale até para milhares "no Brasil"
  * - Tempo profundo: aviso de que as posições são atuais e, se ativado em
  *   Configurações, mapa paleogeográfico da época (GPlates, com cache local)
- * - Relações: um evento e os ligados a ele por [[…]], de qualquer data e timeline.
- *   Os que ele cita formam uma rota em ordem de data; os que citam ele, linhas
- *   pontilhadas até ele. Substitui o tempo até sair (faixa no topo).
+ * - Relações: um evento e os ligados a ele por [[…]], de qualquer data e timeline,
+ *   cada um com uma linha até ele (cheia: ele cita; pontilhada: cita ele). Ligação
+ *   não é rota — rota só entre os trechos de um evento. Substitui o tempo até sair.
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -339,8 +339,8 @@ export function MapView({ timeline, onEventClick }: MapViewProps) {
     })
   }, [visible, view, paleo]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Relações: pontos de todos os ligados; rota dos citados em ordem de data;
-  // linha pontilhada de cada um que cita até o evento
+  // Relações: pontos de todos os ligados, cada um com uma linha até o evento
+  // (cheia: ele cita; pontilhada: cita ele). Sem rota entre eles
   const relLayers = useMemo(() => {
     const withLoc = relItems.filter((r): r is typeof r & { loc: EventLocation } => r.loc !== null)
     const markers: MapMarker[] = withLoc.map((r) => ({
@@ -351,16 +351,12 @@ export function MapView({ timeline, onEventClick }: MapViewProps) {
     const areas: MapArea[] = withLoc.filter((r) => r.loc.precision !== 'point').map((r) => ({
       id: docKey(r.doc), lng: r.loc.lng, lat: r.loc.lat, areaCode: r.loc.area, radiusKm: effectiveRadiusKm(r.loc),
     }))
-    const route = withLoc.filter((r) => r.role === 'cites' && r.doc.date)
-      .map((r) => ({ p: [r.loc.lng, r.loc.lat] as [number, number], k: parseChroniclerDate(r.doc.date).sortKey }))
-      .sort((a, b) => a.k - b.k).map((x) => x.p)
-      .filter((c, i, all) => i === 0 || c[0] !== all[i - 1][0] || c[1] !== all[i - 1][1])
     const self = withLoc.find((r) => r.role === 'self')
-    const lines: MapLine[] = route.length >= 2 ? [{ id: 'rel-route', coords: route, kind: 'relation' }] : []
+    const lines: MapLine[] = []
     if (self) {
       for (const r of withLoc) {
-        if (r.role !== 'citedBy' || (r.loc.lng === self.loc.lng && r.loc.lat === self.loc.lat)) continue
-        lines.push({ id: `rel-in-${docKey(r.doc)}`, coords: [[r.loc.lng, r.loc.lat], [self.loc.lng, self.loc.lat]], kind: 'backlink' })
+        if (r.role === 'self' || (r.loc.lng === self.loc.lng && r.loc.lat === self.loc.lat)) continue
+        lines.push({ id: `rel-${docKey(r.doc)}`, coords: [[self.loc.lng, self.loc.lat], [r.loc.lng, r.loc.lat]], kind: r.role === 'cites' ? 'link' : 'backlink' })
       }
     }
     return { markers, areas, lines, missing: relItems.length - withLoc.length }
@@ -509,7 +505,7 @@ export function MapView({ timeline, onEventClick }: MapViewProps) {
                 </span>
               )}
               <span className="hidden md:flex items-center gap-3 font-mono text-2xs text-chr-muted">
-                <span className="flex items-center gap-1"><svg width="18" height="4"><line x1="0" y1="2" x2="18" y2="2" stroke="rgb(var(--chronicle-dot))" strokeWidth="1.8" /></svg>{t('map_rel_route')}</span>
+                <span className="flex items-center gap-1"><svg width="18" height="4"><line x1="0" y1="2" x2="18" y2="2" stroke="rgb(var(--chronicle-dot))" strokeWidth="1.2" /></svg>{t('map_rel_route')}</span>
                 <span className="flex items-center gap-1"><svg width="18" height="4"><line x1="1" y1="2" x2="17" y2="2" stroke="rgb(var(--chronicle-dot))" strokeWidth="1.2" strokeDasharray="1.5 3" strokeLinecap="round" /></svg>{t('map_rel_backlinks')}</span>
               </span>
               <button type="button" onClick={() => setMapRelations(null)} data-testid="map-relations-exit"

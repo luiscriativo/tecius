@@ -57,8 +57,8 @@ export interface MapLine {
   id: string
   coords: Array<[number, number]>
   opacity?: number
-  /** route: rota de chronicle (tracejada); relation: rota das relações [[…]] (cheia); backlink: quem cita (pontilhada) */
-  kind?: 'route' | 'relation' | 'backlink'
+  /** route: rota entre trechos (tracejada); link: ligação [[…]] do evento (cheia); backlink: quem cita (pontilhada) */
+  kind?: 'route' | 'link' | 'backlink'
 }
 
 interface WorldMapProps {
@@ -539,7 +539,7 @@ export function WorldMap({
             {linesD.map((l) => (
               // Rotas discretas: com muitas, não cobrem os pontos e os países
               <path key={l.id} d={l.d} fill="none" stroke={css.accent} vectorEffect="non-scaling-stroke" data-line-kind={l.kind}
-                {...(l.kind === 'relation' ? { strokeOpacity: 0.85 * l.opacity, strokeWidth: 1.8 }
+                {...(l.kind === 'link' ? { strokeOpacity: 0.7 * l.opacity, strokeWidth: 1.2 }
                   : l.kind === 'backlink' ? { strokeOpacity: 0.6 * l.opacity, strokeWidth: 1.2, strokeDasharray: '1.5 3', strokeLinecap: 'round' as const }
                   : { strokeOpacity: 0.55 * l.opacity, strokeWidth: 1.2, strokeDasharray: '4 3' })} />
             ))}

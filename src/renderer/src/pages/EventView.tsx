@@ -17,6 +17,7 @@ import {
   Code, Quote, List, ListOrdered, CheckSquare, Table, Link,
   FileCode, Download, Tag, Maximize2, Minimize2, Trash2,
   Search, ChevronUp, ChevronDown, MapPin,
+  Link2,
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -27,9 +28,9 @@ import { useNavigationStore } from '@/stores/useNavigationStore'
 import { useI18n } from '@/hooks/useI18n'
 import { getDateLanguage } from '@/utils/chroniclerDate'
 import { cn } from '@/utils/cn'
-import { DateInput } from '@/components/DateInput'
+import { DateInput, DateText } from '@/components/DateInput'
 import { isMultiPart } from '@/utils/events'
-import { parseLocationRaw, locationToRaw } from '@/utils/location'
+import { parseLocation, parseLocationRaw, locationToRaw } from '@/utils/location'
 import { LocationPicker } from '@/components/map/LocationPicker'
 import { stripAnchors } from '@/utils/anchors'
 import { imageMarkdown } from '@/utils/markdown'
@@ -40,7 +41,9 @@ import { Backlinks, RelationsMapButton } from '@/components/Backlinks'
 import { useEventIndexStore } from '@/stores/useEventIndexStore'
 import { useVaultStore } from '@/stores/useVaultStore'
 import { useNotifications } from '@/hooks/useNotifications'
-import { linksToOldTitle, wikiTextFor } from '@/utils/wikiLinks'
+import { linksToOldTitle, resolveWikiLink, wikiTextFor, type VaultEventDoc } from '@/utils/wikiLinks'
+import { LinkEventPicker } from '@/components/LinkEventPicker'
+import { useOpenEvent } from '@/hooks/useOpenEvent'
 import { applyTextEdit } from '@/utils/textareaEdit'
 import { continueList, formatStateAt, indentLines, insertBlock, insertLink, linkFromPaste, outdentLines, selectionTouchesList, toggleBlock, toggleHeading, toggleInline, type FormatState, type TextEdit } from '@/utils/markdownEdit'
 import { usePref } from '@/hooks/usePref'
@@ -327,6 +330,32 @@ function defaultChronicleEdit(): ChronicleEdit {
 
 function defaultEntry(): EntryEdit {
   return { id: crypto.randomUUID(), title: '', date: '', anchor: '', location: null, extra: {} }
+}
+
+// ── Trechos vinculados: título, data e local vêm de outro evento (`ref`) ──────
+/** Alvo [[…]] do evento original de um trecho vinculado (ou null) */
+function entryRef(e: EntryEdit): string | null {
+  return e.extra['ref'] !== undefined ? unquoteYaml(e.extra['ref']) : null
+}
+/** Copia título, data e local do original (o arquivo guarda a cópia) */
+function refreshLinked(e: EntryEdit, d: VaultEventDoc): EntryEdit {
+  return { ...e, title: d.title, date: d.date, location: parseLocation(d.location) ?? e.location }
+}
+function linkedEntry(d: VaultEventDoc, docs: VaultEventDoc[], usedAnchors: string[]): EntryEdit {
+  const base = slugify(d.title) || 'trecho'
+  let anchor = base
+  for (let i = 2; usedAnchors.includes(anchor); i++) anchor = `${base}-${i}`
+  return refreshLinked({ ...defaultEntry(), anchor, extra: { ref: yamlStr(wikiTextFor(d, docs)) } }, d)
+}
+/** Trechos vinculados com os valores atuais dos originais (ao começar a editar) */
+function refreshLinkedEntries(entries: EntryEdit[], contextDir: string): EntryEdit[] {
+  const docs = useEventIndexStore.getState().docs
+  if (!docs || !entries.some((e) => entryRef(e))) return entries
+  return entries.map((e) => {
+    const ref = entryRef(e)
+    const d = ref ? resolveWikiLink(ref, docs, contextDir) : null
+    return d ? refreshLinked(e, d) : e
+  })
 }
 
 function parseChronicleRaw(raw: string): ChronicleEdit {
@@ -809,8 +838,13 @@ function EditHeader({ fm, onChange, hasEntries, chrDescription, onChrDescChange,
 // ── AddPartButton ──────────────────────────────────────────────────────────────
 
 /** "+ Adicionar trecho" — sempre no fim do editor, com 1 ou vários trechos */
-function AddPartButton({ onClick, className }: { onClick: () => void; className?: string }) {
+function AddPartButton({ onClick, className, onAddLinked, contextDir, excludeFile }: {
+  onClick: () => void; className?: string
+  /** "de um evento existente": trecho vinculado a outro evento */
+  onAddLinked?: (doc: VaultEventDoc) => void; contextDir?: string; excludeFile?: string
+}) {
   const { t } = useI18n()
+  const [picking, setPicking] = useState(false)
   return (
     <div className={cn('flex flex-col items-center gap-3', className)}>
       <button
@@ -823,6 +857,15 @@ function AddPartButton({ onClick, className }: { onClick: () => void; className?
       <span className="font-mono text-2xs tracking-widest uppercase text-chr-muted select-none">
         {t('add_section')}
       </span>
+      {onAddLinked && (picking
+        ? <LinkEventPicker contextDir={contextDir ?? ''} excludeFile={excludeFile}
+            onPick={(d) => { setPicking(false); onAddLinked(d) }} onClose={() => setPicking(false)} />
+        : (
+          <button type="button" onClick={() => setPicking(true)} data-testid="add-linked-section" title={t('add_section_linked_hint')}
+            className="flex items-center gap-1 font-mono text-2xs text-chr-muted hover:text-chr-primary transition-colors">
+            <Link2 size={11} strokeWidth={1.5} /> {t('add_section_linked')}
+          </button>
+        ))}
     </div>
   )
 }
@@ -845,10 +888,15 @@ interface SectionBlocksEditorProps {
   onBodyDragOver: (e: React.DragEvent<HTMLTextAreaElement>) => void
   /** Atalhos do texto (salvar, negrito, itálico, Tab, listas) — os mesmos do campo principal */
   onBodyKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void
+  /** Trechos vinculados: adicionar e encontrar o original (timeline e arquivo do evento) */
+  onAddLinked: (doc: VaultEventDoc) => void
+  contextDir: string
+  filePath: string
 }
 
-function SectionBlocksEditor({ entries, sectionBodies, onEntriesChange, onBodyChange, onAddSection, onBodyFocus, onBodyBlur, wideLayout, onEditEntryLocation, onBodyPaste, onBodyDrop, onBodyDragOver, onBodyKeyDown }: SectionBlocksEditorProps) {
+function SectionBlocksEditor({ entries, sectionBodies, onEntriesChange, onBodyChange, onAddSection, onBodyFocus, onBodyBlur, wideLayout, onEditEntryLocation, onBodyPaste, onBodyDrop, onBodyDragOver, onBodyKeyDown, onAddLinked, contextDir, filePath }: SectionBlocksEditorProps) {
   const { t } = useI18n()
+  const indexDocs = useEventIndexStore((s) => s.docs)
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
 
   const updateEntry = (id: string, patch: Partial<EntryEdit>) =>
@@ -921,17 +969,39 @@ function SectionBlocksEditor({ entries, sectionBodies, onEntriesChange, onBodyCh
                 : undefined}
             >
 
+              {/* Trecho vinculado: título, data e local são os do evento original */}
+              {entryRef(entry) !== null && (() => {
+                const ref = entryRef(entry)!
+                const orig = indexDocs ? resolveWikiLink(ref, indexDocs, contextDir) : null
+                return (
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-3 px-2 py-1 rounded-sm bg-subtle font-mono text-2xs text-chr-muted" data-testid="linked-section">
+                    <Link2 size={11} strokeWidth={1.5} className="text-timeline-chronicle-text" />
+                    {orig
+                      ? <span>{t('linked_to')} <span className="text-chr-secondary">{orig.title}</span>{orig.timelineDir !== contextDir ? ` · ${orig.timelineTitle}` : ''}</span>
+                      : <span className="text-red-400">{t('linked_missing', { title: ref })}</span>}
+                    <span className="flex-1" />
+                    <button type="button" data-testid="unlink-section"
+                      onClick={() => { const { ref: _r, ...extra } = entry.extra; updateEntry(entry.id, { extra }) }}
+                      className="hover:text-chr-primary">{t('unlink_section')}</button>
+                  </div>
+                )
+              })()}
+
               {/* Meta row: date + number + delete */}
               <div className="flex items-center justify-between mb-3">
-                <DateInput
+                {entryRef(entry) !== null ? (
+                  <DateText value={entry.date} className="font-mono text-sm text-timeline-chronicle-text w-32" />
+                ) : <DateInput
                   value={entry.date}
                   onChange={(v) => updateEntry(entry.id, { date: v })}
                   onFocus={() => setFrozenOrder(sorted.map((e) => e.id))}
                   onBlur={(e) => handleDateBlur(entry.id, e)}
                   className="font-mono text-sm text-timeline-chronicle-text bg-transparent border-0 outline-none focus:outline-none placeholder:text-chr-muted/60 w-32"
-                />
+                />}
                 <div className="flex-1 min-w-0 px-3">
-                  <LocationChip location={entry.location} onClick={() => onEditEntryLocation(entry.id)} />
+                  {entryRef(entry) !== null
+                    ? (entry.location?.name && <span className="font-mono text-2xs text-chr-muted truncate">{entry.location.name}</span>)
+                    : <LocationChip location={entry.location} onClick={() => onEditEntryLocation(entry.id)} />}
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="font-mono text-xs text-chr-muted/70 select-none tabular-nums">
@@ -948,8 +1018,10 @@ function SectionBlocksEditor({ entries, sectionBodies, onEntriesChange, onBodyCh
                 </div>
               </div>
 
-              {/* Title — large serif */}
-              <textarea
+              {/* Title — large serif (vinculado: o do original, sem edição) */}
+              {entryRef(entry) !== null ? (
+                <h2 className="w-full font-serif text-2xl text-chr-primary mb-5 leading-tight">{entry.title}</h2>
+              ) : <textarea
                 ref={(el) => { if (el) { const len = String(el.value.length); if (el.dataset.hLen !== len) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; el.dataset.hLen = len } } }}
                 value={entry.title}
                 onChange={(e) => {
@@ -963,7 +1035,7 @@ function SectionBlocksEditor({ entries, sectionBodies, onEntriesChange, onBodyCh
                 spellCheck={false}
                 rows={1}
                 className="w-full font-serif text-2xl text-chr-primary bg-transparent border-0 outline-none focus:outline-none placeholder:text-chr-muted/60 mb-5 leading-tight resize-none overflow-hidden"
-              />
+              />}
 
               {/* Body textarea — open, auto-height */}
               <textarea
@@ -991,7 +1063,8 @@ function SectionBlocksEditor({ entries, sectionBodies, onEntriesChange, onBodyCh
           </div>
         ))}
 
-        <AddPartButton onClick={onAddSection} className={entries.length > 0 ? 'mt-12' : 'mt-4'} />
+        <AddPartButton onClick={onAddSection} className={entries.length > 0 ? 'mt-12' : 'mt-4'}
+          onAddLinked={onAddLinked} contextDir={contextDir} excludeFile={filePath} />
 
       </div>
     </div>
@@ -1528,7 +1601,9 @@ export default function EventView(): React.ReactElement {
     skipDirtyRef.current = true
     setIsDirty(false)
     setEditIsRaw(false)
-    const st = editStateFromRaw(selectedEventRaw ?? '', isChronicleRaw(selectedEventRaw ?? ''))
+    const st0 = editStateFromRaw(selectedEventRaw ?? '', isChronicleRaw(selectedEventRaw ?? ''))
+    // Trechos vinculados com os valores atuais do original (o arquivo guarda uma cópia)
+    const st = selectedEvent ? { ...st0, entries: refreshLinkedEntries(st0.entries, selectedEvent.filePath.replace(/[\\/][^\\/]*$/, '')) } : st0
     applyEditState(st)
     titlesAtStartRef.current = { title: st.fm.title, entries: new Map(st.entries.map((e) => [e.id, e.title])) }
     preEditRawRef.current = selectedEventRaw ?? null
@@ -1583,6 +1658,7 @@ export default function EventView(): React.ReactElement {
 
   // ── Renomear: ligações [[…]] que ainda usam o título antigo ────────────────
   const { notify } = useNotifications()
+  const openEvent = useOpenEvent()
   const vaultPath = useVaultStore((s) => s.vaultPath)
   const [pendingRename, setPendingRename] = useState<Array<{ old: string; now: string; anchor?: string }>>([])
   const [renamePrompt, setRenamePrompt] = useState<Array<{ old: string; now: string; newText: string; files: string[]; targets: string[]; count: number }>>([])
@@ -1781,8 +1857,9 @@ export default function EventView(): React.ReactElement {
   }, [editBody, isEditing, editIsRaw, editEntries.length, wideLayout])
 
   // ── Add section ───────────────────────────────────────────────────────────
-  const handleAddSection = useCallback(() => {
-    const newEntry = defaultEntry()
+  const handleAddSection = useCallback((link?: VaultEventDoc) => {
+    const used = editEntries.map((e) => e.anchor).concat(slugify(editFm.title || 'trecho'))
+    const newEntry = link ? linkedEntry(link, useEventIndexStore.getState().docs ?? [], used) : defaultEntry()
     if (editEntries.length === 0) {
       // 1 → 2 trechos: o conteúdo atual vira o 1º trecho e o 2º já é criado vazio.
       // O título atual continua como título do evento (editável no topo).
@@ -2308,7 +2385,10 @@ export default function EventView(): React.ReactElement {
                     setEditEntries(entries)
                   }}
                   onBodyChange={(id, body) => setEditSectionBodies((prev) => ({ ...prev, [id]: body }))}
-                  onAddSection={handleAddSection}
+                  onAddSection={() => handleAddSection()}
+                  onAddLinked={(d) => handleAddSection(d)}
+                  contextDir={selectedEvent.filePath.replace(/[\\/][^\\/]*$/, '')}
+                  filePath={selectedEvent.filePath}
                   onBodyFocus={(el, id) => { textareaRef.current = el; setBodyFocused(true); setFocusedSectionId(id) }}
                   onBodyBlur={() => { setBodyFocused(false); setFocusedSectionId(null) }}
                   wideLayout={wideLayout}
@@ -2334,7 +2414,9 @@ export default function EventView(): React.ReactElement {
                     className="w-full min-h-[30vh] resize-none overflow-hidden outline-none font-mono text-sm text-chr-primary leading-relaxed bg-transparent border-0 focus:outline-none focus:ring-0"
                     placeholder={t('textarea_ph')}
                   />
-                  <AddPartButton onClick={handleAddSection} className="mt-12" />
+                  <AddPartButton onClick={() => handleAddSection()} className="mt-12"
+                    onAddLinked={(d) => handleAddSection(d)}
+                    contextDir={selectedEvent.filePath.replace(/[\\/][^\\/]*$/, '')} excludeFile={selectedEvent.filePath} />
                 </div>
               )}
             </div>
@@ -2419,6 +2501,26 @@ export default function EventView(): React.ReactElement {
             )}
 
             <h1 className="font-serif text-display text-chr-primary leading-tight mb-6">{viewFm.title}</h1>
+
+            {/* Seção vinculada: título, data e local vêm de outro evento */}
+            {!isDraftActive && (() => {
+              const f = fm as unknown as Record<string, unknown>
+              if (!f.ref) return null
+              const orig = typeof f.refFilePath === 'string'
+                ? { filePath: f.refFilePath, slug: String(f.refSlug), timelineDir: String(f.refTimelineDir), timelineTitle: String(f.refTimelineTitle) }
+                : null
+              return (
+                <div className="-mt-3 mb-6 flex items-center gap-2 font-mono text-2xs text-chr-muted" data-testid="linked-view">
+                  <Link2 size={11} strokeWidth={1.5} className="text-timeline-chronicle-text" />
+                  {orig ? (
+                    <>
+                      <span>{t('linked_to')} {orig.timelineTitle}</span>
+                      <button type="button" onClick={() => void openEvent(orig)} className="underline hover:text-chr-primary">{t('linked_open_original')}</button>
+                    </>
+                  ) : <span className="text-red-400">{t('linked_missing', { title: String(f.ref) })}</span>}
+                </div>
+              )
+            })()}
 
             {(viewFm.category || (viewFm.tags && viewFm.tags.length > 0) || viewFm.importance) && (
               <div className="flex flex-wrap gap-1.5 mb-10 pb-8 border-b border-chr-subtle">

@@ -124,3 +124,18 @@ describe('eventRelations', () => {
     expect(eventRelations(chegada, all)).toEqual({ cites: [], citedBy: [bio] })
   })
 })
+
+describe('trechos vinculados (espelhos)', () => {
+  const orig = { ...doc('Cabral chega ao Brasil', 'Descobrimentos', '1500'), body: 'Original.' }
+  const mirror: VaultEventDoc = { filePath: '/v/P/vida.md', slug: 'vida__chr1', title: 'Cabral chega ao Brasil', date: '1500', timelineDir: '/v/P', timelineTitle: 'P', anchor: 'chegada', chronicleTitle: 'Vida', ref: 'Cabral chega ao Brasil', body: 'Nasce. ^nasc\n\nAvista terra, enfim. ^chegada' }
+  const nasc: VaultEventDoc = { ...mirror, slug: 'vida__chr0', title: 'Nascimento', anchor: 'nasc', ref: undefined, body: '' }
+  const all = [orig, mirror, nasc]
+  it('ligações e sugestões ignoram o espelho, mesmo na timeline dele', () => {
+    expect(resolveWikiLink('Cabral chega ao Brasil', all, '/v/P')).toBe(orig)
+    expect(suggestWikiTargets('cabral', all, '/v/P')).toEqual([orig])
+    expect(wikiTextFor(orig, all)).toBe('Cabral chega ao Brasil')
+  })
+  it('o original mostra o trecho vinculado em "Mencionado em"', () => {
+    expect(findBacklinks(orig, all)).toEqual([{ doc: mirror, snippet: 'Avista terra, enfim.', linked: true }])
+  })
+})

@@ -209,7 +209,7 @@ Dias opened the route later used by [[Vasco da Gama reaches Calicut|Vasco da Gam
 - Rest the mouse on a link to see a card with the date, place, timeline and the beginning of the event's text.
 - At the end of every event, **Mentioned in** lists the events that link to it, with the sentence around each mention (in a chronicle, the right section). It also appears in the side panel of the timeline.
 - Renaming an event (or a chronicle section) and going back to reading offers to **update the links** that still use the old name.
-- **Relations on the map:** **See relations on the map** (at the end of an event, or **Relations** in the map's popup) shows only that event and the ones linked to it, from any date and timeline. The events it cites form a **route in date order** (solid line) — a biography that cites loose events becomes a journey; events that cite it are joined to it by dotted lines. **Back to time** returns to the normal map.
+- **Relations on the map:** **See relations on the map** (at the end of an event, or **Relations** in the map's popup) shows only that event and the ones linked to it, from any date and timeline, each joined to it by a line — solid for the events it cites, dotted for those that cite it. A link is not a route: routes are drawn only between the sections of an event (see [Chronicles](#5-chronicles)). **Back to time** returns to the normal map.
 - **Relations on the timeline:** with an event selected, arcs join it to the events it cites (above the line) and to those that cite it (below, dotted), when they are in the same view.
 - In PDF and HTML exports, links become plain text.
 
@@ -238,6 +238,15 @@ references:
 ## 5. Chronicles
 
 A chronicle is a single `.md` file that generates **multiple events** on the timeline. You can write it by hand, or create it in the editor with **Add section** (an event with two or more sections is saved as a chronicle). It is useful when you want to group related milestones in one document — a biography, a project log, a series of discoveries.
+
+**Sections from an existing event.** Under **Add section**, *from an existing event* adds a **linked section**: its title, date and place come from the chosen event (from any timeline) and follow its changes; you write only what that stop means in this story. A fact can be part of several stories without being copied — the original lists them under **Mentioned in** (*linked section*). *Unlink* turns it back into an ordinary section. In the file, a linked section has `ref:` with the title of the original (the other fields keep a copy, used if the original is not found):
+
+```yaml
+  - title: Cabral chega ao Brasil
+    date: 1500-04-22
+    anchor: cabral-chega-ao-brasil
+    ref: Cabral chega ao Brasil
+```
 
 ### Chronicle file
 

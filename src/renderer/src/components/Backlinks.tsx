@@ -35,13 +35,14 @@ export function Backlinks({ filePath, slug, compact }: { filePath: string; slug:
         <Link2 size={11} strokeWidth={1.5} /> {t('backlinks_title')} <span className="text-chr-secondary">{links.length}</span>
       </h3>
       <div className="space-y-1">
-        {links.map(({ doc, snippet }) => (
+        {links.map(({ doc, snippet, linked }) => (
           <button key={doc.filePath + doc.slug} type="button" onClick={() => void openEvent(doc)}
             className="block w-full text-left -mx-2 px-2 py-1.5 rounded-sm hover:bg-hover transition-colors">
             <span className="flex items-baseline gap-2 min-w-0">
               <span className="text-sm text-chr-primary truncate">{doc.title}</span>
               <span className="font-mono text-2xs text-timeline-chronicle-text shrink-0">{doc.date ? parseChroniclerDate(doc.date).display : ''}</span>
               <span className="font-mono text-2xs text-chr-muted truncate">{doc.chronicleTitle ? `${doc.chronicleTitle} · ` : ''}{doc.timelineTitle}</span>
+              {linked && <span className="font-mono text-2xs text-timeline-chronicle-text shrink-0">{t('backlink_linked')}</span>}
             </span>
             {snippet && <span className="block text-xs text-chr-secondary leading-relaxed mt-0.5 line-clamp-2">{snippet}</span>}
           </button>
