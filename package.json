@@ -15,6 +15,7 @@
     "preview": "electron-vite preview",
     "protect": "node scripts/protect.js",
     "protect:no-bytecode": "node scripts/protect.js --no-bytecode",
+    "icons": "electron scripts/generate-icons.js",
     "build:win": "electron-vite build && electron-builder --win",
     "build:win:x64": "electron-vite build && electron-builder --win --x64",
     "build:win:arm64": "electron-vite build && electron-builder --win --arm64",
