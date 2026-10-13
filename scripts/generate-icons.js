@@ -1,6 +1,6 @@
 /**
  * Gera os ícones do app a partir de um único desenho:
- * T em Georgia Bold creme sobre fundo quase preto, com o losango laranja
+ * T em Georgia Bold creme sobre fundo escuro em degradê, com o losango laranja
  * dos destaques da timeline ao lado.
  *
  *   resources/icon.png  1024 px, na grade do macOS (margem e sombra do Dock);
@@ -20,7 +20,7 @@ const ICO_SIZES = [16, 24, 32, 48, 64, 128, 256]
 
 // Desenho em coordenadas de um quadro de 512 px; roda no renderer
 const DRAW = `(() => {
-  const BG = '#171714', LETTER = '#F0EEE8', ACCENT = '#D35400'
+  const BG_TOP = '#2E2E2A', BG_BOTTOM = '#141412', LETTER = '#F0EEE8', ACCENT = '#D35400'
 
   // Glifo em alta resolução, recortado justo na tinta
   const src = document.createElement('canvas')
@@ -68,15 +68,24 @@ const DRAW = `(() => {
       c.shadowOffsetY = size * 10 / 1024
     }
     roundRect(c, off, off, body, body * (macGrid ? 0.225 : 0.1875))
-    c.fillStyle = BG
+    const bg = c.createLinearGradient(0, off, 0, off + body)
+    bg.addColorStop(0, BG_TOP)
+    bg.addColorStop(1, BG_BOTTOM)
+    c.fillStyle = bg
     c.fill()
     c.shadowColor = 'transparent'
 
-    // Mesma caixa do T do ícone anterior, 5% menor e deslocada para dar lugar ao losango
-    c.drawImage(src, glyph.x, glyph.y, glyph.w, glyph.h,
-      off + 137.3 * u, off + 152.45 * u, 200.45 * u, 211 * u)
+    // Daqui em diante, coordenadas do quadro de 512; T e losango 18% maiores
+    // que no desenho original, para pesarem como os símbolos dos outros ícones
+    c.translate(off, off)
+    c.scale(u, u)
+    c.translate(256, 258)
+    c.scale(1.18, 1.18)
+    c.translate(-256, -258)
 
-    const cx = off + 376 * u, cy = off + 344 * u, d = 18.4 * u
+    c.drawImage(src, glyph.x, glyph.y, glyph.w, glyph.h, 137.3, 152.45, 200.45, 211)
+
+    const cx = 376, cy = 344, d = 18.4
     c.beginPath()
     c.moveTo(cx, cy - d)
     c.lineTo(cx + d, cy)
