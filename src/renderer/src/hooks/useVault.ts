@@ -36,9 +36,39 @@ function toTrashItem(raw: RawTrashItem): TrashItem {
 }
 
 export function useVault() {
-  const { vaultPath, vaultInfo, isLoading, error, setVaultPath, setVaultInfo, setLoading, setError, clearVault } =
+  const { vaultPath, vaultInfo, isLoading, error, recentVaults, setVaultPath, setVaultInfo, setLoading, setError, clearVault, addRecent, removeRecent } =
     useVaultStore()
   const resetNav = useNavigationStore((s) => s.reset)
+
+  /**
+   * Abre um vault pelo caminho (lista de recentes). Fecha o que estava aberto:
+   * timeline, seleção e caminho de navegação voltam ao zero.
+   */
+  const switchVault = useCallback(async (path: string): Promise<boolean> => {
+    setLoading(true)
+    setError(null)
+    try {
+      const result = await window.electronAPI.invoke<{ success: boolean; data?: RawVault; error?: string }>('fs:set-vault', path)
+      if (!result.success || !result.data) {
+        setError(result.error ?? 'Erro ao ler vault')
+        return false
+      }
+      const tl = useTimelineStore.getState()
+      tl.setCurrentTimeline(null)
+      tl.clearSelection()
+      tl.setMapRelations(null)
+      useNavigationStore.getState().reset({ title: '', dirPath: '' })
+      setVaultPath(path)
+      setVaultInfo(toVaultInfo(result.data, path))
+      addRecent(path)
+      return true
+    } catch (e) {
+      setError(String(e))
+      return false
+    } finally {
+      setLoading(false)
+    }
+  }, [setVaultPath, setVaultInfo, setLoading, setError, addRecent])
 
   const pickAndLoadVault = useCallback(async () => {
     const pickedPath = await window.electronAPI.invoke<string | null>('fs:pick-vault-folder')
@@ -120,18 +150,20 @@ export function useVault() {
         if (seeded.success && seeded.data) {
           setVaultPath(pickedPath)
           setVaultInfo(toVaultInfo(seeded.data, pickedPath))
+          addRecent(pickedPath)
           return
         }
       }
 
       setVaultPath(pickedPath)
       setVaultInfo(toVaultInfo(result.data, pickedPath))
+      addRecent(pickedPath)
     } catch (e) {
       setError(String(e))
     } finally {
       setLoading(false)
     }
-  }, [setVaultPath, setVaultInfo, setLoading, setError])
+  }, [setVaultPath, setVaultInfo, setLoading, setError, addRecent])
 
   const reloadVault = useCallback(async () => {
     if (!vaultPath) return
@@ -183,14 +215,15 @@ export function useVault() {
     return result.success
   }, [reloadVault])
 
-  const trashTimeline = useCallback(async (dirPath: string): Promise<boolean> => {
-    const result = await window.electronAPI.invoke<{ success: boolean; error?: string }>(
+  /** Envia para a lixeira; `trashPath` permite desfazer */
+  const trashTimeline = useCallback(async (dirPath: string): Promise<{ success: boolean; trashPath?: string }> => {
+    const result = await window.electronAPI.invoke<{ success: boolean; data?: { trashPath: string }; error?: string }>(
       'fs:trash-timeline', dirPath
     )
     // A timeline em cache ficaria com título/conteúdo antigos
     if (result.success) useTimelineStore.getState().deleteCached(dirPath)
     if (result.success) await reloadVault()
-    return result.success
+    return { success: result.success, trashPath: result.data?.trashPath }
   }, [reloadVault])
 
   const listTrash = useCallback(async (): Promise<TrashItem[]> => {
@@ -238,6 +271,7 @@ export function useVault() {
   return {
     vaultPath, vaultInfo, isLoading, error,
     pickAndLoadVault, reloadVault, clearVault,
+    recentVaults, switchVault, removeRecent,
     renameVault,
     createTimeline, renameTimeline, trashTimeline, deleteTimeline,
     listTrash, restoreFromTrash, deleteFromTrash, emptyTrash,

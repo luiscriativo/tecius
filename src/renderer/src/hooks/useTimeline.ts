@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import { useTimelineStore } from '../stores/useTimelineStore'
 import { useNavigationStore } from '../stores/useNavigationStore'
+import { useAppStore } from '../stores/useAppStore'
 import { parseChroniclerDate, parseDateParts, undatedLabel } from '../utils/chroniclerDate'
 import { parseLocation } from '../utils/location'
 import type { RawTimeline, RawEvent } from '../types/ipc'
@@ -86,6 +87,7 @@ export function toTimelineData(raw: RawTimeline): TimelineData {
       max: maxDate,
       spanYears: minDate && maxDate ? Math.abs(maxDate.year - minDate.year) : 0,
     },
+    hasTemplate: raw.hasTemplate,
   }
 }
 
@@ -273,11 +275,13 @@ export function useTimeline() {
 
   const createEvent = useCallback(
     async (timelineDirPath: string, title: string, filename?: string, date?: string): Promise<{ filePath: string; slug: string } | null> => {
+      // Padrões das Configurações (importância e categoria dos eventos novos)
+      const { defaultImportance, defaultCategory } = useAppStore.getState()
       const result = await window.electronAPI.invoke<{
         success: boolean
         data?: { filePath: string; slug: string }
         error?: string
-      }>('fs:create-event', timelineDirPath, title, filename, date)
+      }>('fs:create-event', timelineDirPath, title, filename, date, { importance: defaultImportance, category: defaultCategory })
       if (result.success && result.data) {
         deleteCached(timelineDirPath)
         return result.data
@@ -287,16 +291,35 @@ export function useTimeline() {
     [deleteCached]
   )
 
+  /** Envia para a lixeira; `trashPath` permite desfazer (fs:restore-from-trash) */
   const deleteEvent = useCallback(
-    async (eventFilePath: string): Promise<boolean> => {
+    async (eventFilePath: string): Promise<{ success: boolean; trashPath?: string }> => {
       const result = await window.electronAPI.invoke<{
         success: boolean
+        data?: { trashPath: string }
         error?: string
       }>('fs:delete-event', eventFilePath)
       if (result.success && currentTimeline) {
         deleteCached(currentTimeline.dirPath)
       }
-      return result.success
+      return { success: result.success, trashPath: result.data?.trashPath }
+    },
+    [currentTimeline, deleteCached]
+  )
+
+  /** Cópia do evento na mesma pasta ("(cópia)" no título) */
+  const duplicateEvent = useCallback(
+    async (eventFilePath: string): Promise<{ filePath: string; slug: string } | null> => {
+      const result = await window.electronAPI.invoke<{
+        success: boolean
+        data?: { filePath: string; slug: string }
+        error?: string
+      }>('fs:duplicate-event', eventFilePath)
+      if (result.success && result.data) {
+        if (currentTimeline) deleteCached(currentTimeline.dirPath)
+        return result.data
+      }
+      return null
     },
     [currentTimeline, deleteCached]
   )
@@ -339,6 +362,7 @@ export function useTimeline() {
     refreshTimeline,
     createEvent,
     deleteEvent,
+    duplicateEvent,
     renameEventFile,
   }
 }

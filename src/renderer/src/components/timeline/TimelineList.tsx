@@ -24,7 +24,7 @@
 import { useMemo, useState, useEffect, useRef, useCallback } from 'react'
 import { useTimelineStore } from '../../stores/useTimelineStore'
 import { eventSpan } from '../../utils/mapTime'
-import { ChevronDown, ChevronRight, Search, X, Pencil, Trash2, AlertTriangle, Filter } from 'lucide-react'
+import { ChevronDown, ChevronRight, Search, X, Pencil, Trash2, AlertTriangle, Filter, Copy } from 'lucide-react'
 import { cn } from '../../utils/cn'
 import { formatYear, undatedLabel } from '../../utils/chroniclerDate'
 import { isMultiPart } from '../../utils/events'
@@ -79,11 +79,12 @@ interface ContextMenuProps {
   state: ContextMenuState
   onRename: () => void
   onFilter: () => void
+  onDuplicate?: () => void
   onDelete: () => void
   onClose: () => void
 }
 
-function ContextMenu({ state, onRename, onFilter, onDelete, onClose }: ContextMenuProps) {
+function ContextMenu({ state, onRename, onFilter, onDuplicate, onDelete, onClose }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null)
   const { t } = useI18n()
   const [pos, setPos] = useState({ x: state.x, y: state.y })
@@ -128,6 +129,16 @@ function ContextMenu({ state, onRename, onFilter, onDelete, onClose }: ContextMe
           <Filter size={12} strokeWidth={1.5} className="shrink-0" />
           {t('filter_by_file')}
         </button>
+        {onDuplicate && (
+          <button
+            onClick={() => { onDuplicate(); onClose() }}
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-left font-mono text-xs text-chr-secondary hover:bg-hover hover:text-chr-primary transition-colors"
+            data-testid="ctx-duplicate"
+          >
+            <Copy size={12} strokeWidth={1.5} className="shrink-0" />
+            {t('duplicate')}
+          </button>
+        )}
         <div className="h-px bg-chr-subtle mx-2 my-1" />
         <button
           onClick={() => { onDelete(); onClose() }}
@@ -487,6 +498,7 @@ interface TimelineListProps {
   onDeleteEvent?: (event: ChroniclerEvent) => Promise<void>
   onRenameEventFile?: (event: ChroniclerEvent, newFilename: string) => Promise<void>
   onFilterByFile?: (filePath: string) => void
+  onDuplicateEvent?: (event: ChroniclerEvent) => void
   /** Quando definido, exibe apenas os eventos cujos filePaths estão na lista */
   filterPaths?: string[]
 }
@@ -499,6 +511,7 @@ export function TimelineList({
   onDeleteEvent,
   onRenameEventFile,
   onFilterByFile,
+  onDuplicateEvent,
   filterPaths,
 }: TimelineListProps) {
   const [search, setSearch] = useState('')
@@ -681,7 +694,7 @@ export function TimelineList({
   })()
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
+    <div className="flex-1 flex flex-col overflow-hidden" data-capture="list">
 
       {/* ── Barra de busca ──────────────────────────────────────────────── */}
       <div className="shrink-0 px-8 pt-4 pb-2">
@@ -823,6 +836,7 @@ export function TimelineList({
           state={contextMenu}
           onRename={() => setRenaming(contextMenu.event)}
           onFilter={() => onFilterByFile?.(contextMenu.event.filePath)}
+          onDuplicate={onDuplicateEvent ? () => onDuplicateEvent(contextMenu.event) : undefined}
           onDelete={() => setConfirmDelete(contextMenu.event)}
           onClose={() => setContextMenu(null)}
         />

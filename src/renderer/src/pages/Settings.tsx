@@ -5,11 +5,12 @@
 import React, { useState } from 'react'
 import { RefreshCw, SlidersHorizontal } from 'lucide-react'
 import { useTheme } from '@/hooks/useTheme'
-import { useAppStore } from '@/stores/useAppStore'
+import { useAppStore, type TextSize } from '@/stores/useAppStore'
 import { useI18n } from '@/hooks/useI18n'
 import { cn } from '@/utils/cn'
 import type { Theme } from '@/types'
 import type { Language } from '@/i18n/translations'
+import type { DateFormatPref } from '@/utils/chroniclerDate'
 
 // ── OptionButton ──────────────────────────────────────────────────────────────
 
@@ -148,7 +149,16 @@ export function SettingsPage(): React.ReactElement {
   const setOnlineGeocoding = useAppStore((s) => s.setOnlineGeocoding)
   const paleoMaps = useAppStore((s) => s.paleoMaps)
   const setPaleoMaps = useAppStore((s) => s.setPaleoMaps)
+  const defaultImportance = useAppStore((s) => s.defaultImportance)
+  const setDefaultImportance = useAppStore((s) => s.setDefaultImportance)
+  const defaultCategory = useAppStore((s) => s.defaultCategory)
+  const setDefaultCategory = useAppStore((s) => s.setDefaultCategory)
+  const dateFormat = useAppStore((s) => s.dateFormat)
+  const setDateFormatPref = useAppStore((s) => s.setDateFormatPref)
+  const textSize = useAppStore((s) => s.textSize)
+  const setTextSize = useAppStore((s) => s.setTextSize)
   const { t } = useI18n()
+  const importanceLabels = ['', t('importance_min'), t('importance_low'), t('importance_mid'), t('importance_high'), t('importance_max')]
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-vault">
@@ -184,6 +194,49 @@ export function SettingsPage(): React.ReactElement {
           <SectionCard title={t('language_section')} description={t('language_section_desc')}>
             <OptionButton<Language> value="pt" current={language} label={t('language_pt')} description={t('language_pt_desc')} onSelect={setLanguage} />
             <OptionButton<Language> value="en" current={language} label={t('language_en')} description={t('language_en_desc')} onSelect={setLanguage} />
+          </SectionCard>
+
+          {/* Eventos novos: importância e categoria padrão */}
+          <SectionCard title={t('defaults_section')} description={t('defaults_section_desc')}>
+            <div className="flex items-center justify-between gap-4 px-4 py-3 rounded-sm border border-chr-subtle" data-testid="default-importance">
+              <p className="font-serif text-sm leading-none text-chr-primary">{t('default_importance')}</p>
+              <div className="flex items-center gap-1.5">
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <button key={n} type="button" onClick={() => setDefaultImportance(n)} title={importanceLabels[n]} aria-pressed={n === defaultImportance}
+                    className={cn('w-3.5 h-3.5 rounded-full border transition-all duration-100',
+                      n <= defaultImportance ? 'bg-chr-primary border-chr-primary' : 'bg-transparent border-chr-subtle hover:border-chr-strong')} />
+                ))}
+                <span className="font-mono text-2xs text-chr-muted w-14">{importanceLabels[defaultImportance]}</span>
+              </div>
+            </div>
+            <label className="flex items-center justify-between gap-4 px-4 py-3 rounded-sm border border-chr-subtle">
+              <span className="font-serif text-sm leading-none text-chr-primary">{t('default_category')}</span>
+              <input value={defaultCategory} onChange={(e) => setDefaultCategory(e.target.value)} placeholder={t('default_category_ph')} spellCheck={false}
+                className="w-40 px-2 py-1 rounded-sm bg-vault border border-chr-subtle font-mono text-2xs uppercase tracking-[0.06em] text-chr-primary focus:outline-none focus:border-chr placeholder:normal-case placeholder:tracking-normal placeholder:text-chr-muted"
+                data-testid="default-category" />
+            </label>
+          </SectionCard>
+
+          {/* Formato das datas */}
+          <SectionCard title={t('date_format_section')} description={t('date_format_desc')}>
+            <OptionButton<DateFormatPref> value="auto" current={dateFormat} label={t('date_format_auto')} description={t('date_format_auto_desc')} onSelect={setDateFormatPref} />
+            <OptionButton<DateFormatPref> value="dmy"  current={dateFormat} label={t('date_format_dmy')}  description={t('date_format_dmy_desc')}  onSelect={setDateFormatPref} />
+            <OptionButton<DateFormatPref> value="mdy"  current={dateFormat} label={t('date_format_mdy')}  description={t('date_format_mdy_desc')}  onSelect={setDateFormatPref} />
+            <OptionButton<DateFormatPref> value="iso"  current={dateFormat} label={t('date_format_iso')}  description={t('date_format_iso_desc')}  onSelect={setDateFormatPref} />
+          </SectionCard>
+
+          {/* Tamanho do texto */}
+          <SectionCard title={t('text_size_section')} description={t('text_size_desc')}>
+            <div className="flex items-center gap-1" data-testid="text-size">
+              {(['small', 'normal', 'large'] as TextSize[]).map((s) => (
+                <button key={s} type="button" onClick={() => setTextSize(s)} aria-pressed={textSize === s}
+                  className={cn('flex-1 px-3 py-2 rounded-sm border font-serif transition-colors',
+                    s === 'small' ? 'text-xs' : s === 'large' ? 'text-base' : 'text-sm',
+                    textSize === s ? 'border-chr-strong bg-active text-chr-primary' : 'border-chr-subtle text-chr-secondary hover:border-chr hover:bg-hover')}>
+                  {t(s === 'small' ? 'text_small' : s === 'large' ? 'text_large' : 'text_normal')}
+                </button>
+              ))}
+            </div>
           </SectionCard>
 
           {/* Mapa e serviços online */}

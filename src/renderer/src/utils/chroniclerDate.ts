@@ -8,6 +8,19 @@ let lang: DateLanguage = 'pt'
 export function setDateLanguage(l: DateLanguage): void { lang = l }
 export function getDateLanguage(): DateLanguage { return lang }
 
+// ── Formato das datas curtas (independente do idioma, se o usuário quiser) ──
+/** 'auto' = pelo idioma (pt → DD/MM/AAAA, en → MM/DD/YYYY no texto curto e AAAA-MM-DD no campo) */
+export type DateFormatPref = 'auto' | 'dmy' | 'mdy' | 'iso'
+export type DateFormat = Exclude<DateFormatPref, 'auto'>
+let dateFormatPref: DateFormatPref = 'auto'
+export function setDateFormat(f: DateFormatPref): void { dateFormatPref = f }
+export function getDateFormatPref(): DateFormatPref { return dateFormatPref }
+/** Formato efetivo das datas curtas na leitura ("22/04/1500") */
+export function getDateFormat(): DateFormat {
+  if (dateFormatPref !== 'auto') return dateFormatPref
+  return lang === 'en' ? 'mdy' : 'dmy'
+}
+
 /** Texto exibido no lugar da data de um evento sem data válida */
 export function undatedLabel(): string { return lang === 'en' ? 'No date' : 'Sem data' }
 
@@ -131,6 +144,19 @@ export function formatYear(year: number, short = true): string {
   return lang === 'en' ? `${ago} BC` : `${ago} a.C.`
 }
 
+/**
+ * Duração entre dois instantes em anos decimais, legível: "4 anos", "1 ano",
+ * "7 meses" (abaixo de um ano) ou "66 milhões de anos".
+ */
+export function formatDuration(startT: number, endT: number): string {
+  const years = Math.max(0, endT - startT)
+  if (years >= 1.5) return formatSpan(Math.round(years))
+  if (years >= 0.96) return formatSpan(1)
+  const months = Math.max(1, Math.round(years * 12))
+  if (lang === 'en') return `${months} ${months === 1 ? 'month' : 'months'}`
+  return `${months} ${months === 1 ? 'mês' : 'meses'}`
+}
+
 /** Duração em anos, legível ("428 anos" / "428 years", "66 milhões de anos" / "66 million years") */
 export function formatSpan(years: number): string {
   const y = Math.abs(years)
@@ -238,7 +264,9 @@ function formatDisplayShort(
   if (precision === 'year' || !month) return y
   if (precision === 'month' || !day) return `${MONTHS[lang].short[month - 1]} ${y}`
   const dd = String(day).padStart(2, '0'), mm = String(month).padStart(2, '0')
-  return lang === 'en' ? `${mm}/${dd}/${y}` : `${dd}/${mm}/${y}`
+  const f = getDateFormat()
+  if (f === 'iso') return year >= 0 ? `${year}-${mm}-${dd}` : `${dd}/${mm}/${y}`
+  return f === 'mdy' ? `${mm}/${dd}/${y}` : `${dd}/${mm}/${y}`
 }
 
 /**

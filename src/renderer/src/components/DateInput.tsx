@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAppStore } from '../stores/useAppStore'
 import { cn } from '../utils/cn'
-import { parseChroniclerDate, normalizeNaturalDate } from '../utils/chroniclerDate'
+import { parseChroniclerDate, normalizeNaturalDate, type DateFormatPref } from '../utils/chroniclerDate'
 
 interface DateInputProps {
   value: string                  // AAAA | AAAA-MM | AAAA-MM-DD  (formato de armazenamento)
@@ -12,24 +12,26 @@ interface DateInputProps {
   onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void
 }
 
-type DateFormat = 'dmy' | 'iso'
+type DateFormat = 'dmy' | 'mdy' | 'iso'
 
-function getFormat(language: string): DateFormat {
+/** Formato do campo: a preferência das Configurações; em "auto", pelo idioma */
+function getFormat(language: string, pref: DateFormatPref): DateFormat {
+  if (pref !== 'auto') return pref
   return language === 'en' ? 'iso' : 'dmy'
 }
 
 // Valor armazenado → texto exibido
-// iso: sem conversão (AAAA-MM-DD) · dmy: DD/MM/AAAA, MM/AAAA ou AAAA
-function isoToDisplay(iso: string, fmt: DateFormat): string {
+// iso: sem conversão (AAAA-MM-DD) · dmy: DD/MM/AAAA · mdy: MM/DD/YYYY · MM/AAAA ou AAAA
+function isoToDisplay(iso: string, fmt: DateFormat, language = 'pt'): string {
   if (!iso || fmt === 'iso') return iso
   if (/[a-z]/i.test(iso)) return iso   // tempo profundo ("66 Ma") é exibido como está
-  if (iso.startsWith('-')) {            // antes de Cristo: "-44-03-15" → "15/03/44 a.C."
-    const inner = isoToDisplay(iso.slice(1), fmt)
-    return `${inner} a.C.`
+  if (iso.startsWith('-')) {            // antes de Cristo: "-44-03-15" → "15/03/44 a.C." / "03/15/44 BC"
+    const inner = isoToDisplay(iso.slice(1), fmt, language)
+    return `${inner} ${language === 'en' ? 'BC' : 'a.C.'}`
   }
   const parts = iso.split('-')
   const [y, m, d] = parts
-  if (parts.length === 3 && d) return `${d}/${m}/${y}`
+  if (parts.length === 3 && d) return fmt === 'mdy' ? `${m}/${d}/${y}` : `${d}/${m}/${y}`
   if (parts.length === 2 && m) return `${m}/${y}`
   return iso
 }
@@ -107,14 +109,14 @@ function parseCore(text: string, fmt: DateFormat): Parsed {
     const groups = t.split(/[/.-]/)
     if (groups.some((g) => g === '')) return { status: 'incomplete' }
     if (groups.length > 3) return { status: 'invalid' }
-    if (fmt === 'dmy') {
+    if (fmt === 'dmy' || fmt === 'mdy') {
       if (groups.length === 2) {
         const p = build(groups[1], groups[0])
         // "14/07" pode ser o começo de "14/07/1789" — não é erro ainda
         const maybeDayMonth = groups[1].length <= 2 && /^\d{1,2}$/.test(groups[0]) && Number(groups[0]) <= 31
         return p.status === 'invalid' && maybeDayMonth ? { status: 'incomplete' } : p
       }
-      if (groups.length === 3) return build(groups[2], groups[1], groups[0])
+      if (groups.length === 3) return fmt === 'mdy' ? build(groups[2], groups[0], groups[1]) : build(groups[2], groups[1], groups[0])
     } else {
       if (groups.length === 2) return build(groups[0], groups[1])
       if (groups.length === 3) return build(groups[0], groups[1], groups[2])
@@ -126,10 +128,12 @@ function parseCore(text: string, fmt: DateFormat): Parsed {
   // intermediários não são erro — só 8 dígitos inválidos contam como inválido.
   let parsed: Parsed
   if (t.length <= 4) parsed = build(t)
-  else if (t.length <= 6) parsed = fmt === 'dmy' ? build(t.slice(2), t.slice(0, 2)) : build(t.slice(0, 4), t.slice(4))
+  else if (t.length <= 6) parsed = fmt !== 'iso' ? build(t.slice(2), t.slice(0, 2)) : build(t.slice(0, 4), t.slice(4))
   else parsed = fmt === 'dmy'
     ? build(t.slice(4), t.slice(2, 4), t.slice(0, 2))
-    : build(t.slice(0, 4), t.slice(4, 6), t.slice(6))
+    : fmt === 'mdy'
+      ? build(t.slice(4), t.slice(0, 2), t.slice(2, 4))
+      : build(t.slice(0, 4), t.slice(4, 6), t.slice(6))
   if (parsed.status === 'invalid' && t.length < 8) return { status: 'incomplete' }
   return parsed
 }
@@ -164,6 +168,14 @@ const EXAMPLES: Record<DateFormat, Array<[string, string]>> = {
     ['Milhares de anos atrás', '12 mil anos'],
     ['Milhões de anos atrás', '66 milhões de anos'],
   ],
+  mdy: [
+    ['Full date', '07/14/1789'],
+    ['Month and year', '07/1789'],
+    ['Year only', '1789'],
+    ['Before Christ', '500 BC'],
+    ['Thousands of years ago', '12 thousand years ago'],
+    ['Millions of years ago', '66 million years ago'],
+  ],
   iso: [
     ['Full date', '1789-07-14'],
     ['Month and year', '1789-07'],
@@ -178,8 +190,9 @@ const EXAMPLES: Record<DateFormat, Array<[string, string]>> = {
 
 export function DateInput({ value, onChange, placeholder, className, onFocus, onBlur }: DateInputProps) {
   const language = useAppStore((s) => s.language)
-  const fmt = getFormat(language)
-  const [display, setDisplay] = useState(() => isoToDisplay(value, fmt))
+  const pref = useAppStore((s) => s.dateFormat)
+  const fmt = getFormat(language, pref)
+  const [display, setDisplay] = useState(() => isoToDisplay(value, fmt, language))
   const [focused, setFocused] = useState(false)
   const lastEmitted = useRef<string>(value)
   const valueAtFocus = useRef<string>(value) // para reverter se sair com data inválida
@@ -187,15 +200,15 @@ export function DateInput({ value, onChange, placeholder, className, onFocus, on
   // Sincroniza quando o pai muda o valor externamente (ex: carregar outro evento)
   useEffect(() => {
     if (value !== lastEmitted.current) {
-      setDisplay(isoToDisplay(value, fmt))
+      setDisplay(isoToDisplay(value, fmt, language))
       lastEmitted.current = value
     }
-  }, [value, fmt])
+  }, [value, fmt, language])
 
-  // Reconverte o display quando o idioma muda
+  // Reconverte o display quando o idioma ou o formato muda
   useEffect(() => {
-    setDisplay(isoToDisplay(lastEmitted.current, fmt))
-  }, [fmt])
+    setDisplay(isoToDisplay(lastEmitted.current, fmt, language))
+  }, [fmt, language])
 
   const parsed = parseDateText(display, fmt)
 
@@ -225,14 +238,14 @@ export function DateInput({ value, onChange, placeholder, className, onFocus, on
       }
     }
     // Normaliza a exibição ("7/1789" → "07/1789")
-    setDisplay(isoToDisplay(lastEmitted.current, fmt))
+    setDisplay(isoToDisplay(lastEmitted.current, fmt, language))
     onBlur?.(e)
   }
 
   const hint = focused ? describe(parsed, language) : null
   // Sem data válida ainda (vazio, incompleto ou inválido): mostra os formatos aceitos
   const showHelp = focused && parsed.status !== 'valid'
-  const ph = placeholder ?? (fmt === 'iso' ? 'YYYY-MM-DD' : 'DD/MM/AAAA')
+  const ph = placeholder ?? (fmt === 'iso' ? 'YYYY-MM-DD' : fmt === 'mdy' ? 'MM/DD/YYYY' : 'DD/MM/AAAA')
 
   return (
     // Wrapper só para posicionar a prévia; mantém o layout do input (largura total quando w-full)
@@ -286,5 +299,6 @@ export function DateInput({ value, onChange, placeholder, className, onFocus, on
 /** A data no mesmo formato do campo, só para leitura (ex.: seção vinculada) */
 export function DateText({ value, className }: { value: string; className?: string }) {
   const language = useAppStore((s) => s.language)
-  return <span className={className}>{isoToDisplay(value, getFormat(language))}</span>
+  const pref = useAppStore((s) => s.dateFormat)
+  return <span className={className}>{isoToDisplay(value, getFormat(language, pref), language)}</span>
 }

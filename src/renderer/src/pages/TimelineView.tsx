@@ -1,6 +1,8 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Plus, X, Filter, ChevronRight, Pencil, Trash2, AlertTriangle, GitBranch, Download } from 'lucide-react'
+import { ArrowLeft, Plus, X, Filter, ChevronRight, Pencil, Trash2, AlertTriangle, GitBranch, Download, Copy, Upload, FileText } from 'lucide-react'
+import { NEW_EVENT_EVENT } from '../layouts/AppLayout'
+import { useAppStore } from '../stores/useAppStore'
 import { BreadcrumbBar, TimelineCanvas, TimelineList, ViewToggle } from '../components/timeline'
 import { useTimeline } from '../hooks/useTimeline'
 import { useVault } from '../hooks/useVault'
@@ -23,12 +25,14 @@ import { buildTimelineExportHtml } from '../utils/exportTimeline'
 
 interface NewEventModalProps {
   timelineDirPath: string
+  /** A pasta tem um _template.md: o evento nasce dele */
+  hasTemplate?: boolean
   onConfirm: (title: string, date: string, filename: string) => Promise<void>
   onCancel: () => void
   isLoading: boolean
 }
 
-function NewEventModal({ timelineDirPath: _timelineDirPath, onConfirm, onCancel, isLoading }: NewEventModalProps) {
+function NewEventModal({ timelineDirPath: _timelineDirPath, hasTemplate, onConfirm, onCancel, isLoading }: NewEventModalProps) {
   const today = new Date()
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
 
@@ -140,6 +144,12 @@ function NewEventModal({ timelineDirPath: _timelineDirPath, onConfirm, onCancel,
             )}
           </div>
 
+          {/* Modelo da timeline (_template.md) */}
+          <p className="flex items-center gap-1.5 font-mono text-2xs text-chr-muted" data-testid="template-hint">
+            <FileText size={10} strokeWidth={1.5} className="shrink-0" />
+            {hasTemplate ? t('template_in_use') : t('template_hint')}
+          </p>
+
           <div className="flex items-center gap-2 justify-end pt-1">
             <button
               type="button"
@@ -169,10 +179,12 @@ interface ClusterPanelProps {
   events: ChroniclerEvent[]
   onEventClick: (event: ChroniclerEvent) => void
   onContextMenu: (event: ChroniclerEvent, x: number, y: number) => void
+  /** Item sob o mouse (o canvas desenha a duração dele) */
+  onHover?: (event: ChroniclerEvent | null) => void
   onClose: () => void
 }
 
-function ClusterPanel({ events, onEventClick, onContextMenu, onClose }: ClusterPanelProps) {
+function ClusterPanel({ events, onEventClick, onContextMenu, onHover, onClose }: ClusterPanelProps) {
   const { t } = useI18n()
   const allChronicle = events.every(isMultiPart)
   const hasChronicle  = events.some(isMultiPart)
@@ -220,6 +232,8 @@ function ClusterPanel({ events, onEventClick, onContextMenu, onClose }: ClusterP
             key={e.slug}
             onClick={() => { onEventClick(e); onClose() }}
             onContextMenu={(ev) => { ev.preventDefault(); onContextMenu(e, ev.clientX, ev.clientY) }}
+            onMouseEnter={() => onHover?.(e)}
+            onMouseLeave={() => onHover?.(null)}
             className={cn(
               'w-full text-left px-4 py-3 flex items-start gap-3',
               'border-b border-chr-subtle last:border-b-0',
@@ -258,8 +272,8 @@ function ClusterPanel({ events, onEventClick, onContextMenu, onClose }: ClusterP
 interface CanvasCtxState { x: number; y: number; event: ChroniclerEvent }
 
 function CanvasContextMenu({
-  state, onRename, onFilter, onDelete, onClose,
-}: { state: CanvasCtxState; onRename: () => void; onFilter: () => void; onDelete: () => void; onClose: () => void }) {
+  state, onRename, onFilter, onDuplicate, onDelete, onClose,
+}: { state: CanvasCtxState; onRename: () => void; onFilter: () => void; onDuplicate: () => void; onDelete: () => void; onClose: () => void }) {
   const { t } = useI18n()
   const menuRef = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState({ x: state.x, y: state.y })
@@ -297,6 +311,10 @@ function CanvasContextMenu({
         <button onClick={() => { onFilter(); onClose() }}
           className="w-full flex items-center gap-2.5 px-3 py-2 text-left font-mono text-xs text-chr-secondary hover:bg-hover hover:text-chr-primary transition-colors">
           <Filter size={12} strokeWidth={1.5} className="shrink-0" />{t('filter_by_file')}
+        </button>
+        <button onClick={() => { onDuplicate(); onClose() }} data-testid="ctx-duplicate"
+          className="w-full flex items-center gap-2.5 px-3 py-2 text-left font-mono text-xs text-chr-secondary hover:bg-hover hover:text-chr-primary transition-colors">
+          <Copy size={12} strokeWidth={1.5} className="shrink-0" />{t('duplicate')}
         </button>
         <div className="h-px bg-chr-subtle mx-2 my-1" />
         <button onClick={() => { onDelete(); onClose() }}
@@ -402,7 +420,7 @@ interface TimelineViewProps {
 
 export default function TimelineView({ initialPath, initialTitle }: TimelineViewProps) {
   const navigate = useNavigate()
-  const { reloadVault } = useVault()
+  const { reloadVault, restoreFromTrash } = useVault()
   const {
     currentTimeline,
     selectedEvent,
@@ -416,6 +434,7 @@ export default function TimelineView({ initialPath, initialTitle }: TimelineView
     reloadTimeline,
     createEvent,
     deleteEvent,
+    duplicateEvent,
     renameEventFile,
     clearSelection,
   } = useTimeline()
@@ -427,6 +446,8 @@ export default function TimelineView({ initialPath, initialTitle }: TimelineView
   const [showNewEvent, setShowNewEvent] = useState(false)
   const [creatingEvent, setCreatingEvent] = useState(false)
   const [clusterEvents, setClusterEvents] = useState<ChroniclerEvent[] | null>(null)
+  // Item do painel de grupo sob o mouse: o canvas mostra a duração dele
+  const [clusterHover, setClusterHover] = useState<ChroniclerEvent | null>(null)
 
   // ── Filtro de arquivo (via menu de contexto) ───────────────────────────
   const [fileFilter, setFileFilter] = useState<string[] | null>(null)
@@ -449,24 +470,43 @@ export default function TimelineView({ initialPath, initialTitle }: TimelineView
     }
   }, [initialPath, initialTitle]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Ctrl+N (AppLayout) e a paleta de comandos abrem o modal de novo evento
+  useEffect(() => {
+    const open = () => setShowNewEvent(true)
+    window.addEventListener(NEW_EVENT_EVENT, open)
+    return () => window.removeEventListener(NEW_EVENT_EVENT, open)
+  }, [])
+
   const handleClearFileFilter = () => {
     setFileFilter(null)
   }
 
   const undatedEvents = currentTimeline?.events.filter((e) => e.undated) ?? []
 
-  // ── Exportar a timeline inteira (PDF ou página web) ──────────────────────
+  // ── Exportar a timeline inteira (PDF, página web ou imagem da vista) ──────
   const { notify } = useNotifications()
   const [exportMenu, setExportMenu] = useState(false)
   const [exporting, setExporting] = useState(false)
-  const handleExport = async (format: 'pdf' | 'html') => {
+  const handleExport = async (format: 'pdf' | 'html' | 'png') => {
     if (!currentTimeline) return
     setExportMenu(false)
     setExporting(true)
     try {
-      const bodyHtml = await buildTimelineExportHtml(currentTimeline, { events: nEvents, noContent: t('no_content') })
-      const r = await window.electronAPI.invoke<{ success: boolean; canceled?: boolean; filePath?: string; error?: string }>(
-        'app:export-timeline', { format, suggestedName: currentTimeline.meta.title, title: currentTimeline.meta.title, bodyHtml })
+      let r: { success: boolean; canceled?: boolean; filePath?: string; error?: string }
+      if (format === 'png') {
+        // Fotografa a área da vista atual (timeline, lista ou mapa) — o menu já fechou
+        await new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)))
+        const el = document.querySelector<HTMLElement>('[data-capture]')
+        if (!el) throw new Error('view not found')
+        const b = el.getBoundingClientRect()
+        r = await window.electronAPI.invoke('app:export-png', {
+          rect: { x: b.left, y: b.top, width: b.width, height: b.height },
+          suggestedName: `${currentTimeline.meta.title} - ${viewMode}`,
+        })
+      } else {
+        const bodyHtml = await buildTimelineExportHtml(currentTimeline, { events: nEvents, noContent: t('no_content') })
+        r = await window.electronAPI.invoke('app:export-timeline', { format, suggestedName: currentTimeline.meta.title, title: currentTimeline.meta.title, bodyHtml })
+      }
       if (r.success) notify.success(t('export_done_title'), r.filePath ?? '')
       else if (!r.canceled) notify.error(t('export_error'), r.error ?? '')
     } catch (e) {
@@ -474,6 +514,40 @@ export default function TimelineView({ initialPath, initialTitle }: TimelineView
     } finally {
       setExporting(false)
     }
+  }
+
+  // ── Importar eventos de CSV/JSON ────────────────────────────────────────────
+  const [importing, setImporting] = useState(false)
+  const handleImport = async () => {
+    if (!currentTimeline) return
+    setImporting(true)
+    try {
+      const { defaultImportance, defaultCategory } = useAppStore.getState()
+      const r = await window.electronAPI.invoke<{ success: boolean; canceled?: boolean; data?: { created: number; skipped: Array<{ line: number; reason: string }> }; error?: string }>(
+        'fs:import-events', currentTimeline.dirPath, { importance: defaultImportance, category: defaultCategory })
+      if (r.canceled) return
+      if (!r.success || !r.data) { notify.error(t('import_error'), r.error ?? ''); return }
+      const { created, skipped } = r.data
+      if (created === 0) { notify.warning(t('import_none'), skipped.slice(0, 3).map((s) => `${s.line}: ${s.reason}`).join(' · ')); return }
+      notify.success(t('import_done'), t('import_done_body', { count: created, timeline: currentTimeline.meta.title })
+        + (skipped.length ? ` · ${t('import_skipped', { count: skipped.length })}` : ''), 8000)
+      await reloadTimeline()
+      await reloadVault()
+    } catch (e) {
+      notify.error(t('import_error'), String(e))
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  // ── Duplicar evento ───────────────────────────────────────────────────────
+  const handleDuplicate = async (event: ChroniclerEvent) => {
+    const created = await duplicateEvent(event.filePath)
+    if (!created) { notify.error(t('duplicate_failed')); return }
+    await reloadTimeline()
+    await reloadVault()
+    const ev = useTimelineStore.getState().currentTimeline?.events.find((e) => e.filePath === created.filePath)
+    if (ev) handleEventClick(ev)
   }
 
   // ── Comparar com outra timeline (faixa extra na visão horizontal) ─────────
@@ -532,7 +606,7 @@ export default function TimelineView({ initialPath, initialTitle }: TimelineView
   }
 
   const handleDeleteEvent = async (event: ChroniclerEvent) => {
-    await deleteEvent(event.filePath)
+    const r = await deleteEvent(event.filePath)
     clearSelection()
     await reloadTimeline()
     await reloadVault()
@@ -542,6 +616,19 @@ export default function TimelineView({ initialPath, initialTitle }: TimelineView
       const next = prev.filter((e) => e.filePath !== event.filePath)
       return next.length > 0 ? next : null
     })
+    // "Desfazer" restaura o item recém-criado na lixeira
+    if (r.success && r.trashPath) {
+      const trashPath = r.trashPath
+      const title = event.chronicle?.title ?? event.frontmatter.title
+      notify.success(t('trash_done_event'), title, 8000, {
+        label: t('undo'),
+        onClick: async () => {
+          const res = await restoreFromTrash(trashPath)
+          if (res.success) { await reloadTimeline(); notify.success(t('undo_done'), title) }
+          else notify.error(t('undo_failed'), res.error ?? '')
+        },
+      })
+    }
   }
 
   const handleRenameEventFile = async (event: ChroniclerEvent, newFilename: string) => {
@@ -640,10 +727,18 @@ export default function TimelineView({ initialPath, initialTitle }: TimelineView
                 'hover:bg-timeline-chronicle/85',
                 'transition-colors duration-150'
               )}
-              title={t('create_event_hint')}
+              title={`${t('create_event_hint')} (${t('shortcut_new_event')})`}
             >
               <Plus size={12} strokeWidth={1.5} />
               {t('new_event_btn')}
+            </button>
+
+            {/* Importar eventos de CSV/JSON */}
+            <button type="button" onClick={() => void handleImport()} disabled={importing}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-sm text-xs font-mono border border-chr-subtle text-chr-secondary hover:text-chr-primary hover:border-chr transition-colors disabled:opacity-50"
+              title={t('import_hint')} data-testid="import-events">
+              <Upload size={12} strokeWidth={1.5} />
+              {importing ? t('loading') : t('import_events')}
             </button>
 
             {/* Exportar a timeline inteira */}
@@ -660,6 +755,9 @@ export default function TimelineView({ initialPath, initialTitle }: TimelineView
                   <div className="absolute right-0 top-full mt-1 z-50 w-48 chr-card shadow-card-hover py-1" data-testid="export-menu">
                     <button type="button" onClick={() => void handleExport('pdf')} className="w-full text-left px-3 py-1.5 text-xs font-mono text-chr-secondary hover:bg-hover hover:text-chr-primary">{t('export_as_pdf')}</button>
                     <button type="button" onClick={() => void handleExport('html')} className="w-full text-left px-3 py-1.5 text-xs font-mono text-chr-secondary hover:bg-hover hover:text-chr-primary">{t('export_as_html')}</button>
+                    <div className="h-px bg-chr-subtle mx-2 my-1" />
+                    <button type="button" onClick={() => void handleExport('png')} title={t('export_png_hint')} data-testid="export-png"
+                      className="w-full text-left px-3 py-1.5 text-xs font-mono text-chr-secondary hover:bg-hover hover:text-chr-primary">{t('export_as_png')}</button>
                   </div>
                 </>
               )}
@@ -746,6 +844,7 @@ export default function TimelineView({ initialPath, initialTitle }: TimelineView
               onContextMenu={(event, x, y) => setCanvasCtxMenu({ x, y, event })}
               filterPaths={fileFilter ?? undefined}
               compare={compareData}
+              focusEvent={clusterHover}
             />
           )}
 
@@ -758,6 +857,7 @@ export default function TimelineView({ initialPath, initialTitle }: TimelineView
               onDeleteEvent={handleDeleteEvent}
               onRenameEventFile={handleRenameEventFile}
               onFilterByFile={handleFilterByFile}
+              onDuplicateEvent={(e) => void handleDuplicate(e)}
               filterPaths={fileFilter ?? undefined}
             />
           )}
@@ -777,7 +877,8 @@ export default function TimelineView({ initialPath, initialTitle }: TimelineView
                 events={visibleCluster}
                 onEventClick={handleEventClick}
                 onContextMenu={(event, x, y) => setCanvasCtxMenu({ x, y, event })}
-                onClose={() => setClusterEvents(null)}
+                onHover={setClusterHover}
+                onClose={() => { setClusterEvents(null); setClusterHover(null) }}
               />
             )
           })()}
@@ -789,6 +890,7 @@ export default function TimelineView({ initialPath, initialTitle }: TimelineView
       {showNewEvent && (
         <NewEventModal
           timelineDirPath={currentTimeline.dirPath}
+          hasTemplate={currentTimeline.hasTemplate}
           onConfirm={handleCreateEvent}
           onCancel={() => setShowNewEvent(false)}
           isLoading={creatingEvent}
@@ -801,6 +903,7 @@ export default function TimelineView({ initialPath, initialTitle }: TimelineView
           state={canvasCtxMenu}
           onRename={() => setCanvasRenaming(canvasCtxMenu.event)}
           onFilter={() => handleFilterByFile(canvasCtxMenu.event.filePath)}
+          onDuplicate={() => void handleDuplicate(canvasCtxMenu.event)}
           onDelete={() => setCanvasConfirmDelete(canvasCtxMenu.event)}
           onClose={() => setCanvasCtxMenu(null)}
         />

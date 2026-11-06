@@ -8,7 +8,8 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { BookOpen, Plus, Pencil, Trash2, Trash, Images, Search } from 'lucide-react'
+import { BookOpen, Plus, Pencil, Trash2, Trash, Images, Search, Tag } from 'lucide-react'
+import { useNotifications } from '@/hooks/useNotifications'
 import { useAppStore } from '@/stores/useAppStore'
 import { useVaultStore } from '@/stores/useVaultStore'
 import { useTimeline } from '@/hooks/useTimeline'
@@ -115,9 +116,10 @@ function ContextMenu({ menu, onRename, onTrash, onClose }: ContextMenuProps) {
 
 function TimelinesSection({ timelines, collapsed }: TimelinesSectionProps) {
   const { openTimeline, currentTimeline } = useTimeline()
-  const { createTimeline, renameTimeline, trashTimeline } = useVault()
+  const { createTimeline, renameTimeline, trashTimeline, restoreFromTrash } = useVault()
   const navigate = useNavigate()
   const { t } = useI18n()
+  const { notify } = useNotifications()
 
   const [creatingNew, setCreatingNew]       = useState(false)
   const [newTitle, setNewTitle]             = useState('')
@@ -176,10 +178,23 @@ function TimelinesSection({ timelines, collapsed }: TimelinesSectionProps) {
   const handleTrashConfirm = async () => {
     if (!confirmTrash) return
     const isOpen = currentTimeline?.dirPath === confirmTrash.dirPath
+    const title = confirmTrash.title
     setIsProcessing(true)
     try {
-      await trashTimeline(confirmTrash.dirPath)
+      const r = await trashTimeline(confirmTrash.dirPath)
       if (isOpen) navigate('/')
+      // "Desfazer" restaura do item recém-criado na lixeira
+      if (r.success && r.trashPath) {
+        const trashPath = r.trashPath
+        notify.success(t('trash_done_timeline'), title, 8000, {
+          label: t('undo'),
+          onClick: async () => {
+            const res = await restoreFromTrash(trashPath)
+            if (res.success) notify.success(t('undo_done'), title)
+            else notify.error(t('undo_failed'), res.error ?? '')
+          },
+        })
+      }
     } finally {
       setConfirmTrash(null)
       setIsProcessing(false)
@@ -469,6 +484,32 @@ export function Sidebar(): React.ReactElement {
             </span>
             {!isSidebarCollapsed && (
               <span className="truncate">{t('nav_images')}</span>
+            )}
+          </NavLink>
+        )}
+
+        {/* Tags e categorias */}
+        {vaultInfo && (
+          <NavLink
+            to="/tags"
+            className={({ isActive }) =>
+              cn(
+                'flex items-center gap-3 px-3 py-2 rounded-sm text-sm',
+                'transition-colors duration-150',
+                isActive
+                  ? 'bg-active text-chr-primary font-medium border-l-2 border-chr-strong'
+                  : 'text-chr-secondary hover:bg-hover hover:text-chr-primary',
+                isSidebarCollapsed && 'justify-center px-2'
+              )
+            }
+            title={isSidebarCollapsed ? t('nav_tags') : undefined}
+            data-testid="nav-tags"
+          >
+            <span className="shrink-0">
+              <Tag size={18} className="w-5 h-5" strokeWidth={1.5} />
+            </span>
+            {!isSidebarCollapsed && (
+              <span className="truncate">{t('nav_tags')}</span>
             )}
           </NavLink>
         )}

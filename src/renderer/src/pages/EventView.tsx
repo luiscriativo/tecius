@@ -17,8 +17,10 @@ import {
   Code, Quote, List, ListOrdered, CheckSquare, Table, Link,
   FileCode, Download, Tag, Maximize2, Minimize2, Trash2,
   Search, ChevronUp, ChevronDown, MapPin,
-  Link2,
+  Link2, Copy,
 } from 'lucide-react'
+import { TOGGLE_EDIT_EVENT } from '@/layouts/AppLayout'
+import type { TagSelection } from '@/pages/TagsPage'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkBreaks from 'remark-breaks'
@@ -40,6 +42,7 @@ import { WikiSuggest } from '@/components/WikiSuggest'
 import { Backlinks, RelationsMapButton } from '@/components/Backlinks'
 import { useEventIndexStore } from '@/stores/useEventIndexStore'
 import { useVaultStore } from '@/stores/useVaultStore'
+import { useTimelineStore } from '@/stores/useTimelineStore'
 import { useNotifications } from '@/hooks/useNotifications'
 import { linksToOldTitle, resolveWikiLink, wikiTextFor, type VaultEventDoc } from '@/utils/wikiLinks'
 import { LinkEventPicker } from '@/components/LinkEventPicker'
@@ -1044,7 +1047,7 @@ function SectionBlocksEditor({ entries, sectionBodies, onEntriesChange, onBodyCh
                 spellCheck={false}
                 rows={1}
                 data-section-id={entry.id}
-                className="w-full resize-none overflow-hidden outline-none block font-mono text-sm text-chr-primary leading-relaxed bg-transparent border-0 focus:outline-none focus:ring-0 placeholder:text-chr-muted/60"
+                className="editor-text w-full resize-none overflow-hidden outline-none block font-mono text-sm text-chr-primary leading-relaxed bg-transparent border-0 focus:outline-none focus:ring-0 placeholder:text-chr-muted/60"
                 onInput={(e) => {
                   const el = e.currentTarget
                   el.style.height = 'auto'
@@ -1458,8 +1461,9 @@ export default function EventView(): React.ReactElement {
     refreshTimeline,
     enterSubtimeline,
     deleteEvent,
+    duplicateEvent,
   } = useTimeline()
-  const { reloadVault } = useVault()
+  const { reloadVault, restoreFromTrash } = useVault()
   const currentNavItem = useNavigationStore((s) => s.current())
   const { t } = useI18n()
 
@@ -1652,6 +1656,13 @@ export default function EventView(): React.ReactElement {
       }
     }
   }, [isEditing, isDirty, handleStartEdit, editIsRaw, editEntries, editFm])
+
+  // Ctrl+E (AppLayout): alterna ler / editar
+  useEffect(() => {
+    const toggle = () => handleToggleMode()
+    window.addEventListener(TOGGLE_EDIT_EVENT, toggle)
+    return () => window.removeEventListener(TOGGLE_EDIT_EVENT, toggle)
+  }, [handleToggleMode])
 
   // ── Renomear: ligações [[…]] que ainda usam o título antigo ────────────────
   const { notify } = useNotifications()
@@ -2106,14 +2117,40 @@ export default function EventView(): React.ReactElement {
   const handleDeleteEvent = useCallback(async () => {
     if (!selectedEvent) return
     setIsDeleting(true)
-    const ok = await deleteEvent(selectedEvent.filePath)
-    if (ok) {
+    const title = selectedEvent.chronicle?.title ?? selectedEvent.frontmatter.title
+    const r = await deleteEvent(selectedEvent.filePath)
+    if (r.success) {
       await Promise.all([reloadTimeline(), reloadVault()])
       navigate('/timeline')
+      // "Desfazer" restaura o item recém-criado na lixeira
+      if (r.trashPath) {
+        const trashPath = r.trashPath
+        notify.success(t('trash_done_event'), title, 8000, {
+          label: t('undo'),
+          onClick: async () => {
+            const res = await restoreFromTrash(trashPath)
+            if (res.success) { await reloadTimeline(); notify.success(t('undo_done'), title) }
+            else notify.error(t('undo_failed'), res.error ?? '')
+          },
+        })
+      }
     }
     setIsDeleting(false)
     setShowDeleteConfirm(false)
-  }, [selectedEvent, deleteEvent, reloadTimeline, reloadVault, navigate])
+  }, [selectedEvent, deleteEvent, reloadTimeline, reloadVault, navigate, notify, restoreFromTrash, t])
+
+  // ── Duplicar: cópia na mesma timeline, já aberta para edição ──────────────
+  const handleDuplicate = useCallback(async () => {
+    if (!selectedEvent) return
+    const created = await duplicateEvent(selectedEvent.filePath)
+    if (!created) { notify.error(t('duplicate_failed')); return }
+    await Promise.all([reloadTimeline(), reloadVault()])
+    const ev = useTimelineStore.getState().currentTimeline?.events.find((e) => e.filePath === created.filePath)
+    if (ev) navigateTo(ev)
+  }, [selectedEvent, duplicateEvent, reloadTimeline, reloadVault, navigateTo, notify, t])
+
+  // Tag ou categoria clicada na leitura → página de tags com ela selecionada
+  const openTag = useCallback((sel: TagSelection) => navigate('/tags', { state: { tagSelection: sel } }), [navigate])
 
   // ── Render ────────────────────────────────────────────────────────────────
   if (!selectedEvent || !currentTimeline) {
@@ -2235,7 +2272,7 @@ export default function EventView(): React.ReactElement {
           <button
             type="button"
             onClick={handleToggleMode}
-            title={isEditing ? t('event_back_to_view') : t('event_edit')}
+            title={`${isEditing ? t('event_back_to_view') : t('event_edit')} (${t('shortcut_edit')})`}
             className="flex items-center gap-1 px-2 py-1 rounded-sm border border-transparent text-chr-muted hover:text-chr-secondary hover:border-chr-subtle transition-colors"
           >
             {isEditing
@@ -2408,7 +2445,7 @@ export default function EventView(): React.ReactElement {
                     onFocus={() => setBodyFocused(true)}
                     onBlur={() => setBodyFocused(false)}
                     spellCheck={false}
-                    className="w-full min-h-[30vh] resize-none overflow-hidden outline-none font-mono text-sm text-chr-primary leading-relaxed bg-transparent border-0 focus:outline-none focus:ring-0"
+                    className="editor-text w-full min-h-[30vh] resize-none overflow-hidden outline-none font-mono text-sm text-chr-primary leading-relaxed bg-transparent border-0 focus:outline-none focus:ring-0"
                     placeholder={t('textarea_ph')}
                   />
                   <AddPartButton onClick={() => handleAddSection()} className="mt-12"
@@ -2429,7 +2466,7 @@ export default function EventView(): React.ReactElement {
               onFocus={() => setBodyFocused(true)}
               onBlur={() => setBodyFocused(false)}
               spellCheck={false}
-              className="flex-1 resize-none outline-none font-mono text-sm text-chr-primary leading-relaxed bg-vault px-8 py-6 border-0 focus:outline-none focus:ring-0"
+              className="editor-text flex-1 resize-none outline-none font-mono text-sm text-chr-primary leading-relaxed bg-vault px-8 py-6 border-0 focus:outline-none focus:ring-0"
               placeholder={t('textarea_raw_ph')}
             />
           )}
@@ -2521,8 +2558,19 @@ export default function EventView(): React.ReactElement {
 
             {(viewFm.category || (viewFm.tags && viewFm.tags.length > 0) || viewFm.importance) && (
               <div className="flex flex-wrap gap-1.5 mb-10 pb-8 border-b border-chr-subtle">
-                {viewFm.category && <span className="chr-badge">{viewFm.category}</span>}
-                {viewFm.tags?.map((tag) => <span key={tag} className="chr-tag">#{tag}</span>)}
+                {/* Categoria e tags abrem a página de tags já filtrada */}
+                {viewFm.category && (
+                  <button type="button" onClick={() => openTag({ kind: 'category', name: viewFm.category! })}
+                    className="chr-badge hover:border-chr-strong hover:text-chr-primary transition-colors print:pointer-events-none" title={t('nav_tags')}>
+                    {viewFm.category}
+                  </button>
+                )}
+                {viewFm.tags?.map((tag) => (
+                  <button key={tag} type="button" onClick={() => openTag({ kind: 'tag', name: tag })}
+                    className="chr-tag hover:text-chr-primary transition-colors print:pointer-events-none" title={t('nav_tags')}>
+                    #{tag}
+                  </button>
+                ))}
                 {viewFm.importance && <span className="chr-tag font-mono">{t('importance_badge', { n: viewFm.importance })}</span>}
               </div>
             )}
@@ -2636,6 +2684,10 @@ export default function EventView(): React.ReactElement {
 
               <button onClick={handleExportPdf} className={cn('flex items-center gap-1.5 px-4 py-2 rounded-sm text-sm border border-chr-subtle text-chr-muted hover:border-chr hover:text-chr-secondary transition-colors')}>
                 <Download size={13} strokeWidth={1.5} />{t('export_pdf')}
+              </button>
+              <button onClick={() => void handleDuplicate()} title={t('duplicate_hint')} data-testid="duplicate-event"
+                className={cn('flex items-center gap-1.5 px-4 py-2 rounded-sm text-sm border border-chr-subtle text-chr-muted hover:border-chr hover:text-chr-secondary transition-colors')}>
+                <Copy size={13} strokeWidth={1.5} />{t('duplicate')}
               </button>
             </div>
 

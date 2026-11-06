@@ -25,6 +25,7 @@ import TimelineView from '@/pages/TimelineView'
 import EventView from '@/pages/EventView'
 import AssetManager from '@/pages/AssetManager'
 import TrashView from '@/pages/TrashView'
+import TagsPage from '@/pages/TagsPage'
 import { useTheme } from '@/hooks/useTheme'
 import { useVaultStore } from '@/stores/useVaultStore'
 import { useAppStore } from '@/stores/useAppStore'
@@ -75,7 +76,7 @@ function AppInfoLoader(): null {
 // ── VaultBootstrapper ─────────────────────────────────────────────────────────
 // Se ja existe um vaultPath persistido, restaura o vault ao iniciar o app.
 function VaultBootstrapper({ children }: { children: React.ReactNode }): React.ReactElement {
-  const { vaultPath, setVaultInfo, setLoading, setError } = useVaultStore()
+  const { vaultPath, setVaultInfo, setLoading, setError, addRecent } = useVaultStore()
 
   useEffect(() => {
     if (!vaultPath) return
@@ -86,6 +87,7 @@ function VaultBootstrapper({ children }: { children: React.ReactNode }): React.R
       .then((result) => {
         if (result.success && result.data) {
           setVaultInfo(toVaultInfo(result.data, vaultPath))
+          addRecent(vaultPath)
         } else {
           setError(result.error ?? 'Erro ao restaurar vault')
         }
@@ -114,6 +116,7 @@ const router = createMemoryRouter(
         { path: 'timeline', element: <TimelineView /> },
         { path: 'event', element: <EventView /> },
         { path: 'assets', element: <AssetManager /> },
+        { path: 'tags', element: <TagsPage /> },
         { path: 'trash', element: <TrashView /> },
         { path: 'settings', element: <SettingsPage /> },
         { path: 'about', element: <AboutPage /> },

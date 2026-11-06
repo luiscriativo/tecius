@@ -404,7 +404,7 @@ export function MapView({ timeline, onEventClick }: MapViewProps) {
   const iconBtn = 'p-1 rounded-sm text-chr-muted hover:text-chr-primary hover:bg-hover transition-colors disabled:opacity-30 disabled:hover:bg-transparent'
 
   return (
-    <div ref={rootRef} className="flex-1 flex flex-col min-h-0 bg-vault" data-testid="map-view">
+    <div ref={rootRef} className="flex-1 flex flex-col min-h-0 bg-vault" data-testid="map-view" data-capture="map">
       {/* Tempo profundo */}
       {hasDeepTime && (
         <div className="shrink-0 flex flex-wrap items-center gap-3 px-5 py-2 border-b border-chr-subtle bg-subtle font-mono text-2xs text-chr-secondary" data-testid="deep-time-notice">

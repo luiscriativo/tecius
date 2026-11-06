@@ -12,7 +12,7 @@ import { useAppStore } from '@/stores/useAppStore'
 import type { Notification, NotificationType } from '@/types'
 
 interface NotifyFn {
-  (title: string, message?: string, duration?: number): string
+  (title: string, message?: string, duration?: number, action?: Notification['action']): string
 }
 
 interface UseNotificationsReturn {
@@ -31,7 +31,7 @@ export function useNotifications(): UseNotificationsReturn {
   const { notifications, addNotification, removeNotification, clearNotifications } = useAppStore()
 
   const createNotifier = (type: NotificationType): NotifyFn => {
-    return (title, message, duration) => addNotification(type, title, message, duration)
+    return (title, message, duration, action) => addNotification(type, title, message, duration, action)
   }
 
   return {

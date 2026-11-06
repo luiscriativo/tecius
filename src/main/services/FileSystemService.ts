@@ -10,6 +10,11 @@ import { tm } from '../i18n'
 import fs from 'fs'
 import { createHash } from 'crypto'
 import matter from 'gray-matter'
+import { yamlScalar } from './yaml'
+import { eventToMarkdown, type ImportedEvent } from './importEvents'
+
+/** Arquivos de controle de uma pasta de timeline (não são eventos) */
+const CONTROL_FILES = new Set(['_timeline.md', '_template.md'])
 
 // Tipos compartilhados com o renderer via IPC
 export interface RawEvent {
@@ -57,6 +62,14 @@ export interface RawTimeline {
   meta: Record<string, unknown>
   events: RawEvent[]
   subtimelines: RawTimelineRef[]
+  /** A pasta tem um _template.md usado ao criar eventos */
+  hasTemplate?: boolean
+}
+
+/** Valores padrão (Configurações) aplicados aos eventos novos */
+export interface EventDefaults {
+  importance?: number
+  category?: string
 }
 
 export interface RawTimelineRef {
@@ -115,23 +128,20 @@ function sanitizeFrontmatter(data: Record<string, unknown>): Record<string, unkn
   return result
 }
 
-/**
- * Formata um valor como escalar YAML seguro para uso em templates
- * (`title: ${...}`). Valores com caracteres especiais (ex: "Guerra: início")
- * gerariam YAML inválido e o arquivo seria ignorado na leitura.
- */
 /** Título normalizado para comparar alvos [[…]]: sem acentos, minúsculo, espaços simples */
-const normTarget = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()
+const normTarget = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()
 
-function yamlScalar(value: string): string {
-  const needsQuotes =
-    value === '' ||
-    /[:#[\]{}&*!|>'"%@`]/.test(value) ||
-    /^[\s\-?,]/.test(value) ||
-    /\s$/.test(value) ||
-    /[\r\n]/.test(value) ||
-    /^(true|false|yes|no|on|off|null|~)$/i.test(value)
-  return needsQuotes ? JSON.stringify(value) : value
+/** Nome de arquivo a partir de um texto (sem acentos, só a-z 0-9 e hífens) */
+function slugify(text: string, fallback: string): string {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9\s-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '') || fallback
 }
 
 /**
@@ -241,8 +251,8 @@ export class FileSystemService {
       const entries = fs.readdirSync(dirPath, { withFileTypes: true })
       for (const entry of entries) {
         const full = path.join(dirPath, entry.name)
-        // Mesma regra de readTimeline: .md da própria pasta, exceto _timeline.md
-        if (entry.isFile() && entry.name.endsWith('.md') && entry.name !== '_timeline.md') {
+        // Mesma regra de readTimeline: .md da própria pasta, exceto os de controle
+        if (entry.isFile() && entry.name.endsWith('.md') && !CONTROL_FILES.has(entry.name)) {
           own += this.eventsInFile(full)
         } else if (entry.isDirectory() && this.isTimeline(full)) {
           sub += this.countEventsBoth(full).total
@@ -434,7 +444,7 @@ export class FileSystemService {
     for (const entry of entries) {
       if (!entry.isFile()) continue
       if (!entry.name.endsWith('.md')) continue
-      if (entry.name === '_timeline.md') continue
+      if (CONTROL_FILES.has(entry.name)) continue
 
       const filePath = path.join(timelinePath, entry.name)
       const slug = path.basename(entry.name, '.md')
@@ -560,6 +570,7 @@ export class FileSystemService {
       meta,
       events,
       subtimelines,
+      hasTemplate: fs.existsSync(path.join(timelinePath, '_template.md')),
     }
   }
 
@@ -763,7 +774,7 @@ export class FileSystemService {
    * Move uma timeline para a lixeira interna do vault (.trash/).
    * Grava _trash_meta.json dentro da pasta movida para permitir restauração.
    */
-  moveTimelineToVaultTrash(dirPath: string): void {
+  moveTimelineToVaultTrash(dirPath: string): { trashPath: string } {
     this.assertWithinVault(dirPath)
     const trashDir = path.join(this.vaultPath!, '.trash')
     if (!fs.existsSync(trashDir)) fs.mkdirSync(trashDir)
@@ -790,6 +801,7 @@ export class FileSystemService {
       trashedAt: new Date().toISOString(),
     }
     fs.writeFileSync(path.join(destPath, '_trash_meta.json'), JSON.stringify(meta, null, 2), 'utf-8')
+    return { trashPath: destPath }
   }
 
   /**
@@ -1010,17 +1022,8 @@ export class FileSystemService {
     fs.rmSync(dirPath, { recursive: true, force: true })
   }
 
-  createEvent(timelineDirPath: string, title: string, filename?: string, date?: string | null): { filePath: string; slug: string } {
-    this.assertWithinVault(timelineDirPath)
-    const base = (filename || title)
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-z0-9\s]/g, '')
-      .trim()
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-') || 'novo-evento'
-
+  /** Caminho livre para um evento novo na pasta: `base.md`, senão `base-2.md`, `base-3.md`… */
+  private uniqueEventPath(timelineDirPath: string, base: string): { filePath: string; slug: string } {
     let slug = base
     let filePath = path.join(timelineDirPath, `${slug}.md`)
     if (fs.existsSync(filePath)) {
@@ -1029,6 +1032,18 @@ export class FileSystemService {
       slug = `${base}-${i}`
       filePath = path.join(timelineDirPath, `${slug}.md`)
     }
+    return { filePath, slug }
+  }
+
+  /**
+   * Cria um evento. Com um `_template.md` na pasta, o arquivo nasce dele (cabeçalho
+   * e texto), só com `title` e `date` trocados; sem modelo, cabeçalho mínimo com
+   * os padrões das Configurações (`defaults`).
+   */
+  createEvent(timelineDirPath: string, title: string, filename?: string, date?: string | null, defaults: EventDefaults = {}): { filePath: string; slug: string } {
+    this.assertWithinVault(timelineDirPath)
+    const base = slugify(filename || title, 'novo-evento')
+    const { filePath, slug } = this.uniqueEventPath(timelineDirPath, base)
 
     // Usa a data fornecida pelo usuário; cai para hoje se não informada ou inválida.
     // Aceita os mesmos formatos que parseChroniclerDate: "1789", "1789-07", "1789-07-14",
@@ -1039,13 +1054,81 @@ export class FileSystemService {
           const today = new Date()
           return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
         })()
-
+    const importance = defaults.importance && defaults.importance >= 1 && defaults.importance <= 5 ? Math.round(defaults.importance) : 3
     // date === null: evento sem data (criado por uma ligação [[…]]; vai para "Sem data")
-    const template = date === null
-      ? `---\ntitle: ${yamlScalar(title)}\nimportance: 3\n---\n\n`
-      : `---\ntitle: ${yamlScalar(title)}\ndate: ${dateStr}\nimportance: 3\n---\n\n`
-    fs.writeFileSync(filePath, template, 'utf-8')
+    const dateLine = date === null ? null : `date: ${dateStr}`
+
+    const templatePath = path.join(timelineDirPath, '_template.md')
+    if (fs.existsSync(templatePath)) {
+      const content = this.applyTemplate(fs.readFileSync(templatePath, 'utf-8'), title, dateLine, importance, defaults.category)
+      fs.writeFileSync(filePath, content, 'utf-8')
+      return { filePath, slug }
+    }
+
+    const lines = ['---', `title: ${yamlScalar(title)}`]
+    if (dateLine) lines.push(dateLine)
+    if (defaults.category?.trim()) lines.push(`category: ${yamlScalar(defaults.category.trim())}`)
+    lines.push(`importance: ${importance}`, '---', '', '')
+    fs.writeFileSync(filePath, lines.join('\n'), 'utf-8')
     return { filePath, slug }
+  }
+
+  /**
+   * Modelo → evento: tira `title:` e `date:` do cabeçalho do modelo e põe os do
+   * evento no topo; `importance`/`category` só entram se o modelo não os tiver.
+   * O resto (campos extras, texto) fica exatamente como no modelo.
+   */
+  private applyTemplate(template: string, title: string, dateLine: string | null, importance: number, category?: string): string {
+    const src = template.replace(/\r\n/g, '\n')
+    const m = src.match(/^---\n([\s\S]*?)\n---(\n|$)/)
+    const head = m ? m[1] : ''
+    const body = m ? src.slice(m[0].length) : src
+    const kept = head.split('\n').filter((l) => !/^(title|date)\s*:/.test(l))
+    const has = (k: string) => kept.some((l) => new RegExp(`^${k}\\s*:`).test(l))
+    const top = [`title: ${yamlScalar(title)}`]
+    if (dateLine) top.push(dateLine)
+    if (!has('importance')) top.push(`importance: ${importance}`)
+    if (category?.trim() && !has('category')) top.push(`category: ${yamlScalar(category.trim())}`)
+    const headLines = [...top, ...kept.filter((l, i, arr) => !(l.trim() === '' && (i === 0 || i === arr.length - 1)))]
+    return `---\n${headLines.join('\n')}\n---\n${body.startsWith('\n') ? body : '\n' + body}`
+  }
+
+  /** Cópia de um evento na mesma pasta: mesmo conteúdo, título com "(cópia)" e arquivo `-2`, `-3`… */
+  duplicateEvent(eventFilePath: string): { filePath: string; slug: string } {
+    this.assertWithinVault(eventFilePath)
+    const dir = path.dirname(eventFilePath)
+    const srcSlug = path.basename(eventFilePath, '.md')
+    const { filePath, slug } = this.uniqueEventPath(dir, srcSlug)
+    const raw = fs.readFileSync(eventFilePath, 'utf-8')
+    const suffix = tm('copy_suffix')
+    // Só a linha title: do topo do cabeçalho (não as dos trechos de um chronicle)
+    const m = raw.match(/^---\r?\n([\s\S]*?)\r?\n---/)
+    let out = raw
+    if (m) {
+      const start = raw.indexOf(m[1])
+      const head = m[1].replace(/^title\s*:[ \t]*(.*)$/m, (_l, v: string) => {
+        const t = v.trim().replace(/^"(.*)"$/, (_q, s: string) => { try { return JSON.parse(`"${s}"`) } catch { return s } }).replace(/^'(.*)'$/, '$1')
+        return `title: ${yamlScalar(`${t}${suffix}`)}`
+      })
+      out = raw.slice(0, start) + head + raw.slice(start + m[1].length)
+    }
+    fs.writeFileSync(filePath, out, 'utf-8')
+    return { filePath, slug }
+  }
+
+  /** Grava os eventos importados (CSV/JSON) como arquivos .md na timeline */
+  importEvents(timelineDirPath: string, events: ImportedEvent[], defaults: EventDefaults = {}): { created: number; files: string[] } {
+    this.assertWithinVault(timelineDirPath)
+    if (!fs.existsSync(timelineDirPath)) throw new Error(tm('err_parent_missing', { path: timelineDirPath }))
+    const files: string[] = []
+    for (const e of events) {
+      const { filePath } = this.uniqueEventPath(timelineDirPath, slugify(e.title, 'evento'))
+      const importance = e.importance ?? (defaults.importance && defaults.importance >= 1 && defaults.importance <= 5 ? Math.round(defaults.importance) : 3)
+      const withDefaults: ImportedEvent = { ...e, importance, category: e.category ?? (defaults.category?.trim() || undefined) }
+      fs.writeFileSync(filePath, eventToMarkdown(withDefaults), 'utf-8')
+      files.push(filePath)
+    }
+    return { created: files.length, files }
   }
 
   /**
@@ -1083,7 +1166,7 @@ export class FileSystemService {
     return changed
   }
 
-  moveEventToVaultTrash(eventFilePath: string): void {
+  moveEventToVaultTrash(eventFilePath: string): { trashPath: string } {
     this.assertWithinVault(eventFilePath)
     const trashDir = path.join(this.vaultPath!, '.trash')
     if (!fs.existsSync(trashDir)) fs.mkdirSync(trashDir)
@@ -1120,6 +1203,7 @@ export class FileSystemService {
     // órfã na timeline, sem o evento que a abria
     const subDir = path.join(path.dirname(eventFilePath), slug)
     if (this.isTimeline(subDir)) fs.renameSync(subDir, path.join(wrapperPath, slug))
+    return { trashPath: wrapperPath }
   }
 
   renameEventFile(eventFilePath: string, newFilename: string): { newFilePath: string; newSlug: string } {

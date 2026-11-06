@@ -7,7 +7,7 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BookOpen, ChevronRight, FolderOpen, RefreshCw, X, Library, Pencil, Check, Plus, MoreHorizontal, LogOut } from 'lucide-react'
+import { BookOpen, ChevronRight, FolderOpen, RefreshCw, X, Library, Pencil, Check, Plus, MoreHorizontal, LogOut, History } from 'lucide-react'
 import { useVaultStore } from '@/stores/useVaultStore'
 import { useVault } from '@/hooks/useVault'
 import { useTimeline } from '@/hooks/useTimeline'
@@ -160,7 +160,9 @@ export function HomePage(): React.ReactElement {
   const isLoading = useVaultStore((s) => s.isLoading)
   const vaultError = useVaultStore((s) => s.error)
   const vaultPath = useVaultStore((s) => s.vaultPath)
-  const { pickAndLoadVault, reloadVault, clearVault, renameVault } = useVault()
+  const { pickAndLoadVault, reloadVault, clearVault, renameVault, recentVaults, switchVault } = useVault()
+  const otherVaults = recentVaults.filter((p) => p !== vaultPath)
+  const vaultName = (p: string) => p.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || p
   const { openTimeline } = useTimeline()
   const setCurrentTimeline = useTimelineStore((s) => s.setCurrentTimeline)
   const resetNav = useNavigationStore((s) => s.reset)
@@ -351,7 +353,32 @@ export function HomePage(): React.ReactElement {
                         <span className="text-chr-muted">{icon}</span>{label}
                       </button>
                     ))}
+                    {/* Vaults recentes: troca direta, sem o seletor de pasta */}
+                    {otherVaults.length > 0 && (
+                      <>
+                        <div className="my-1 h-px bg-chr-subtle" />
+                        <p className="px-3 pt-1 pb-0.5 font-mono text-2xs text-chr-muted uppercase tracking-wider flex items-center gap-1.5">
+                          <History size={10} strokeWidth={1.5} /> {t('recent_vaults')}
+                        </p>
+                        {otherVaults.map((p) => (
+                          <button key={p} role="menuitem" data-testid="vault-menu-recent" title={p}
+                            onClick={async () => { setMenuOpen(false); if (await switchVault(p)) navigate('/') }}
+                            className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm text-chr-primary hover:bg-hover">
+                            <span className="text-chr-muted"><FolderOpen size={12} strokeWidth={1.5} /></span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate">{vaultName(p)}</span>
+                              <span className="block font-mono text-2xs text-chr-muted truncate">{p}</span>
+                            </span>
+                          </button>
+                        ))}
+                      </>
+                    )}
                     <div className="my-1 h-px bg-chr-subtle" />
+                    <button role="menuitem" data-testid="vault-menu-open-other"
+                      onClick={() => { setMenuOpen(false); void pickAndLoadVault() }}
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm text-chr-primary hover:bg-hover">
+                      <span className="text-chr-muted"><FolderOpen size={12} strokeWidth={1.5} /></span>{t('choose_vault')}…
+                    </button>
                     <button role="menuitem" data-testid="vault-menu-close"
                       onClick={() => { setMenuOpen(false); setConfirmClose(true) }}
                       className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm text-chr-secondary hover:bg-hover">

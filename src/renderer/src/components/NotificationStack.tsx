@@ -80,6 +80,16 @@ function NotificationToast({
         {notification.message && (
           <p className="text-xs text-chr-muted mt-0.5 break-words">{notification.message}</p>
         )}
+        {notification.action && (
+          <button
+            type="button"
+            data-testid="notification-action"
+            onClick={() => { void notification.action!.onClick(); onDismiss(notification.id) }}
+            className="mt-2 px-2.5 py-1 rounded-sm font-mono text-xs border border-chr-strong text-chr-primary hover:bg-active transition-colors"
+          >
+            {notification.action.label}
+          </button>
+        )}
       </div>
 
       {/* Dismiss button */}

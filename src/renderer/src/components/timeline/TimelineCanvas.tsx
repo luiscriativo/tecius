@@ -28,7 +28,8 @@ import { TimelineAxis } from './TimelineAxis'
 import { CompressedAxis } from './CompressedAxis'
 import { formatYear, formatSpan } from '../../utils/chroniclerDate'
 import type { TimelineData, ChroniclerEvent } from '../../types/chronicler'
-import { ymdToT } from '../../utils/mapTime'
+import { eventSpan, ymdToT } from '../../utils/mapTime'
+import { isMultiPart } from '../../utils/events'
 import { buildCanvasScale, resolveScaleMode } from '../../utils/timelineScale'
 import { useTimelineStore } from '../../stores/useTimelineStore'
 import { useAppStore } from '../../stores/useAppStore'
@@ -145,6 +146,8 @@ interface TimelineCanvasProps {
   filterPaths?: string[]
   /** Outra timeline sobreposta no mesmo eixo, numa segunda faixa (comparação) */
   compare?: TimelineData | null
+  /** Evento em destaque vindo de fora (ex.: item sob o mouse no painel do grupo) */
+  focusEvent?: ChroniclerEvent | null
 }
 
 const MIN_CANVAS_WIDTH = 800
@@ -178,8 +181,11 @@ export function TimelineCanvas({
   onContextMenu,
   filterPaths,
   compare,
+  focusEvent,
 }: TimelineCanvasProps) {
   const { t, nEvents } = useI18n()
+  // Evento sob o mouse (ponto): a duração dele é desenhada enquanto durar o foco
+  const [hoverEvent, setHoverEvent] = useState<ChroniclerEvent | null>(null)
   // Memoizado: sem isso, com filtro ativo, pixelGroups era recalculado a cada scroll
   // Eventos sem data ficam fora do eixo (o aviso acima da timeline lista quais são)
   const activeEvents = useMemo(
@@ -337,6 +343,26 @@ export function TimelineCanvas({
     return () => ro.disconnect()
   }, [zone])
 
+  // ── Duração do evento em foco (mouse > painel do grupo > selecionado) ──────
+  // Nada permanente: um único fio, do ponto até a data final, só para quem tem
+  // date-end. Se a data final está fora do canvas visível, o fio vai até a
+  // borda com uma seta e o ano.
+  const duration = useMemo(() => {
+    const ev = hoverEvent ?? focusEvent ?? selectedEvent
+    if (!ev || !ev.dateEnd || ev.undated) return null
+    const lane = lanes.findIndex((l) => l.some((e) => e.filePath === ev.filePath && e.slug === ev.slug))
+    if (lane < 0) return null
+    const [start, end] = eventSpan(ev)
+    if (end <= start) return null
+    const px0 = Math.max(0, Math.min(1, scale.frac(start))) * canvasWidth
+    const pxEndRaw = Math.max(0, Math.min(1, scale.frac(end))) * canvasWidth
+    // Borda direita da área visível (dentro da margem interna)
+    const rightEdge = viewLeft + viewWidth - PAD_X * 2 - 8
+    const cut = pxEndRaw > rightEdge
+    const px1 = cut ? Math.max(px0 + 12, rightEdge) : Math.max(px0 + 2, pxEndRaw)
+    return { lane, px0, px1, cut, endYear: ev.dateEnd.year, amber: isMultiPart(ev) }
+  }, [hoverEvent, focusEvent, selectedEvent, lanes, scale, canvasWidth, viewLeft, viewWidth])
+
   // ── Viewport culling ───────────────────────────────────────────────────────
   // Renderiza apenas grupos dentro do viewport + 1 tela de buffer em cada lado.
   const buffer = Math.max(viewWidth, 400)
@@ -393,7 +419,7 @@ export function TimelineCanvas({
   const zoomOut = () => zoomTo((z) => Math.max(0.5, z / ZOOM_FACTOR))
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden select-none">
+    <div className="flex-1 flex flex-col overflow-hidden select-none" data-capture="timeline">
 
       {/* Área de scroll horizontal */}
       <div
@@ -469,6 +495,7 @@ export function TimelineCanvas({
                         onClick={() => onEventClick(event)}
                         onDoubleClick={() => event.hasSubtimeline && onEnterSubtimeline(event)}
                         onContextMenu={(e) => lane === 0 && onContextMenu?.(event, e.clientX, e.clientY)}
+                        onHover={setHoverEvent}
                         style={{ left }}
                         tooltipAlign={tooltipAlign}
                       />
@@ -486,6 +513,32 @@ export function TimelineCanvas({
                     />
                   )
                 })}
+
+                {/* Duração do evento em foco: fio do ponto até a data final */}
+                {duration && duration.lane === lane && (() => {
+                  const color = duration.amber ? 'rgb(var(--chronicle-dot))' : 'rgb(var(--event-dot))'
+                  const l = `${(duration.px0 / canvasWidth) * 100}%`
+                  const w = `${((duration.px1 - duration.px0) / canvasWidth) * 100}%`
+                  return (
+                    <div className="absolute inset-x-0 top-1/2 pointer-events-none" data-testid="duration-line" data-cut={duration.cut || undefined}>
+                      {/* haste do ponto até o fio */}
+                      <div className="absolute w-px" style={{ left: l, top: 6, height: 8, backgroundColor: color, opacity: 0.6 }} />
+                      {/* fio até a data final */}
+                      <div className="absolute h-0.5 rounded-full" style={{ left: l, width: w, top: 14, backgroundColor: color, opacity: 0.85 }} />
+                      {duration.cut ? (
+                        <>
+                          {/* fim fora da tela: seta e "até 1945 →" */}
+                          <div className="absolute w-2 h-2 border-t-[1.5px] border-r-[1.5px] rotate-45" style={{ left: `calc(${l} + ${w} - 7px)`, top: 11, borderColor: color }} />
+                          <span className="absolute font-mono text-2xs text-chr-muted whitespace-nowrap" style={{ left: `calc(${l} + ${w})`, top: 20, transform: 'translateX(-100%)' }}>
+                            {t('duration_until', { year: formatYear(duration.endYear) })}
+                          </span>
+                        </>
+                      ) : (
+                        <div className="absolute w-px" style={{ left: `calc(${l} + ${w})`, top: 10, height: 10, backgroundColor: color }} />
+                      )}
+                    </div>
+                  )
+                })()}
               </div>
             ))}
           </div>

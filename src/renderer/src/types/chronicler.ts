@@ -165,6 +165,8 @@ export interface TimelineData {
     max: ChroniclerDate | null
     spanYears: number
   }
+  /** A pasta tem um _template.md usado ao criar eventos */
+  hasTemplate?: boolean
 }
 
 // ── Referencia leve a uma timeline (para listas e vault) ──────

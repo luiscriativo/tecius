@@ -10,12 +10,21 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Index } from 'flexsearch'
-import { Search, X } from 'lucide-react'
+import { ChevronRight, Search, X } from 'lucide-react'
 import { useI18n } from '@/hooks/useI18n'
 import { useOpenEvent } from '@/hooks/useOpenEvent'
+import { useVault } from '@/hooks/useVault'
+import { useAppStore } from '@/stores/useAppStore'
+import { useTimelineStore } from '@/stores/useTimelineStore'
+import { NEW_EVENT_EVENT } from '@/layouts/AppLayout'
 import { parseChroniclerDate, parseDateParts, undatedLabel } from '@/utils/chroniclerDate'
+import type { TranslationKey } from '@/i18n/translations'
 import { cn } from '@/utils/cn'
+
+/** Comando da paleta (`>` no campo de busca) */
+interface Command { id: string; label: TranslationKey; keywords: string; run: () => void; enabled?: boolean }
 
 interface SearchDoc {
   filePath: string
@@ -91,7 +100,42 @@ export function SearchDialog({ open, onClose }: SearchDialogProps) {
     return () => { alive = false }
   }, [open])
 
-  const words = useMemo(() => norm(query).split(/\s+/).filter(Boolean), [query])
+  // ── Paleta de comandos: a busca começando com ">" lista ações do app ────────
+  const isCommand = query.trimStart().startsWith('>')
+  const navigate = useNavigate()
+  const { pickAndLoadVault } = useVault()
+  const currentTimeline = useTimelineStore((s) => s.currentTimeline)
+  const commands = useMemo<Command[]>(() => {
+    const go = (path: string) => () => navigate(path)
+    const view = (mode: 'horizontal' | 'list' | 'map') => () => { useTimelineStore.getState().setViewMode(mode); navigate('/timeline') }
+    const theme = (th: 'light' | 'dark' | 'system') => () => useAppStore.getState().setTheme(th)
+    const hasTl = !!currentTimeline
+    const list: Command[] = [
+      { id: 'new-event', label: 'cmd_new_event', keywords: 'novo evento new event criar ctrl+n', enabled: hasTl,
+        run: () => { navigate('/timeline'); setTimeout(() => window.dispatchEvent(new Event(NEW_EVENT_EVENT)), 80) } },
+      { id: 'view-h', label: 'cmd_view_horizontal', keywords: 'timeline horizontal canvas vista view', enabled: hasTl, run: view('horizontal') },
+      { id: 'view-l', label: 'cmd_view_list', keywords: 'lista list vista view', enabled: hasTl, run: view('list') },
+      { id: 'view-m', label: 'cmd_view_map', keywords: 'mapa map vista view', enabled: hasTl, run: view('map') },
+      { id: 'home', label: 'cmd_home', keywords: 'inicio home vault', run: go('/') },
+      { id: 'tags', label: 'cmd_tags', keywords: 'tags categorias categories', run: go('/tags') },
+      { id: 'images', label: 'cmd_images', keywords: 'imagens images assets fotos', run: go('/assets') },
+      { id: 'trash', label: 'cmd_trash', keywords: 'lixeira trash', run: go('/trash') },
+      { id: 'settings', label: 'cmd_settings', keywords: 'configuracoes settings preferencias', run: go('/settings') },
+      { id: 'updates', label: 'cmd_check_updates', keywords: 'atualizacoes updates versao version', run: go('/settings') },
+      { id: 'theme-l', label: 'cmd_theme_light', keywords: 'tema claro theme light', run: theme('light') },
+      { id: 'theme-d', label: 'cmd_theme_dark', keywords: 'tema escuro theme dark', run: theme('dark') },
+      { id: 'theme-s', label: 'cmd_theme_system', keywords: 'tema sistema theme system', run: theme('system') },
+      { id: 'sidebar', label: 'cmd_toggle_sidebar', keywords: 'barra lateral sidebar', run: () => useAppStore.getState().toggleSidebar() },
+      { id: 'vault', label: 'cmd_switch_vault', keywords: 'vault abrir outro open switch pasta folder', run: () => void pickAndLoadVault() },
+    ]
+    return list.filter((c) => c.enabled !== false)
+  }, [navigate, currentTimeline, pickAndLoadVault])
+  const cmdQuery = norm(query.trimStart().slice(1).trim())
+  const cmdResults = useMemo(() => (isCommand
+    ? commands.filter((c) => !cmdQuery || norm(t(c.label)).includes(cmdQuery) || c.keywords.includes(cmdQuery))
+    : []), [isCommand, commands, cmdQuery, t])
+
+  const words = useMemo(() => (isCommand ? [] : norm(query).split(/\s+/).filter(Boolean)), [query, isCommand])
   const results = useMemo(() => {
     if (!index || words.length === 0) return []
     const ids = index.search(words.join(' '), { limit: 60 }) as number[]
@@ -100,6 +144,7 @@ export function SearchDialog({ open, onClose }: SearchDialogProps) {
     const inTitle = (d: SearchDoc) => words.every((w) => norm(d.title).includes(w))
     return [...found.filter(inTitle), ...found.filter((d) => !inTitle(d))]
   }, [index, docs, words])
+  const count = isCommand ? cmdResults.length : results.length
 
   useEffect(() => { setSel(0) }, [query])
   useEffect(() => {
@@ -111,12 +156,17 @@ export function SearchDialog({ open, onClose }: SearchDialogProps) {
     onClose()
     await openEvent(d)
   }
+  const runCommand = (c: Command) => { onClose(); c.run() }
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') { e.preventDefault(); onClose() }
-    else if (e.key === 'ArrowDown') { e.preventDefault(); setSel((s) => Math.min(results.length - 1, s + 1)) }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); setSel((s) => Math.min(count - 1, s + 1)) }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setSel((s) => Math.max(0, s - 1)) }
-    else if (e.key === 'Enter' && results[sel]) { e.preventDefault(); void openDoc(results[sel]) }
+    else if (e.key === 'Enter') {
+      e.preventDefault()
+      if (isCommand) { if (cmdResults[sel]) runCommand(cmdResults[sel]) }
+      else if (results[sel]) void openDoc(results[sel])
+    }
   }
 
   if (!open) return null
@@ -138,12 +188,25 @@ export function SearchDialog({ open, onClose }: SearchDialogProps) {
         </div>
 
         <div ref={listRef} className="max-h-[56vh] overflow-y-auto">
+          {isCommand ? (
+            <>
+              <p className="px-4 pt-3 pb-1 font-mono text-2xs text-chr-muted uppercase tracking-wider">{t('search_commands_title')}</p>
+              {cmdResults.length === 0 && <p className="px-4 py-4 font-mono text-xs text-chr-muted">{t('search_no_commands')}</p>}
+              {cmdResults.map((c, i) => (
+                <button key={c.id} type="button" data-idx={i} data-testid={`cmd-${c.id}`} onClick={() => runCommand(c)} onMouseMove={() => setSel(i)}
+                  className={cn('w-full flex items-center gap-3 text-left px-4 py-2 transition-colors', i === sel ? 'bg-active' : 'hover:bg-hover')}>
+                  <ChevronRight size={12} strokeWidth={1.5} className="text-chr-muted shrink-0" />
+                  <span className="text-sm text-chr-primary">{t(c.label)}</span>
+                </button>
+              ))}
+            </>
+          ) : (<>
           {loading && <p className="px-4 py-6 font-mono text-xs text-chr-muted">{t('loading')}</p>}
           {!loading && words.length > 0 && results.length === 0 && (
             <p className="px-4 py-6 font-mono text-xs text-chr-muted">{t('search_no_results')}</p>
           )}
           {!loading && words.length === 0 && (
-            <p className="px-4 py-6 font-mono text-xs text-chr-muted">{t('search_hint', { count: docs.length })}</p>
+            <p className="px-4 py-6 font-mono text-xs text-chr-muted">{t('search_hint', { count: docs.length })} <span className="text-chr-muted/70">· {t('search_commands_hint')}</span></p>
           )}
           {results.map((d, i) => (
             <button key={d.filePath + d.slug} type="button" data-idx={i} onClick={() => void openDoc(d)}
@@ -160,11 +223,13 @@ export function SearchDialog({ open, onClose }: SearchDialogProps) {
               {d.body && <span className="block text-xs text-chr-secondary mt-0.5 line-clamp-2">{snippet(d.body, words)}</span>}
             </button>
           ))}
+          </>)}
         </div>
 
         <div className="px-4 py-2 border-t border-chr-subtle font-mono text-2xs text-chr-muted flex gap-4">
           <span>↑ ↓ {t('search_nav')}</span><span>Enter {t('search_open')}</span><span>Esc {t('close')}</span>
-          {results.length > 0 && <span className="ml-auto">{results.length === 1 ? t('results_one') : t('results_other', { count: results.length })}</span>}
+          {!isCommand && <span className="hidden sm:inline">{t('search_commands_hint')}</span>}
+          {!isCommand && results.length > 0 && <span className="ml-auto">{results.length === 1 ? t('results_one') : t('results_other', { count: results.length })}</span>}
         </div>
       </div>
     </div>

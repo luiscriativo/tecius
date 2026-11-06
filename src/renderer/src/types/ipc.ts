@@ -25,6 +25,8 @@ export interface RawTimeline {
   meta: Record<string, unknown>
   events: RawEvent[]
   subtimelines: RawTimelineRef[]
+  /** A pasta tem um _template.md usado ao criar eventos */
+  hasTemplate?: boolean
 }
 
 export interface RawTimelineRef {

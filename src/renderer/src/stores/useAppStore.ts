@@ -14,8 +14,15 @@ import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import type { Theme, Notification, NotificationType, Platform } from '@/types'
 import type { Language } from '@/i18n/translations'
-import { setDateLanguage } from '@/utils/chroniclerDate'
+import { setDateFormat, setDateLanguage, type DateFormatPref } from '@/utils/chroniclerDate'
 import type { ScalePreference } from '@/utils/timelineScale'
+
+/** Tamanho do texto dos eventos (leitura e edição) */
+export type TextSize = 'small' | 'normal' | 'large'
+
+function applyTextSize(size: TextSize): void {
+  document.documentElement.dataset.textSize = size
+}
 
 // ── State shape ───────────────────────────────────────────────────────────────
 
@@ -48,6 +55,16 @@ interface AppState {
   onlineGeocoding: boolean
   /** Mapas paleogeográficos via GPlates Web Service */
   paleoMaps: boolean
+
+  // ── Preferências de edição ─────────────────────────────────────────────────
+  /** Importância dos eventos novos (1–5) */
+  defaultImportance: number
+  /** Categoria dos eventos novos ('' = nenhuma) */
+  defaultCategory: string
+  /** Formato das datas curtas e do campo de data ('auto' = pelo idioma) */
+  dateFormat: DateFormatPref
+  /** Tamanho do texto dos eventos */
+  textSize: TextSize
 }
 
 // ── Actions shape ─────────────────────────────────────────────────────────────
@@ -64,7 +81,8 @@ interface AppActions {
     type: NotificationType,
     title: string,
     message?: string,
-    duration?: number
+    duration?: number,
+    action?: Notification['action']
   ) => string // returns the notification id
   removeNotification: (id: string) => void
   clearNotifications: () => void
@@ -84,6 +102,12 @@ interface AppActions {
   // Serviços online
   setOnlineGeocoding: (v: boolean) => void
   setPaleoMaps: (v: boolean) => void
+
+  // Preferências de edição
+  setDefaultImportance: (n: number) => void
+  setDefaultCategory: (c: string) => void
+  setDateFormatPref: (f: DateFormatPref) => void
+  setTextSize: (s: TextSize) => void
 }
 
 type AppStore = AppState & AppActions
@@ -127,6 +151,10 @@ export const useAppStore = create<AppStore>()(
       timelineScale: 'auto' as ScalePreference,
       onlineGeocoding: false,
       paleoMaps: false,
+      defaultImportance: 3,
+      defaultCategory: '',
+      dateFormat: 'auto' as DateFormatPref,
+      textSize: 'normal' as TextSize,
 
       // ── Theme ───────────────────────────────────────────────────────────────
       setTheme: (theme) => {
@@ -140,7 +168,7 @@ export const useAppStore = create<AppStore>()(
       },
 
       // ── Notifications ────────────────────────────────────────────────────────
-      addNotification: (type, title, message, duration = 5000) => {
+      addNotification: (type, title, message, duration = 5000, action) => {
         const id = `notification-${Date.now()}-${Math.random().toString(36).slice(2)}`
         const notification: Notification = {
           id,
@@ -148,7 +176,8 @@ export const useAppStore = create<AppStore>()(
           title,
           message,
           duration,
-          createdAt: Date.now()
+          createdAt: Date.now(),
+          action,
         }
 
         set((state) => ({
@@ -199,6 +228,10 @@ export const useAppStore = create<AppStore>()(
       setOnlineGeocoding: (onlineGeocoding) => set({ onlineGeocoding }),
       setPaleoMaps: (paleoMaps) => set({ paleoMaps }),
       setTimelineScale: (timelineScale) => set({ timelineScale }),
+      setDefaultImportance: (n) => set({ defaultImportance: Math.min(5, Math.max(1, Math.round(n))) }),
+      setDefaultCategory: (defaultCategory) => set({ defaultCategory }),
+      setDateFormatPref: (dateFormat) => { setDateFormat(dateFormat); set({ dateFormat }) },
+      setTextSize: (textSize) => { applyTextSize(textSize); set({ textSize }) },
     }),
     {
       name: 'electron-app-storage', // key in localStorage
@@ -209,6 +242,8 @@ export const useAppStore = create<AppStore>()(
         setDateLanguage(language)
         window.electronAPI?.invoke('app:set-language', language).catch(() => {})
         document.documentElement.lang = language
+        setDateFormat(state?.dateFormat ?? 'auto')
+        applyTextSize(state?.textSize ?? 'normal')
       },
       // Only persist user preferences — not transient state
       partialize: (state) => ({
@@ -218,6 +253,10 @@ export const useAppStore = create<AppStore>()(
         onlineGeocoding: state.onlineGeocoding,
         paleoMaps: state.paleoMaps,
         timelineScale: state.timelineScale,
+        defaultImportance: state.defaultImportance,
+        defaultCategory: state.defaultCategory,
+        dateFormat: state.dateFormat,
+        textSize: state.textSize,
       })
     }
   )

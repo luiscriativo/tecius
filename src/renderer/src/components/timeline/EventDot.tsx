@@ -1,6 +1,8 @@
 import { cn } from '../../utils/cn'
 import type { ChroniclerEvent } from '../../types/chronicler'
 import { isMultiPart } from '../../utils/events'
+import { eventSpan } from '../../utils/mapTime'
+import { formatDuration } from '../../utils/chroniclerDate'
 
 interface EventDotProps {
   event: ChroniclerEvent
@@ -8,10 +10,19 @@ interface EventDotProps {
   onClick: () => void
   onDoubleClick?: () => void
   onContextMenu?: (e: React.MouseEvent) => void
+  /** Mouse entrou/saiu do ponto (o canvas desenha a duração do evento em foco) */
+  onHover?: (event: ChroniclerEvent | null) => void
   style: React.CSSProperties
   /** Alinhamento do tooltip — 'left' quando o dot está perto da borda esquerda,
    *  'right' quando perto da borda direita, 'center' (padrão) no meio. */
   tooltipAlign?: 'left' | 'center' | 'right'
+}
+
+/** "1914 – 1918 · 4 anos" para eventos com date-end; só a data nos demais */
+export function dateRangeLabel(event: ChroniclerEvent): string {
+  if (!event.dateEnd) return event.date.display
+  const [start, end] = eventSpan(event)
+  return `${event.date.display} – ${event.dateEnd.display} · ${formatDuration(start, end)}`
 }
 
 const IMPORTANCE_SIZE: Record<number, string> = {
@@ -22,7 +33,7 @@ const IMPORTANCE_SIZE: Record<number, string> = {
   5: 'w-4 h-4',
 }
 
-export function EventDot({ event, isSelected, onClick, onDoubleClick, onContextMenu, style, tooltipAlign = 'center' }: EventDotProps) {
+export function EventDot({ event, isSelected, onClick, onDoubleClick, onContextMenu, onHover, style, tooltipAlign = 'center' }: EventDotProps) {
   const importance = event.frontmatter.importance ?? 3
   const hasSubtimeline = event.hasSubtimeline
   const isChronicle = isMultiPart(event)
@@ -38,6 +49,8 @@ export function EventDot({ event, isSelected, onClick, onDoubleClick, onContextM
     <div
       className="absolute top-1/2 group cursor-pointer"
       style={{ ...style, transform: 'translateX(-50%) translateY(-50%)' }}
+      onMouseEnter={onHover ? () => onHover(event) : undefined}
+      onMouseLeave={onHover ? () => onHover(null) : undefined}
     >
       {/* Area de clique maior (invisivel) */}
       <div
@@ -95,7 +108,7 @@ export function EventDot({ event, isSelected, onClick, onDoubleClick, onContextM
           <p className="font-sans text-xs font-medium text-chr-primary leading-tight">
             {event.frontmatter.title}
           </p>
-          <p className="chr-date mt-0.5">{event.date.display}</p>
+          <p className={cn('chr-date mt-0.5', event.dateEnd && 'text-timeline-chronicle-text')}>{dateRangeLabel(event)}</p>
           {isChronicle && (
             <p className="text-2xs text-timeline-chronicle-text mt-0.5 font-mono truncate max-w-48">
               ◆ {event.chronicle!.title}

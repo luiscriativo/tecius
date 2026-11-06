@@ -6,7 +6,10 @@
  */
 
 import { ipcMain, dialog, shell } from 'electron'
-import { fileSystemService } from '../services/FileSystemService'
+import { promises as fsp } from 'fs'
+import { extname } from 'path'
+import { fileSystemService, type EventDefaults } from '../services/FileSystemService'
+import { parseImport } from '../services/importEvents'
 import { tm } from '../i18n'
 
 export function registerFsHandlers(): void {
@@ -209,8 +212,8 @@ export function registerFsHandlers(): void {
   ipcMain.handle('fs:trash-timeline', async (_event, dirPath: string) => {
     try {
       fileSystemService.assertWithinVault(dirPath)
-      fileSystemService.moveTimelineToVaultTrash(dirPath)
-      return { success: true }
+      // `data.trashPath` permite o "Desfazer" do aviso
+      return { success: true, data: fileSystemService.moveTimelineToVaultTrash(dirPath) }
     } catch (e) {
       return { success: false, error: String(e) }
     }
@@ -275,11 +278,43 @@ export function registerFsHandlers(): void {
 
   // ── fs:create-event ───────────────────────────────────────────────────────
   // Cria um novo arquivo de evento .md numa timeline
-  ipcMain.handle('fs:create-event', async (_event, timelineDirPath: string, title: string, filename?: string, date?: string | null) => {
+  ipcMain.handle('fs:create-event', async (_event, timelineDirPath: string, title: string, filename?: string, date?: string | null, defaults?: EventDefaults) => {
     try {
       fileSystemService.assertWithinVault(timelineDirPath)
-      const result = fileSystemService.createEvent(timelineDirPath, title, filename, date)
+      const result = fileSystemService.createEvent(timelineDirPath, title, filename, date, defaults ?? {})
       return { success: true, data: result }
+    } catch (e) {
+      return { success: false, error: String(e) }
+    }
+  })
+
+  // ── fs:duplicate-event ────────────────────────────────────────────────────
+  // Cópia do evento na mesma pasta (título com "(cópia)")
+  ipcMain.handle('fs:duplicate-event', async (_event, eventFilePath: string) => {
+    try {
+      return { success: true, data: fileSystemService.duplicateEvent(eventFilePath) }
+    } catch (e) {
+      return { success: false, error: String(e) }
+    }
+  })
+
+  // ── fs:import-events ──────────────────────────────────────────────────────
+  // Escolhe um .csv/.json e cria um evento por linha na timeline
+  ipcMain.handle('fs:import-events', async (_event, timelineDirPath: string, defaults?: EventDefaults) => {
+    try {
+      fileSystemService.assertWithinVault(timelineDirPath)
+      const testFile = process.env.TECIUS_TEST_IMPORT_FILE
+      const picked = testFile ? [testFile] : (await dialog.showOpenDialog({
+        title: tm('dialog_import_events'),
+        properties: ['openFile'],
+        filters: [{ name: tm('dialog_import_files'), extensions: ['csv', 'json'] }],
+      })).filePaths
+      if (!picked[0]) return { success: false, canceled: true }
+      const kind = extname(picked[0]).toLowerCase() === '.json' ? 'json' : 'csv'
+      const text = await fsp.readFile(picked[0], 'utf-8')
+      const parsed = parseImport(text, kind)
+      const { created } = fileSystemService.importEvents(timelineDirPath, parsed.events, defaults ?? {})
+      return { success: true, data: { created, skipped: parsed.skipped } }
     } catch (e) {
       return { success: false, error: String(e) }
     }
@@ -300,8 +335,8 @@ export function registerFsHandlers(): void {
   ipcMain.handle('fs:delete-event', async (_event, eventFilePath: string) => {
     try {
       fileSystemService.assertWithinVault(eventFilePath)
-      fileSystemService.moveEventToVaultTrash(eventFilePath)
-      return { success: true }
+      // `data.trashPath` permite o "Desfazer" do aviso
+      return { success: true, data: fileSystemService.moveEventToVaultTrash(eventFilePath) }
     } catch (e) {
       return { success: false, error: String(e) }
     }

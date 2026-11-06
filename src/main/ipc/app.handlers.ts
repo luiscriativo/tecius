@@ -122,6 +122,38 @@ export function registerAppHandlers(): void {
   })
 }
 
+// ── Exportar a vista como imagem (PNG) ────────────────────────────────────────
+// O renderer manda o retângulo (em px CSS) da área a capturar — o canvas da
+// timeline ou o mapa — e o main fotografa a janela nesse trecho.
+export function registerPngExport(): void {
+  ipcMain.handle('app:export-png', async (event, options: { rect: { x: number; y: number; width: number; height: number }; suggestedName: string }) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win) return { success: false, error: 'No window found' }
+    const r = options?.rect
+    if (!r || !(r.width > 0) || !(r.height > 0)) return { success: false, error: 'Invalid rect' }
+    const baseName = safeFileName(options.suggestedName, 'timeline')
+    const testDir = process.env.TECIUS_TEST_SAVE_DIR
+    const { canceled, filePath } = testDir
+      ? { canceled: false, filePath: join(testDir, `${baseName}.png`) }
+      : await dialog.showSaveDialog(win, {
+        title: tm('dialog_export_png'),
+        defaultPath: `${baseName}.png`,
+        filters: [{ name: 'PNG', extensions: ['png'] }],
+      })
+    if (canceled || !filePath) return { success: false, canceled: true }
+    try {
+      const image = await win.webContents.capturePage({
+        x: Math.max(0, Math.round(r.x)), y: Math.max(0, Math.round(r.y)),
+        width: Math.round(r.width), height: Math.round(r.height),
+      })
+      await fs.writeFile(filePath, image.toPNG())
+      return { success: true, filePath }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) }
+    }
+  })
+}
+
 // ── Exportar timeline inteira (PDF ou página web) ──────────────────────────────
 
 /** asset://local/<caminho> → caminho no disco */

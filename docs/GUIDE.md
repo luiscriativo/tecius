@@ -460,6 +460,41 @@ Select an event and click **Delete permanently**. This removes the file from dis
 
 ---
 
+## 11b. Templates, duplicating, importing and exporting images
+
+### Event template per timeline
+
+Put a `_template.md` file inside a timeline folder and every new event of that timeline is born from it: the front matter fields (except `title` and `date`, which come from the dialog) and the body text are copied as they are. `importance` and `category` from Settings are only added when the template does not set them. The template itself never appears as an event. The **New event** dialog says whether a template is in use.
+
+### Duplicate an event
+
+Right-click an event (list or canvas) → **Duplicate**, or use the **Duplicate** button at the bottom of the event page. The copy is created in the same folder with " (copy)" in the title and opens right away.
+
+### Import events from CSV or JSON
+
+In the timeline header, **Import** reads a `.csv` (comma or semicolon, Excel BOM accepted) or a `.json` (an array of objects, or `{ "events": [...] }`) and creates one `.md` per row. Recognized columns (Portuguese or English, case and accents ignored): `title`, `date`, `date-end`, `category`, `importance`, `tags` (comma-separated), `body`/`text`/`description`, `lat`, `lng`, `location`/`place`. Dates accept the app formats plus `dd/mm/yyyy` and ISO date-times. Rows without a title or with an invalid date are skipped and counted in the notice.
+
+### Durations on the canvas
+
+The horizontal timeline keeps showing one dot per event. For an event with `date-end`, hovering its dot (or selecting it, or hovering it in a group panel) draws a thin line from the dot to the end date, and the tooltip reads "1914 – 1918 · 4 years". When the end date is beyond the visible area, the line runs to the edge with an arrow and "until 1945 →". Nothing is drawn for the other events, so dense timelines stay clean.
+
+### Export the view as an image
+
+**Export → Image (.png)** saves exactly what is on screen in the current view: the horizontal timeline, the list or the map.
+
+### Undo after sending to trash
+
+Sending an event or a timeline to the trash shows a notice with **Undo** for a few seconds; it restores the item to where it was.
+
+### Tags and categories page
+
+The **Tags** page (sidebar) lists every category and tag of the vault with counts; click one to list its events across all timelines. Clicking a tag or category on an event page opens the same list.
+
+### Recent vaults
+
+The vault menu on the home page and the welcome screen list the vaults you opened before; one click switches to them.
+
+---
 ## 12. Search
 
 Press `Ctrl` + `K` (`⌘K` on macOS) or click **Search** in the sidebar to search the whole vault — every timeline and sub-timeline. It matches titles, text, tags, categories and timeline names, ignores accents and finds words by their beginning as you type. Titles that match come first; each result shows the date, the timeline and a snippet of the text. Use ↑ ↓ and Enter to open an event.
@@ -468,6 +503,8 @@ Press `Ctrl` + `K` (`⌘K` on macOS) or click **Search** in the sidebar to searc
 
 ## 13. Settings
 
+
+Besides theme, language and the online services, Settings holds: **New events** (default importance and category), **Date format** (automatic by language, day/month/year, month/day/year or ISO — for short dates and the date field), **Text size** (event text when reading and editing) and **Updates** (check now).
 Accessible via the sidebar. Every option applies immediately and is saved automatically.
 
 | Setting | Description |
@@ -487,7 +524,9 @@ Accessible via the sidebar. Every option applies immediately and is saved automa
 | `←` `→` | Previous / next event on the event page; previous / next date on the map ruler; slides on the onboarding carousel |
 | `Home` `End` | First / last date on the map ruler |
 | `Space` | Play / pause on the map ruler and in the presentation |
-| `Ctrl` + `K` | Search the whole vault |
+| `Ctrl` + `K` | Search the whole vault — type `>` for the command palette (new event, views, theme, pages) |
+| `Ctrl` + `N` | New event in the open timeline (from any screen) |
+| `Ctrl` + `E` | Edit / back to reading on the event page |
 | `Ctrl` + `F` | Search the event content |
 | `Ctrl` + `S` | Save the event while editing |
 | `Ctrl` + `B` / `Ctrl` + `I` | Bold / italic the selection while editing (again to remove) |

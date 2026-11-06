@@ -11,6 +11,7 @@ import {
   FileDown,
   ChevronLeft,
   ChevronRight,
+  X,
 } from 'lucide-react'
 import { cn } from '../utils/cn'
 import { useVault } from '../hooks/useVault'
@@ -34,8 +35,9 @@ const SLIDES = [
 const AUTOPLAY_INTERVAL = 4500
 
 export default function VaultSetup() {
-  const { pickAndLoadVault, isLoading, error } = useVault()
+  const { pickAndLoadVault, isLoading, error, recentVaults, switchVault, removeRecent } = useVault()
   const { t } = useI18n()
+  const vaultName = (p: string) => p.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || p
   const appVersion = useAppStore((s) => s.appVersion)
 
   const [current, setCurrent] = useState(0)
@@ -186,6 +188,31 @@ export default function VaultSetup() {
         <FolderOpen size={15} strokeWidth={1.5} />
         {isLoading ? t('loading') : t('choose_vault_folder')}
       </button>
+
+      {/* Vaults abertos antes: um clique reabre */}
+      {recentVaults.length > 0 && (
+        <div className="w-full max-w-xl -mt-2" data-testid="recent-vaults">
+          <p className="font-mono text-2xs text-chr-muted uppercase tracking-wider mb-1.5 text-center">{t('recent_vaults')}</p>
+          <div className="chr-card divide-y divide-[rgb(var(--border-subtle))]">
+            {recentVaults.map((p) => (
+              <div key={p} className="group flex items-center gap-2 px-3 py-2 hover:bg-hover transition-colors">
+                <button type="button" onClick={() => void switchVault(p)} disabled={isLoading} title={p}
+                  className="flex-1 min-w-0 flex items-center gap-3 text-left disabled:opacity-50">
+                  <FolderOpen size={14} strokeWidth={1.5} className="shrink-0 text-chr-muted" />
+                  <span className="min-w-0">
+                    <span className="block text-sm text-chr-primary truncate">{vaultName(p)}</span>
+                    <span className="block font-mono text-2xs text-chr-muted truncate">{p}</span>
+                  </span>
+                </button>
+                <button type="button" onClick={() => removeRecent(p)} title={t('recent_remove')} aria-label={t('recent_remove')}
+                  className="shrink-0 p-1 rounded-sm text-chr-muted opacity-0 group-hover:opacity-100 hover:text-chr-primary transition-opacity">
+                  <X size={12} strokeWidth={1.5} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Versão */}
       <p className="font-mono text-2xs text-chr-muted tracking-wider uppercase">

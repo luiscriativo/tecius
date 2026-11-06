@@ -18,6 +18,8 @@ export interface Notification {
   message?: string
   duration?: number // milliseconds; undefined = persistent
   createdAt: number
+  /** Botão no aviso (ex: "Desfazer" depois de enviar para a lixeira) */
+  action?: { label: string; onClick: () => void | Promise<void> }
 }
 
 // ── Navigation ────────────────────────────────────────────────────────────────

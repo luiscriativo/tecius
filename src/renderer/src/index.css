@@ -321,6 +321,11 @@
     line-height: 1.75;
     color: rgb(var(--text-primary));
   }
+  /* Tamanho do texto dos eventos (Configurações): leitura e campos de edição */
+  [data-text-size="small"] .markdown-content { font-size: 14px; }
+  [data-text-size="large"] .markdown-content { font-size: 17px; line-height: 1.8; }
+  [data-text-size="small"] .editor-text { font-size: 12px !important; }
+  [data-text-size="large"] .editor-text { font-size: 15px !important; line-height: 1.7 !important; }
   .markdown-content h1,
   .markdown-content h2,
   .markdown-content h3 {

@@ -23,6 +23,10 @@ const messages = {
     err_parent_missing: 'A pasta de destino não existe mais: {path}',
     err_trash_item_broken: 'O item da lixeira não contém um arquivo de evento (.md) para restaurar.',
     default_entry_title: 'Evento {n}',
+    copy_suffix: ' (cópia)',
+    dialog_import_events: 'Importar eventos (CSV ou JSON)',
+    dialog_import_files: 'Planilhas e listas',
+    dialog_export_png: 'Salvar imagem PNG',
   },
   en: {
     dialog_pick_vault: 'Choose Vault folder',
@@ -40,6 +44,10 @@ const messages = {
     err_parent_missing: 'The destination folder no longer exists: {path}',
     err_trash_item_broken: 'This trash item has no event file (.md) to restore.',
     default_entry_title: 'Event {n}',
+    copy_suffix: ' (copy)',
+    dialog_import_events: 'Import events (CSV or JSON)',
+    dialog_import_files: 'Spreadsheets and lists',
+    dialog_export_png: 'Save PNG image',
   },
 } as const
 
