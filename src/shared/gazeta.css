@@ -1,0 +1,75 @@
+/*
+ * Estilo "gazeta" — gazeta setecentista: uma coluna, tipos Fell, cabeçalho em
+ * caixa alta espaçada, versaletes na linha de data, "Avisos" no fim.
+ *   kicker  → o nome da gazeta, no alto (a timeline, por padrão)
+ *   edition → a linha de número ("Num. 14")
+ *   deck    → o subtítulo em itálico
+ *   >       → a caixa de "Avisos"
+ */
+
+.page-gazeta {
+  --pg-paper: #efe4c8;
+  --pg-paper-2: #e6d9b8;
+  --pg-ink: #2b2217;
+  --pg-ink-2: #6b5a40;
+  --pg-rule: #2b2217;
+  --pg-accent: #7a3b1e;
+  --pg-serif: 'IM Fell DW Pica', Georgia, serif;
+  --pg-caps: 'IM Fell DW Pica SC', 'IM Fell DW Pica', Georgia, serif;
+  --pg-display: 'IM Fell DW Pica', Georgia, serif;
+}
+.dark .page-gazeta:not([data-tone="light"]), [data-theme="dark"] .page-gazeta:not([data-tone="light"]), .page-gazeta[data-tone="dark"] {
+  --pg-paper: #1c1812;
+  --pg-paper-2: #241f17;
+  --pg-ink: #e9dfc6;
+  --pg-ink-2: #b3a687;
+  --pg-rule: #e9dfc6;
+  --pg-accent: #d9a06a;
+}
+
+.page-styled.page-gazeta {
+  padding: 24px 32px 20px;
+  line-height: 1.45;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.25);
+  background-image: radial-gradient(ellipse at 50% 0%, rgba(90, 60, 20, 0.10), transparent 60%);
+}
+
+/* Cabeçalho: número, nome da gazeta, linha de data, título */
+.page-styled.page-gazeta .pg-head { text-align: center; align-items: stretch; margin-bottom: 12px; }
+.page-styled.page-gazeta .pg-ornament, .page-styled.page-gazeta .pg-coords, .page-styled.page-gazeta .pg-importance { display: none; }
+.page-styled.page-gazeta .pg-edition { order: 1; font-family: var(--pg-caps); font-size: 13px; letter-spacing: 0.08em; text-align: left; }
+.page-styled.page-gazeta .pg-emblem { order: 2; width: 44px; margin: 2px auto 0; }
+.page-styled.page-gazeta .pg-kicker { order: 3; font-family: var(--pg-display); font-size: 40px; letter-spacing: 0.14em; text-transform: uppercase; line-height: 1.05; margin: 2px 0 0; padding-bottom: 6px; border-bottom: 1px solid var(--pg-rule); }
+.page-styled.page-gazeta .pg-kicker::after { content: '✦ ✦ ✦'; display: block; font-size: 11px; letter-spacing: 0.5em; margin-top: 4px; }
+.page-styled.page-gazeta .pg-meta { order: 4; justify-content: center; gap: 0; font-family: var(--pg-caps); font-size: 13px; letter-spacing: 0.1em; border-bottom: 1px solid var(--pg-rule); padding: 3px 0 5px; margin: 0 0 14px; }
+.page-styled.page-gazeta .pg-meta > span + span::before { content: ' · '; white-space: pre; }
+.page-styled.page-gazeta .pg-title { order: 5; font-family: var(--pg-display); font-weight: 400; font-size: 22px; letter-spacing: 0.12em; text-transform: uppercase; line-height: 1.2; margin: 0 0 4px; }
+.page-styled.page-gazeta .pg-deck { order: 6; font-style: italic; margin: 0 0 8px; }
+.page-styled.page-gazeta .pg-cover { order: 7; max-width: 60%; margin: 4px auto 6px; border: 1px solid var(--pg-ink); padding: 2px; counter-increment: none; }
+.page-styled.page-gazeta .pg-cover img { filter: grayscale(1) sepia(0.5) contrast(1.15); }
+.page-styled.page-gazeta .pg-cover .pg-caption { text-align: center; font-size: 12px; color: var(--pg-ink); margin-top: 2px; }
+
+/* Texto justificado, com recolho; a primeira linha em versaletes como a data-linha */
+.page-styled.page-gazeta .pg-body { text-align: justify; hyphens: auto; }
+.page-styled.page-gazeta .markdown-content p { margin: 0 0 6px; text-indent: 1.4em; }
+.page-styled.page-gazeta .markdown-content > p:first-of-type { text-indent: 0; }
+.page-styled.page-gazeta .markdown-content > p:first-of-type::first-line { font-family: var(--pg-caps); letter-spacing: 0.06em; }
+.page-styled.page-gazeta .markdown-content h1, .page-styled.page-gazeta .markdown-content h2 { font-family: var(--pg-caps); font-weight: 400; font-size: 1em; letter-spacing: 0.14em; text-align: center; border-top: 1px solid var(--pg-rule); border-bottom: 1px solid var(--pg-rule); padding: 3px 0; margin: 12px 0 8px; }
+.page-styled.page-gazeta .markdown-content h3 { font-family: var(--pg-caps); font-weight: 400; font-size: 1em; letter-spacing: 0.08em; margin: 8px 0 4px; }
+.page-styled.page-gazeta .markdown-content strong { font-family: var(--pg-caps); font-weight: 400; letter-spacing: 0.06em; }
+.page-styled.page-gazeta .markdown-content blockquote { clear: both; border: 0; border-top: 1px solid var(--pg-rule); border-bottom: 1px solid var(--pg-rule); padding: 6px 0; margin: 10px 0; text-align: center; font-size: 0.92em; }
+.page-styled.page-gazeta .markdown-content blockquote::before { content: 'Avisos'; display: block; font-family: var(--pg-caps); letter-spacing: 0.12em; }
+.page-styled.page-gazeta .markdown-content blockquote p { margin: 0 0 0.3em; text-indent: 0; }
+.page-styled.page-gazeta .markdown-content hr { border: 0; text-align: center; margin: 10px 0; }
+.page-styled.page-gazeta .markdown-content hr::before { content: '✦ ✦ ✦'; font-size: 11px; letter-spacing: 0.5em; }
+.page-styled.page-gazeta .pg-figure { float: right; width: 46%; margin: 2px 0 6px 14px; border: 1px solid var(--pg-ink); padding: 2px; }
+.page-styled.page-gazeta .pg-figure img { filter: grayscale(1) sepia(0.5) contrast(1.15); }
+.page-styled.page-gazeta .pg-figure .pg-caption { text-align: center; font-size: 12px; color: var(--pg-ink); margin-top: 2px; }
+
+/* Rodapé centrado em versaletes */
+.page-styled.page-gazeta .pg-foot { clear: both; justify-content: center; font-family: var(--pg-caps); font-size: 11.5px; letter-spacing: 0.12em; color: var(--pg-ink); border-top: 1px solid var(--pg-rule); }
+.page-styled.page-gazeta .pg-foot .pg-stars { color: var(--pg-ink); }
+.page-styled.page-gazeta .pg-tags { gap: 0; }
+.page-styled.page-gazeta .pg-tag::before { content: none; }
+.page-styled.page-gazeta .pg-tag + .pg-tag::before { content: ' · '; white-space: pre; }
+.page-styled.page-gazeta .pg-actions > button, .page-styled.page-gazeta .pg-actions > div > button { border: 1px solid var(--pg-ink); font-family: var(--pg-caps); text-transform: none; }

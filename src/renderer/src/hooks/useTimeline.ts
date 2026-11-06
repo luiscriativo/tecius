@@ -66,6 +66,11 @@ export function toTimelineData(raw: RawTimeline): TimelineData {
     icon: raw.meta.icon ? String(raw.meta.icon) : undefined,
     sort: 'chronological',
     tags: Array.isArray(raw.meta.tags) ? raw.meta.tags.map(String) : [],
+    // Estilo de página (ver utils/pageStyle)
+    style: raw.meta.style ? String(raw.meta.style) : undefined,
+    masthead: raw.meta.masthead ? String(raw.meta.masthead) : undefined,
+    mastheadSub: raw.meta['masthead-sub'] ? String(raw.meta['masthead-sub']) : undefined,
+    columns: raw.meta.columns !== undefined ? Number(raw.meta.columns) : undefined,
   }
 
   const subtimelines: TimelineRef[] = raw.subtimelines.map((s) => ({

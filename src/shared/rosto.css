@@ -1,0 +1,77 @@
+/*
+ * Estilo "rosto" — folha de rosto de livro do século XVIII: moldura dupla,
+ * título em caixa alta espaçada, "em que se dá notícia de…" em itálico, pé de
+ * imprensa em capitais. O texto segue como primeiro capítulo, com capitular.
+ *   kicker  → linha do alto (a timeline, por padrão)
+ *   emblem  → marca do impressor, entre o alto e o título
+ *   deck    → o subtítulo em itálico
+ *   edition → o pé de imprensa ("Na Officina de… · M.DCCCC.XXII")
+ */
+
+.page-rosto {
+  --pg-paper: #f1e8d2;
+  --pg-paper-2: #e8dec4;
+  --pg-ink: #2a2118;
+  --pg-ink-2: #6a5a44;
+  --pg-rule: #2a2118;
+  --pg-accent: #7a3b1e;
+  --pg-serif: 'Libre Baskerville', 'Baskerville', Georgia, serif;
+  --pg-caps: 'Libre Baskerville', Georgia, serif;
+  --pg-display: 'Libre Baskerville', Georgia, serif;
+  --pg-fell: 'IM Fell DW Pica', Georgia, serif;
+}
+.dark .page-rosto:not([data-tone="light"]), [data-theme="dark"] .page-rosto:not([data-tone="light"]), .page-rosto[data-tone="dark"] {
+  --pg-paper: #1a1712;
+  --pg-paper-2: #221e17;
+  --pg-ink: #e8dfc8;
+  --pg-ink-2: #a8997c;
+  --pg-rule: #e8dfc8;
+  --pg-accent: #d9a06a;
+}
+
+/* A moldura dupla é desenhada por dentro, para não vazar do papel */
+.page-styled.page-rosto {
+  padding: 42px 46px 34px;
+  font-size: calc(var(--chr-text, 15px) - 0.5px);
+  line-height: 1.6;
+  box-shadow: inset 0 0 0 1px var(--pg-rule), inset 0 0 0 5px var(--pg-paper), inset 0 0 0 6px var(--pg-rule), inset 0 0 0 7px var(--pg-paper), inset 0 0 0 8px var(--pg-rule), 0 2px 0 rgba(0, 0, 0, 0.25);
+  background-image: radial-gradient(ellipse at 20% 10%, rgba(110, 80, 30, 0.10), transparent 55%), radial-gradient(ellipse at 90% 100%, rgba(110, 80, 30, 0.16), transparent 50%);
+}
+
+/* Cabeçalho centrado, na ordem de uma folha de rosto */
+.page-styled.page-rosto .pg-head { text-align: center; align-items: center; margin-bottom: 24px; }
+.page-styled.page-rosto .pg-ornament, .page-styled.page-rosto .pg-coords, .page-styled.page-rosto .pg-head .pg-category, .page-styled.page-rosto .pg-importance { display: none; }
+.page-styled.page-rosto .pg-kicker { order: 1; font-size: 12px; letter-spacing: 0.3em; text-transform: uppercase; margin: 0 0 10px; }
+.page-styled.page-rosto .pg-emblem { order: 2; width: 64px; margin: 0 auto 10px; }
+.page-styled.page-rosto .pg-title { order: 3; font-family: var(--pg-display); font-weight: 700; font-size: 34px; letter-spacing: 0.06em; text-transform: uppercase; line-height: 1.15; margin: 0 0 8px; }
+.page-styled.page-rosto .pg-deck { order: 4; font-family: var(--pg-fell); font-style: italic; font-size: 19px; margin: 0 0 4px; }
+.page-styled.page-rosto .pg-meta { order: 5; display: flex; flex-direction: column; align-items: center; gap: 0; width: 100%; }
+.page-styled.page-rosto .pg-meta::before { content: ''; display: block; width: 28%; border-top: 1px solid var(--pg-rule); margin: 8px auto 10px; }
+.page-styled.page-rosto .pg-place { order: 1; font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; }
+.page-styled.page-rosto .pg-date { order: 2; font-family: var(--pg-fell); font-size: 17px; margin: 2px 0 0; }
+.page-styled.page-rosto .pg-meta::after { content: ''; display: block; width: 60%; border-top: 1px solid var(--pg-rule); margin: 36px auto 10px; order: 3; }
+.page-styled.page-rosto .pg-edition { order: 6; font-size: 11.5px; letter-spacing: 0.14em; text-transform: uppercase; line-height: 1.7; }
+/* A capa como gravura emoldurada, sob o pé de imprensa */
+.page-styled.page-rosto .pg-cover { order: 7; max-width: 70%; margin: 16px auto 0; border: 1px solid var(--pg-ink); padding: 3px; counter-increment: none; }
+.page-styled.page-rosto .pg-cover img { filter: grayscale(1) sepia(0.4) contrast(1.1); }
+.page-styled.page-rosto .pg-cover .pg-caption { text-align: center; font-family: var(--pg-fell); font-style: italic; font-size: 13px; color: var(--pg-ink); margin-top: 3px; }
+
+/* O texto: primeiro capítulo */
+.page-styled.page-rosto .pg-body { text-align: left; }
+.page-styled.page-rosto .markdown-content > p:first-of-type::first-letter { float: left; font-size: 3.1em; line-height: 0.85; padding: 4px 6px 0 0; font-weight: 700; }
+.page-styled.page-rosto .markdown-content h1, .page-styled.page-rosto .markdown-content h2 { font-family: var(--pg-serif); font-weight: 400; font-size: 12px; letter-spacing: 0.3em; text-transform: uppercase; text-align: center; margin: 16px 0 4px; }
+.page-styled.page-rosto .markdown-content h3 { font-family: var(--pg-fell); font-weight: 400; font-style: italic; font-size: 1.05em; text-align: center; color: var(--pg-ink-2); margin: 8px 0 10px; }
+.page-styled.page-rosto .markdown-content blockquote { margin: 10px 24px 14px; padding: 0; border: 0; font-family: var(--pg-fell); font-style: italic; font-size: 1.05em; text-align: center; }
+.page-styled.page-rosto .markdown-content blockquote p { margin: 0 0 0.4em; }
+.page-styled.page-rosto .markdown-content hr { width: 60%; margin: 16px auto; }
+.page-styled.page-rosto .pg-figure { border: 1px solid var(--pg-ink); padding: 3px; margin: 10px auto; max-width: 80%; }
+.page-styled.page-rosto .pg-figure img { filter: grayscale(1) sepia(0.4) contrast(1.1); }
+.page-styled.page-rosto .pg-figure .pg-caption { text-align: center; font-family: var(--pg-fell); font-style: italic; font-size: 13px; color: var(--pg-ink); }
+
+/* Rodapé em capitais espaçadas */
+.page-styled.page-rosto .pg-foot { font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--pg-ink); border-top: 1px solid var(--pg-rule); }
+.page-styled.page-rosto .pg-foot .pg-stars { color: var(--pg-ink); }
+.page-styled.page-rosto .pg-tags { gap: 0; }
+.page-styled.page-rosto .pg-tag::before { content: none; }
+.page-styled.page-rosto .pg-tag + .pg-tag::before { content: ' · '; white-space: pre; }
+.page-styled.page-rosto .pg-actions > button, .page-styled.page-rosto .pg-actions > div > button { border: 1px solid var(--pg-ink); }

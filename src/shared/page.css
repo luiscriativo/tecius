@@ -1,0 +1,82 @@
+/*
+ * Base comum dos estilos de página "pg": caderno de campo, dossiê, iluminura,
+ * cartaz, correio, folha de rosto, verbete, gazeta, diário, decreto e revista. Cada preset define os tokens (--pg-*) em `.page-<nome>` e o
+ * seu desenho em `.page-styled.page-<nome>`; aqui ficam as regras que todos
+ * compartilham: papel, rodapé, figuras, tags, faixa da timeline, ações.
+ *
+ * Tema: os tokens escuros entram com `.dark`/`[data-theme="dark"]` no <html>,
+ * a menos que a página peça `data-tone="light"`; `data-tone="dark"` força o
+ * escuro. Sem Tailwind — o mesmo CSS vai para a exportação.
+ */
+
+.page-styled {
+  position: relative;
+  z-index: 0;
+  background: var(--pg-paper);
+  color: var(--pg-ink);
+  font-family: var(--pg-serif);
+  font-size: calc(var(--chr-text, 15px) + 1px);
+  line-height: 1.55;
+  user-select: text;
+  counter-reset: fig;
+}
+.page-styled .markdown-content { font-family: inherit; font-size: inherit; line-height: inherit; color: inherit; }
+.page-styled .markdown-content p { margin: 0 0 0.9em; }
+.page-styled .markdown-content a { color: var(--pg-accent); text-decoration: underline; text-underline-offset: 2px; }
+.page-styled .markdown-content strong { color: inherit; }
+.page-styled .markdown-content code { font-family: var(--pg-caps, 'Old Standard TT', Georgia, serif); font-size: 0.9em; background: rgba(0, 0, 0, 0.06); padding: 0 4px; }
+.page-styled .markdown-content pre { background: rgba(0, 0, 0, 0.06); padding: 10px 12px; border-left: 2px solid var(--pg-rule); overflow-x: auto; }
+.page-styled .markdown-content table { width: 100%; border-collapse: collapse; font-size: 0.92em; margin: 0 0 1em; }
+.page-styled .markdown-content th { text-align: left; font-weight: 600; border-bottom: 1px solid var(--pg-ink); padding: 4px 6px; }
+.page-styled .markdown-content td { border: 0; border-bottom: 1px dotted var(--pg-rule); padding: 4px 6px; }
+.page-styled .markdown-content ul, .page-styled .markdown-content ol { padding-left: 1.4em; margin: 0 0 0.9em; }
+.page-styled .markdown-content li { margin: 0 0 0.25em; }
+.page-styled .markdown-content hr { border: 0; border-top: 1px solid var(--pg-rule); margin: 1.2em 0; }
+.page-styled .markdown-content h1, .page-styled .markdown-content h2, .page-styled .markdown-content h3 { color: var(--pg-ink); }
+
+/* Cabeçalho: coluna; cada preset reordena e esconde o que não usa */
+.page-styled .pg-head { display: flex; flex-direction: column; position: relative; }
+.page-styled .pg-head > * { margin: 0; }
+.page-styled .pg-ornament { display: block; pointer-events: none; }
+.page-styled .pg-meta { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: baseline; }
+.page-styled .pg-coords, .page-styled .pg-importance { display: none; }
+
+/* Brasão ou marca (`emblem:`), que cada preset posiciona */
+.page-styled .pg-emblem { display: block; width: 64px; height: auto; margin: 0 auto 8px; }
+
+/* Figuras (capa e imagens do texto) */
+.page-styled .pg-cover, .page-styled .pg-figure { display: block; margin: 12px 0; counter-increment: fig; }
+.page-styled .pg-cover img, .page-styled .pg-figure img { display: block; width: 100%; height: auto; }
+.page-styled .pg-caption { display: block; font-size: 0.85em; color: var(--pg-ink-2); margin-top: 4px; }
+
+/* Rodapé: importância, categoria e tags */
+.page-styled .pg-foot { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-top: 18px; padding-top: 8px; border-top: 1px solid var(--pg-rule); font-size: 0.85em; color: var(--pg-ink-2); }
+.page-styled .pg-stars { letter-spacing: 0.05em; color: var(--pg-accent); }
+.page-styled .pg-tags { display: inline-flex; gap: 10px; flex-wrap: wrap; }
+.page-styled .pg-tag, .page-styled .pg-foot .pg-category { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: default; }
+.page-styled button.pg-tag, .page-styled button.pg-category { cursor: pointer; }
+.page-styled button.pg-tag:hover, .page-styled button.pg-category:hover { color: var(--pg-accent); }
+.page-styled .pg-tag::before { content: '#'; opacity: 0.6; }
+
+/* Blocos auxiliares do app dentro da página (ligações, referências) e a linha de ações */
+.page-styled .pg-aux { border-top: 1px solid var(--pg-rule); margin-top: 14px; padding-top: 8px; }
+.page-styled .pg-aux h3, .page-styled .pg-aux p.pg-aux-title { font-family: var(--pg-caps) !important; font-size: 10.5px !important; letter-spacing: 0.12em !important; text-transform: uppercase; color: var(--pg-ink-2) !important; margin: 0 0 6px; }
+.page-styled .pg-aux button, .page-styled .pg-aux a { color: var(--pg-ink); font-family: var(--pg-serif); }
+.page-styled .pg-actions { border-top: 1px solid var(--pg-rule); margin-top: 18px; padding-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
+.page-styled .pg-actions > button, .page-styled .pg-actions > div > button { font-family: var(--pg-caps); font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--pg-ink); border: 1px solid var(--pg-rule); background: transparent; padding: 5px 10px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.page-styled .pg-actions > button:hover, .page-styled .pg-actions > div > button:hover { background: rgba(0, 0, 0, 0.06); }
+
+/* Faixa acima do cabeçalho da timeline */
+
+/* Exportação da timeline: capa e capítulos */
+.page-styled .pg-book-head { text-align: center; margin: 0 0 18px; padding-bottom: 14px; border-bottom: 1px solid var(--pg-rule); }
+.page-styled .pg-book-head .pg-title { font-family: var(--pg-display); font-size: 40px; margin: 0; }
+.page-styled .pg-book-head .pg-kicker { font-family: var(--pg-caps); font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--pg-ink-2); margin: 0 0 6px; }
+.page-styled .pg-book-head .pg-deck { font-style: italic; color: var(--pg-ink-2); margin: 6px 0 0; }
+.page-styled .pg-article { margin-top: 28px; break-inside: avoid-page; }
+.page-styled .pg-article .pg-title { font-size: 0.8em; }
+
+/* Colunas do texto (data-cols vem do frontmatter: columns) */
+.page-styled .pg-body[data-cols="2"] { columns: 2; column-gap: 24px; }
+.page-styled .pg-body[data-cols="3"] { columns: 3; column-gap: 20px; }
+.page-styled .pg-body[data-cols] .pg-figure, .page-styled .pg-body[data-cols] table { break-inside: avoid; }

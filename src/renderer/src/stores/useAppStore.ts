@@ -17,11 +17,14 @@ import type { Language } from '@/i18n/translations'
 import { setDateFormat, setDateLanguage, type DateFormatPref } from '@/utils/chroniclerDate'
 import type { ScalePreference } from '@/utils/timelineScale'
 
-/** Tamanho do texto dos eventos (leitura e edição) */
-export type TextSize = 'small' | 'normal' | 'large'
+/** Tamanho do texto dos eventos em px (leitura e edição) e largura da página em % do painel */
+export const DEFAULT_TEXT_SIZE = 15
+export const DEFAULT_READING_WIDTH = 50
+const clampTextSize = (px: number) => Math.min(22, Math.max(12, Math.round(Number(px) || DEFAULT_TEXT_SIZE)))
+const clampWidth = (pct: number) => Math.min(100, Math.max(30, Math.round(Number(pct) || DEFAULT_READING_WIDTH)))
 
-function applyTextSize(size: TextSize): void {
-  document.documentElement.dataset.textSize = size
+function applyTextSize(px: number): void {
+  document.documentElement.style.setProperty('--chr-text', `${clampTextSize(px)}px`)
 }
 
 // ── State shape ───────────────────────────────────────────────────────────────
@@ -64,7 +67,8 @@ interface AppState {
   /** Formato das datas curtas e do campo de data ('auto' = pelo idioma) */
   dateFormat: DateFormatPref
   /** Tamanho do texto dos eventos */
-  textSize: TextSize
+  textSize: number
+  readingWidth: number
 }
 
 // ── Actions shape ─────────────────────────────────────────────────────────────
@@ -107,7 +111,8 @@ interface AppActions {
   setDefaultImportance: (n: number) => void
   setDefaultCategory: (c: string) => void
   setDateFormatPref: (f: DateFormatPref) => void
-  setTextSize: (s: TextSize) => void
+  setTextSize: (px: number) => void
+  setReadingWidth: (pct: number) => void
 }
 
 type AppStore = AppState & AppActions
@@ -154,7 +159,8 @@ export const useAppStore = create<AppStore>()(
       defaultImportance: 3,
       defaultCategory: '',
       dateFormat: 'auto' as DateFormatPref,
-      textSize: 'normal' as TextSize,
+      textSize: DEFAULT_TEXT_SIZE,
+      readingWidth: DEFAULT_READING_WIDTH,
 
       // ── Theme ───────────────────────────────────────────────────────────────
       setTheme: (theme) => {
@@ -231,7 +237,8 @@ export const useAppStore = create<AppStore>()(
       setDefaultImportance: (n) => set({ defaultImportance: Math.min(5, Math.max(1, Math.round(n))) }),
       setDefaultCategory: (defaultCategory) => set({ defaultCategory }),
       setDateFormatPref: (dateFormat) => { setDateFormat(dateFormat); set({ dateFormat }) },
-      setTextSize: (textSize) => { applyTextSize(textSize); set({ textSize }) },
+      setTextSize: (px) => { const textSize = clampTextSize(px); applyTextSize(textSize); set({ textSize }) },
+      setReadingWidth: (pct) => set({ readingWidth: clampWidth(pct) }),
     }),
     {
       name: 'electron-app-storage', // key in localStorage
@@ -243,7 +250,14 @@ export const useAppStore = create<AppStore>()(
         window.electronAPI?.invoke('app:set-language', language).catch(() => {})
         document.documentElement.lang = language
         setDateFormat(state?.dateFormat ?? 'auto')
-        applyTextSize(state?.textSize ?? 'normal')
+        // Versões anteriores guardavam 'small' | 'normal' | 'large' e o layout largo num item próprio
+        const saved = state?.textSize as unknown
+        const px = typeof saved === 'number' ? saved : saved === 'small' ? 14 : saved === 'large' ? 17 : DEFAULT_TEXT_SIZE
+        if (state && saved !== px) state.setTextSize(px); else applyTextSize(px)
+        try {
+          const wide = localStorage.getItem('chr-wide-layout')
+          if (wide !== null) { if (wide === '1') state?.setReadingWidth(85); localStorage.removeItem('chr-wide-layout') }
+        } catch { /* sem localStorage */ }
       },
       // Only persist user preferences — not transient state
       partialize: (state) => ({
@@ -257,6 +271,7 @@ export const useAppStore = create<AppStore>()(
         defaultCategory: state.defaultCategory,
         dateFormat: state.dateFormat,
         textSize: state.textSize,
+        readingWidth: state.readingWidth,
       })
     }
   )

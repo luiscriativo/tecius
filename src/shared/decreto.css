@@ -1,0 +1,81 @@
+/*
+ * Estilo "decreto" — documento oficial: brasão no alto, título em capitais
+ * romanas, artigos numerados, assinatura em caligrafia e o selo de lacre.
+ *   emblem  → o brasão (imagem do vault; sem ele, só o título)
+ *   kicker  → a linha acima do título (a timeline, por padrão)
+ *   edition → "Decreto n.º 619", junto da data
+ *   deck    → o preâmbulo em itálico
+ *   ##      → "Art. n.º —" numerado
+ *   >       → a assinatura (segunda linha: o cargo)
+ */
+
+.page-decreto {
+  --pg-paper: #ecdfbf;
+  --pg-paper-2: #e3d4b0;
+  --pg-ink: #2e2316;
+  --pg-ink-2: #6d5a3c;
+  --pg-rule: #8a6a3a;
+  --pg-accent: #8c2a24;
+  --pg-wax: #8c2a24;
+  --pg-serif: 'Libre Baskerville', Georgia, serif;
+  --pg-caps: 'Cinzel', Georgia, serif;
+  --pg-display: 'Cinzel', Georgia, serif;
+  --pg-script: 'Pinyon Script', 'Segoe Script', cursive;
+}
+.dark .page-decreto:not([data-tone="light"]), [data-theme="dark"] .page-decreto:not([data-tone="light"]), .page-decreto[data-tone="dark"] {
+  --pg-paper: #1b1710;
+  --pg-paper-2: #231e15;
+  --pg-ink: #e9dfc8;
+  --pg-ink-2: #b7a784;
+  --pg-rule: #a98b58;
+  --pg-accent: #c9473c;
+  --pg-wax: #a7322b;
+}
+
+.page-styled.page-decreto {
+  padding: 28px 36px 32px;
+  font-size: calc(var(--chr-text, 15px) - 1px);
+  line-height: 1.6;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.25);
+  background-image: radial-gradient(ellipse at 10% 0%, rgba(120, 80, 20, 0.14), transparent 50%), radial-gradient(ellipse at 100% 100%, rgba(120, 80, 20, 0.18), transparent 50%);
+}
+
+/* Cabeçalho centrado: brasão, linha, título, número e data, lugar, preâmbulo */
+.page-styled.page-decreto .pg-head { text-align: center; align-items: center; margin-bottom: 6px; }
+.page-styled.page-decreto .pg-ornament, .page-styled.page-decreto .pg-coords, .page-styled.page-decreto .pg-importance, .page-styled.page-decreto .pg-head .pg-category { display: none; }
+.page-styled.page-decreto .pg-meta { display: contents; }
+.page-styled.page-decreto .pg-emblem { order: 1; width: 72px; height: 84px; object-fit: contain; margin: 0 auto 6px; }
+.page-styled.page-decreto .pg-kicker { order: 2; font-family: var(--pg-caps); font-size: 11px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--pg-ink-2); margin: 0 0 2px; }
+.page-styled.page-decreto .pg-title { order: 3; font-family: var(--pg-display); font-weight: 700; font-size: 24px; letter-spacing: 0.12em; text-transform: uppercase; line-height: 1.25; margin: 0 0 4px; }
+.page-styled.page-decreto .pg-edition, .page-styled.page-decreto .pg-date { order: 4; font-family: var(--pg-caps); font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase; }
+.page-styled.page-decreto .pg-place { order: 5; font-family: var(--pg-caps); font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--pg-ink-2); margin: 2px 0 0; }
+.page-styled.page-decreto .pg-deck { order: 6; align-self: stretch; font-style: italic; text-align: justify; margin: 14px 0 6px; }
+.page-styled.page-decreto .pg-cover { order: 7; width: 44%; margin: 6px auto 8px; border: 1px solid var(--pg-rule); padding: 3px; counter-increment: none; }
+.page-styled.page-decreto .pg-cover img { filter: sepia(0.7) contrast(1.05); }
+.page-styled.page-decreto .pg-cover .pg-caption { text-align: center; font-style: italic; font-size: 12px; color: var(--pg-ink); margin-top: 3px; }
+
+/* Artigos numerados; negrito em capitais romanas; a citação é a assinatura */
+.page-styled.page-decreto .pg-body { text-align: justify; counter-reset: art; }
+.page-styled.page-decreto .markdown-content p { margin: 0 0 8px; }
+.page-styled.page-decreto .markdown-content h1, .page-styled.page-decreto .markdown-content h2 { counter-increment: art; font-family: var(--pg-caps); font-weight: 700; font-size: 12px; letter-spacing: 0.06em; text-align: left; margin: 10px 0 2px; }
+.page-styled.page-decreto .markdown-content h2::before, .page-styled.page-decreto .markdown-content h1::before { content: 'Art. ' counter(art) '.º — '; }
+.page-styled.page-decreto .markdown-content h3 { font-family: var(--pg-caps); font-weight: 400; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; margin: 8px 0 2px; }
+.page-styled.page-decreto .markdown-content strong { font-family: var(--pg-caps); font-weight: 400; font-size: 0.9em; letter-spacing: 0.08em; }
+.page-styled.page-decreto .markdown-content blockquote { clear: both; border: 0; border-bottom: 1px solid var(--pg-rule); margin: 18px 0 10px; padding: 0 0 4px; max-width: 60%; text-align: left; font-family: var(--pg-script); font-size: 30px; line-height: 1.05; color: var(--pg-ink); }
+.page-styled.page-decreto .markdown-content blockquote p { margin: 0; }
+.page-styled.page-decreto .markdown-content blockquote p + p { font-family: var(--pg-caps); font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--pg-ink-2); margin-top: 6px; }
+.page-styled.page-decreto .markdown-content hr { width: 40%; margin: 12px auto; border-top: 1px solid var(--pg-rule); }
+.page-styled.page-decreto .pg-figure { float: left; width: 42%; margin: 4px 16px 6px 0; border: 1px solid var(--pg-rule); padding: 3px; }
+.page-styled.page-decreto .pg-figure img { filter: sepia(0.7) contrast(1.05); }
+.page-styled.page-decreto .pg-figure .pg-caption { text-align: center; font-style: italic; font-size: 12px; color: var(--pg-ink); margin-top: 3px; }
+
+/* Rodapé em capitais, com o selo de lacre e a fita */
+.page-styled.page-decreto .pg-foot { clear: both; position: relative; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; min-height: 100px; margin-top: 14px; padding: 10px 120px 0 0; border-top: 0; font-family: var(--pg-caps); font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--pg-ink-2); text-align: center; }
+.page-styled.page-decreto .pg-foot .pg-stars { color: var(--pg-ink-2); letter-spacing: 0.1em; }
+.page-styled.page-decreto .pg-tags { gap: 0; }
+.page-styled.page-decreto .pg-tag::before { content: none; }
+.page-styled.page-decreto .pg-tag + .pg-tag::before { content: ' · '; white-space: pre; }
+.page-styled.page-decreto .pg-foot::before { content: ''; position: absolute; right: 10px; bottom: 2px; width: 92px; height: 92px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #c8463a, var(--pg-wax) 60%, #5c1a16); box-shadow: 0 3px 6px rgba(0, 0, 0, 0.35), inset 0 0 0 6px rgba(255, 255, 255, 0.08); outline: 1px dashed rgba(255, 230, 200, 0.5); outline-offset: -12px; transform: rotate(-8deg); }
+.page-styled.page-decreto .pg-foot::after { content: ''; position: absolute; right: 44px; bottom: 50px; width: 12px; height: 80px; background: var(--pg-wax); transform: rotate(14deg); z-index: -1; opacity: 0.9; }
+
+.page-styled.page-decreto .pg-actions > button, .page-styled.page-decreto .pg-actions > div > button { font-family: var(--pg-caps); border: 1px solid var(--pg-rule); }

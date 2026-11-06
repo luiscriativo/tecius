@@ -86,6 +86,8 @@ export interface RawVault {
   timelines: RawTimelineRef[]
   totalEvents: number
   trashCount: number
+  /** `style:` do _vault.md (estilo de página padrão) */
+  style?: string
 }
 
 export interface RawTrashItem {
@@ -164,6 +166,12 @@ function parseMatter(content: string): matter.GrayMatterFile<string> {
   }
   return matter(content)
 }
+
+/** Onde gravar o `style:`: raiz do vault, pasta de timeline ou arquivo de evento */
+export type PageStyleTarget =
+  | { kind: 'vault' }
+  | { kind: 'timeline'; dirPath: string }
+  | { kind: 'event'; filePath: string }
 
 export class FileSystemService {
   private vaultPath: string | null = null
@@ -302,11 +310,13 @@ export class FileSystemService {
     // Tenta ler titulo do vault de um eventual _vault.md na raiz
     // Sem _vault.md com título: o nome da pasta (como descrito no guia)
     let vaultTitle = path.basename(vaultPath)
+    let vaultStyle: string | undefined
     const vaultMetaPath = path.join(vaultPath, '_vault.md')
     if (fs.existsSync(vaultMetaPath)) {
       try {
         const { data } = parseMatter(fs.readFileSync(vaultMetaPath, 'utf-8'))
         if (data.title) vaultTitle = String(data.title)
+        if (data.style) vaultStyle = String(data.style)
       } catch {
         // ignore
       }
@@ -324,7 +334,21 @@ export class FileSystemService {
       timelines,
       totalEvents,
       trashCount,
+      style: vaultStyle,
     }
+  }
+
+  /**
+   * CSS de um estilo próprio do vault: `_styles/<nome>.css`. Só nomes simples
+   * (a-z, 0-9, hífen, sublinhado), para não sair da pasta.
+   */
+  readStyle(name: string): string | null {
+    if (!this.vaultPath) throw new Error(tm('err_no_vault'))
+    const safe = String(name).toLowerCase().replace(/[^a-z0-9_-]/g, '')
+    if (!safe) return null
+    const file = path.join(this.vaultPath, '_styles', `${safe}.css`)
+    this.assertWithinVault(file)
+    try { return fs.readFileSync(file, 'utf-8') } catch { return null }
   }
 
   /**
@@ -502,6 +526,13 @@ export class FileSystemService {
                 ...(dateEnd ? { 'date-end': dateEnd } : {}),
                 ...(entry.circa !== undefined ? { circa: Boolean(entry.circa) } : {}),
                 ...(entry['date-precision'] ? { 'date-precision': String(entry['date-precision']) } : {}),
+                // Estilo de página e subtítulo: do trecho, senão do chronicle
+                ...((entry.style ?? sanitized.style) ? { style: String(entry.style ?? sanitized.style) } : {}),
+                ...((entry.paper ?? sanitized.paper) ? { paper: String(entry.paper ?? sanitized.paper) } : {}),
+                ...(entry.deck ? { deck: String(entry.deck) } : {}),
+                ...(entry.edition ? { edition: String(entry.edition) } : {}),
+                ...(entry.kicker ? { kicker: String(entry.kicker) } : {}),
+                ...((entry.emblem ?? sanitized.emblem) ? { emblem: String(entry.emblem ?? sanitized.emblem) } : {}),
                 category: entry.category ?? sanitized.category,
                 importance: entry.importance ?? sanitized.importance ?? 3,
                 tags: Array.isArray(entry.tags) ? entry.tags
@@ -988,29 +1019,72 @@ export class FileSystemService {
   }
 
   /**
+   * Grava (ou remove, com null) o `style:` de um arquivo: _vault.md, o
+   * _timeline.md de uma pasta ou um evento/chronicle. O nome é saneado como em
+   * readStyle; vazio vira remoção (volta a herdar).
+   */
+  setPageStyle(target: PageStyleTarget, style: string | null, key: 'style' | 'paper' = 'style'): void {
+    if (!this.vaultPath) throw new Error(tm('err_no_vault'))
+    const file = target.kind === 'vault' ? path.join(this.vaultPath, '_vault.md')
+      : target.kind === 'timeline' ? path.join(target.dirPath, '_timeline.md')
+      : target.filePath
+    this.assertWithinVault(file)
+    const safe = style == null ? '' : String(style).toLowerCase().replace(/[^a-z0-9_-]/g, '')
+    // paper: só light | dark
+    const value = key === 'paper' ? (safe === 'light' || safe === 'dark' ? safe : '') : safe
+    this.writeFrontmatterField(file, key, value || null)
+  }
+
+  /** Nomes dos estilos próprios do vault (_styles/*.css), em ordem alfabética */
+  listStyles(): string[] {
+    if (!this.vaultPath) throw new Error(tm('err_no_vault'))
+    const dir = path.join(this.vaultPath, '_styles')
+    try {
+      return fs.readdirSync(dir).filter((f) => f.toLowerCase().endsWith('.css'))
+        .map((f) => f.slice(0, -4).toLowerCase()).filter((n) => /^[a-z0-9_-]+$/.test(n)).sort()
+    } catch { return [] }
+  }
+
+  /**
    * Troca só a linha `title:` do cabeçalho, como texto. Reescrever o YAML inteiro
    * (matter.stringify) convertia datas em "2020-01-01T00:00:00.000Z" e apagava
    * comentários e a formatação do usuário.
    */
   private writeFrontmatterTitle(metaPath: string, newTitle: string): void {
-    const titleLine = `title: ${yamlScalar(newTitle)}`
+    this.writeFrontmatterField(metaPath, 'title', newTitle)
+  }
+
+  /**
+   * Troca, acrescenta ou remove (value null) uma linha `key:` do cabeçalho, como
+   * texto. Serve para title e style; o resto do arquivo segue intacto.
+   */
+  private writeFrontmatterField(metaPath: string, key: string, value: string | null): void {
+    const line = value == null ? null : `${key}: ${yamlScalar(value)}`
+    const keyRe = new RegExp(`^${key}\\s*:.*$`, 'm')
     if (!fs.existsSync(metaPath)) {
-      fs.writeFileSync(metaPath, `---\n${titleLine}\n---\n`, 'utf-8')
+      if (line != null) fs.writeFileSync(metaPath, `---\n${line}\n---\n`, 'utf-8')
       return
     }
     const raw = fs.readFileSync(metaPath, 'utf-8')
     const m = raw.match(/^---\r?\n([\s\S]*?)\r?\n---(\r?\n|$)/)
     if (!m) {
       // Sem cabeçalho: ganha um, e o conteúdo segue intacto
-      fs.writeFileSync(metaPath, `---\n${titleLine}\n---\n${raw}`, 'utf-8')
+      if (line != null) fs.writeFileSync(metaPath, `---\n${line}\n---\n${raw}`, 'utf-8')
       return
     }
     const nl = raw.includes('\r\n') ? '\r\n' : '\n'
     const head = m[1]
-    const hasTitle = /^title\s*:/m.test(head)
-    const newHead = hasTitle
-      ? head.replace(/^title\s*:.*$/m, titleLine)
-      : (head.trim() ? `${titleLine}${nl}${head}` : titleLine)
+    const has = keyRe.test(head)
+    let newHead: string
+    if (line == null) {
+      if (!has) return
+      newHead = head.split(/\r?\n/).filter((l) => !keyRe.test(l)).join(nl)
+    } else if (has) {
+      newHead = head.replace(keyRe, line)
+    } else {
+      // title fica no alto; os outros campos entram no fim do cabeçalho
+      newHead = !head.trim() ? line : key === 'title' ? `${line}${nl}${head}` : `${head}${nl}${line}`
+    }
     fs.writeFileSync(metaPath, `---${nl}${newHead}${nl}---${raw.slice(m[0].length - (m[2]?.length ?? 0))}`, 'utf-8')
   }
 

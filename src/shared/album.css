@@ -1,0 +1,140 @@
+/*
+ * Estilo de página "álbum" — álbum de fotografias: papel creme encardido,
+ * título em itálico, foto colada com cantoneiras e fita, legendas manuscritas,
+ * citações como bilhetes. Para biografias, diários e viagens.
+ *
+ * Mesmo contrato do journal.css: classes `page-album` / `pa-*`, tokens por tema
+ * (`.dark` no <html> ou `[data-theme="dark"]`), sem Tailwind — vale na
+ * exportação também.
+ */
+
+.page-album, .pa-timeline-head {
+  --pa-paper: #efe6d3;
+  --pa-paper-2: #e4d9c1;
+  --pa-ink: #2e2419;
+  --pa-ink-2: #6b5a46;
+  --pa-rule: #b9a584;
+  --pa-accent: #7b3f1d;
+  --pa-tape: rgba(214, 196, 150, 0.75);
+  --pa-photo-paper: #ffffff;
+  --pa-photo-ink: #4a3b2a;
+  --pa-shadow: rgba(0, 0, 0, 0.18);
+  --pa-serif: 'Cormorant Garamond', 'Palatino Linotype', 'Book Antiqua', Georgia, serif;
+  --pa-display: 'Playfair Display', Georgia, 'Times New Roman', serif;
+  --pa-caps: 'Old Standard TT', Georgia, serif;
+  --pa-hand: 'IM Fell English', Georgia, serif;
+}
+.dark .page-album:not([data-tone="light"]), [data-theme="dark"] .page-album:not([data-tone="light"]), .page-album[data-tone="dark"], .dark .pa-timeline-head:not([data-tone="light"]), .pa-timeline-head[data-tone="dark"] {
+  --pa-paper: #1c1915;
+  --pa-paper-2: #26211a;
+  --pa-ink: #e9dfca;
+  --pa-ink-2: #b0a28a;
+  --pa-rule: #5c4f3c;
+  --pa-accent: #d7a765;
+  --pa-tape: rgba(120, 105, 70, 0.6);
+  --pa-photo-paper: #e8e2d3;
+  --pa-shadow: rgba(0, 0, 0, 0.5);
+}
+
+.page-album {
+  position: relative;
+  background: var(--pa-paper);
+  color: var(--pa-ink);
+  border: 1px solid var(--pa-rule);
+  box-shadow: 4px 4px 0 var(--pa-shadow);
+  padding: 36px 42px 32px;
+  font-family: var(--pa-serif);
+  font-size: calc(var(--chr-text, 15px) + 1px);
+  line-height: 1.55;
+  user-select: text;
+}
+.page-album::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.55;
+  background-image: radial-gradient(rgba(0, 0, 0, 0.05) 0.6px, transparent 0.7px);
+  background-size: 6px 6px;
+}
+.dark .page-album:not([data-tone="light"])::before, [data-theme="dark"] .page-album:not([data-tone="light"])::before, .page-album[data-tone="dark"]::before {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.035) 0.6px, transparent 0.7px);
+}
+.page-album > * { position: relative; }
+
+/* Linha de abertura ("Vida de Getúlio Vargas · 2 de 5" ou a timeline) */
+.pa-kicker { font-family: var(--pa-caps); font-size: 10.5px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--pa-ink-2); text-align: center; }
+.pa-kicker::before, .pa-kicker::after { content: '—'; margin: 0 8px; opacity: 0.6; }
+.pa-title { font-family: var(--pa-display); font-weight: 400; font-style: italic; font-size: 40px; line-height: 1.05; text-align: center; margin: 8px 0 4px; letter-spacing: -0.01em; color: var(--pa-ink); }
+.pa-date { font-family: var(--pa-hand); font-style: italic; text-align: center; font-size: 16px; color: var(--pa-accent); margin: 0 0 20px; }
+
+/* Foto colada: cantoneiras, fita no topo, legenda manuscrita */
+.pa-photo { display: block; position: relative; width: 64%; margin: 10px auto 24px; padding: 8px 8px 30px; background: var(--pa-photo-paper); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 6px 14px rgba(0, 0, 0, 0.14); transform: rotate(-1.2deg); break-inside: avoid; }
+.pa-photo-right { transform: rotate(1deg); }
+.pa-photo-wide { width: 86%; }
+.pa-photo img { display: block; width: 100%; height: auto; border: 0; border-radius: 0; margin: 0; background: var(--pa-paper-2); }
+.pa-photo .pa-caption { position: absolute; left: 8px; right: 8px; bottom: 7px; text-align: center; font-family: var(--pa-hand); font-style: italic; font-size: 13px; color: var(--pa-photo-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pa-photo .pa-tape { position: absolute; width: 74px; height: 22px; background: var(--pa-tape); left: 50%; top: -11px; transform: translateX(-50%) rotate(2deg); }
+.pa-photo .pa-corner { position: absolute; width: 18px; height: 18px; border: 1px solid var(--pa-rule); background: var(--pa-paper-2); }
+.pa-photo .pa-corner-1 { left: -4px; top: -4px; clip-path: polygon(0 0, 100% 0, 0 100%); }
+.pa-photo .pa-corner-2 { right: -4px; top: -4px; clip-path: polygon(0 0, 100% 0, 100% 100%); }
+.pa-photo .pa-corner-3 { left: -4px; bottom: -4px; clip-path: polygon(0 0, 0 100%, 100% 100%); }
+.pa-photo .pa-corner-4 { right: -4px; bottom: -4px; clip-path: polygon(100% 0, 100% 100%, 0 100%); }
+
+/* ── Markdown ────────────────────────────────────────────────────────────── */
+.page-album .markdown-content { font-family: var(--pa-serif); font-size: calc(var(--chr-text, 15px) + 1px); line-height: 1.55; color: var(--pa-ink); }
+.page-album .markdown-content p { margin: 0 0 0.85em; text-align: justify; hyphens: auto; }
+.page-album .markdown-content > p:first-of-type::first-letter { font-family: var(--pa-display); font-style: italic; font-size: 3em; float: left; line-height: 0.85; padding: 0.05em 0.1em 0 0; color: var(--pa-accent); }
+.page-album .markdown-content h1,
+.page-album .markdown-content h2,
+.page-album .markdown-content h3 { font-family: var(--pa-hand); font-style: italic; font-weight: 400; font-size: 21px; margin: 16px 0 6px; color: var(--pa-ink); border-bottom: 1px dotted var(--pa-rule); padding-bottom: 2px; text-align: left; }
+.page-album .markdown-content h1 { font-size: 24px; }
+.page-album .markdown-content h3 { font-size: 18px; }
+.page-album .markdown-content hr { border: 0; border-top: 1px dotted var(--pa-rule); margin: 14px 20%; }
+/* Citação = bilhete preso à página */
+.page-album .markdown-content blockquote { margin: 8px 0 14px; padding: 10px 14px; background: var(--pa-paper-2); border-left: 2px solid var(--pa-accent); border-top: 0; border-bottom: 0; font-family: var(--pa-hand); font-style: italic; font-size: 16px; color: var(--pa-ink); text-align: left; break-inside: avoid; }
+.page-album .markdown-content blockquote p { margin: 0; text-align: left; }
+.page-album .markdown-content blockquote p + p:last-child { font-style: normal; font-family: var(--pa-caps); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--pa-ink-2); margin-top: 4px; }
+/* Imagens do texto: fotos coladas (alternando a inclinação), legenda = alt */
+.page-album .markdown-content .pa-photo { width: 70%; }
+.page-album .markdown-content p:nth-of-type(even) > .pa-photo { transform: rotate(1deg); }
+.page-album .markdown-content a { color: var(--pa-accent); text-decoration: none; border-bottom: 1px dotted var(--pa-accent); }
+.page-album .markdown-content a > span { font-family: var(--pa-caps); font-size: 10px; letter-spacing: 0.06em; color: var(--pa-ink-2); }
+.page-album .markdown-content ul, .page-album .markdown-content ol { padding-left: 1.4em; margin: 0 0 0.85em; }
+.page-album .markdown-content code { font-family: var(--pa-caps); font-size: 0.85em; background: var(--pa-paper-2); border: 1px dotted var(--pa-rule); border-radius: 0; padding: 0 4px; color: var(--pa-ink); }
+.page-album .markdown-content pre { background: var(--pa-paper-2); border: 1px dotted var(--pa-rule); border-radius: 0; padding: 10px 12px; }
+.page-album .markdown-content pre code { border: 0; background: none; }
+.page-album .markdown-content table { width: 100%; border-collapse: collapse; font-size: 0.92em; margin: 0 0 1em; }
+.page-album .markdown-content th { font-family: var(--pa-caps); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; border-bottom: 1px solid var(--pa-rule); padding: 4px 6px; text-align: left; background: transparent; color: var(--pa-ink); }
+.page-album .markdown-content td { border: 0; border-bottom: 1px dotted var(--pa-rule); padding: 4px 6px; }
+.page-album .markdown-content strong { color: var(--pa-ink); }
+
+/* Rodapé, blocos auxiliares e ações */
+.pa-foot { margin-top: 18px; border-top: 1px dotted var(--pa-rule); padding-top: 8px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; font-family: var(--pa-caps); font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--pa-ink-2); }
+.pa-foot .pa-stars { color: var(--pa-accent); letter-spacing: 0.08em; }
+.pa-tags { display: flex; flex-wrap: wrap; gap: 10px; }
+.pa-tag { background: transparent; border: 0; padding: 0; font: inherit; color: var(--pa-ink-2); letter-spacing: 0.14em; cursor: pointer; }
+.pa-tag::before { content: '#'; opacity: 0.6; }
+.pa-tag:hover { color: var(--pa-ink); }
+.page-album .pa-aux { border-top: 1px dotted var(--pa-rule); margin-top: 14px; padding-top: 8px; }
+.page-album .pa-aux h3, .page-album .pa-aux p.pa-aux-title { font-family: var(--pa-caps) !important; font-size: 10.5px !important; letter-spacing: 0.14em !important; text-transform: uppercase; color: var(--pa-ink-2) !important; margin: 0 0 6px; }
+.page-album .pa-aux button, .page-album .pa-aux a { color: var(--pa-ink); font-family: var(--pa-serif); }
+.page-album .pa-actions { border-top: 1px dotted var(--pa-rule); margin-top: 18px; padding-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
+.page-album .pa-actions > button, .page-album .pa-actions > div > button { font-family: var(--pa-caps); font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--pa-ink); border: 1px solid var(--pa-rule); background: transparent; padding: 5px 10px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.page-album .pa-actions > button:hover, .page-album .pa-actions > div > button:hover { background: var(--pa-paper-2); }
+
+/* ── Cabeçalho da timeline em álbum: faixa de papel acima do cabeçalho do app ── */
+.pa-timeline-head {
+  background: var(--pa-paper); color: var(--pa-ink);
+  border-bottom: 1px solid var(--pa-rule);
+  text-align: center; padding: 10px 24px 8px;
+  font-family: var(--pa-serif);
+  background-image: radial-gradient(rgba(0, 0, 0, 0.05) 0.6px, transparent 0.7px);
+  background-size: 6px 6px;
+}
+.pa-timeline-head .pa-kicker { font-size: 10px; margin: 0 0 2px; }
+.pa-timeline-head .pa-title { font-size: 26px; margin: 0; line-height: 1.1; }
+
+/* ── Exportação da timeline: capa do álbum ── */
+.page-album .pa-head { text-align: center; margin: 0 0 18px; padding-bottom: 14px; border-bottom: 1px dotted var(--pa-rule); }
+.page-album .pa-head .pa-title { font-size: 44px; }

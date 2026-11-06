@@ -1,0 +1,159 @@
+/*
+ * Estilo de página "jornal" — jornal vitoriano: cabeçalho em gótica, filetes
+ * duplos, manchete, capitular, colunas, gravuras com legenda e vinhetas.
+ *
+ * Usado pelo renderer (página do evento e cabeçalho da timeline) e, como texto,
+ * pelo processo principal na exportação (PDF e página web). Por isso não depende
+ * de Tailwind: só das classes `page-journal` / `pj-*` e do `.dark` no <html>.
+ *
+ * Duas paletas: claro = papel creme com tinta sépia e filetes bronze;
+ * escuro = "edição noturna": carvão quente, tinta marfim, filetes dourados.
+ */
+
+.page-journal {
+  --pj-paper: #f3ead6;
+  --pj-paper-2: #e9dec3;
+  --pj-ink: #2b2118;
+  --pj-ink-2: #5a4a3a;
+  --pj-rule: #7a6248;
+  --pj-accent: #8b4a1e;
+  --pj-gold: #a07a3c;
+  --pj-shadow: rgba(60, 40, 20, 0.18);
+  --pj-serif: 'Cormorant Garamond', 'Palatino Linotype', 'Book Antiqua', Georgia, serif;
+  --pj-display: 'Playfair Display', Georgia, 'Times New Roman', serif;
+  --pj-caps: 'Old Standard TT', Georgia, serif;
+  --pj-italic: 'IM Fell English', Georgia, serif;
+  --pj-black: 'UnifrakturCook', 'Old English Text MT', 'Blackadder ITC', 'Lucida Blackletter', fantasy;
+}
+.dark .page-journal:not([data-tone="light"]), [data-theme="dark"] .page-journal:not([data-tone="light"]), .page-journal[data-tone="dark"] {
+  --pj-paper: #1b1813;
+  --pj-paper-2: #221e17;
+  --pj-ink: #ebe1cb;
+  --pj-ink-2: #b9ab90;
+  --pj-rule: #8a7352;
+  --pj-accent: #d1a05a;
+  --pj-gold: #c9a961;
+  --pj-shadow: rgba(0, 0, 0, 0.5);
+}
+
+/* ── A página ─────────────────────────────────────────────────────────────── */
+.page-journal {
+  position: relative;
+  background: var(--pj-paper);
+  color: var(--pj-ink);
+  border: 1px solid var(--pj-rule);
+  box-shadow: 4px 4px 0 var(--pj-shadow);
+  /* os arabescos dos cantos ocupam os 44 px de cima e de baixo */
+  padding: 48px 44px 44px;
+  font-family: var(--pj-serif);
+  font-size: calc(var(--chr-text, 15px) + 1px);
+  line-height: 1.5;
+  user-select: text;
+}
+.page-journal::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.5;
+  background-image: radial-gradient(rgba(0, 0, 0, 0.06) 0.6px, transparent 0.7px);
+  background-size: 7px 7px;
+}
+.dark .page-journal:not([data-tone="light"])::before, [data-theme="dark"] .page-journal:not([data-tone="light"])::before, .page-journal[data-tone="dark"]::before {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.035) 0.6px, transparent 0.7px);
+}
+.page-journal > * { position: relative; }
+
+.pj-corner { position: absolute; width: 34px; height: 34px; color: var(--pj-gold); pointer-events: none; }
+.pj-corner svg { width: 100%; height: 100%; display: block; }
+.pj-corner-tl { left: 8px; top: 8px; }
+.pj-corner-tr { right: 8px; top: 8px; transform: scaleX(-1); }
+.pj-corner-bl { left: 8px; bottom: 8px; transform: scaleY(-1); }
+.pj-corner-br { right: 8px; bottom: 8px; transform: scale(-1); }
+
+/* Cabeçalho do jornal (nome da timeline em gótica) */
+.pj-masthead { text-align: center; border-top: 3px double var(--pj-rule); border-bottom: 1px solid var(--pj-rule); padding: 10px 0 6px; margin: 0; }
+.pj-masthead-name { font-family: var(--pj-black); font-weight: 700; font-size: 40px; line-height: 1; letter-spacing: 0.01em; }
+.pj-masthead-sub { font-family: var(--pj-italic); font-style: italic; font-size: 13px; color: var(--pj-ink-2); margin-top: 4px; }
+
+/* Linha de data: edição · data · local */
+.pj-dateline { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-family: var(--pj-caps); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--pj-ink-2); border-bottom: 3px double var(--pj-rule); padding: 7px 0; }
+/* Em coluna estreita (prévia do editor) os lados encurtam com reticências e a data quebra em vez de atropelar o vizinho */
+.pj-dateline > * { min-width: 0; flex: 1 1 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pj-dateline b { color: var(--pj-accent); font-weight: 700; flex: 0 1 auto; white-space: normal; text-align: center; }
+.pj-dateline .pj-dateline-right { text-align: right; }
+
+.pj-headline { font-family: var(--pj-display); font-weight: 900; font-size: 40px; line-height: 1.02; letter-spacing: -0.01em; text-align: center; margin: 24px 0 8px; text-transform: uppercase; color: var(--pj-ink); }
+.pj-deck { font-family: var(--pj-italic); font-style: italic; text-align: center; font-size: 16px; color: var(--pj-ink-2); margin: 0 auto 14px; max-width: 460px; line-height: 1.35; }
+.pj-fleuron { text-align: center; color: var(--pj-gold); margin: 8px 0 16px; }
+.pj-fleuron svg { width: 160px; height: 16px; display: inline-block; }
+
+/* Faixa "trecho / completo", seção vinculada etc.: discretas, em versaletes */
+.pj-note { font-family: var(--pj-caps); font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--pj-ink-2); text-align: center; margin: 0 0 12px; }
+
+/* Texto em colunas */
+.pj-cols { text-align: justify; hyphens: auto; }
+.pj-cols[data-cols="2"] { column-count: 2; column-gap: 24px; column-rule: 1px solid var(--pj-rule); }
+.pj-cols[data-cols="3"] { column-count: 3; column-gap: 22px; column-rule: 1px solid var(--pj-rule); }
+
+/* Rodapé: importância e carimbos */
+.pj-foot { margin-top: 16px; border-top: 3px double var(--pj-rule); padding-top: 8px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; font-family: var(--pj-caps); font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--pj-ink-2); }
+.pj-stamps { display: flex; flex-wrap: wrap; gap: 4px; }
+.pj-stamp { border: 1px solid var(--pj-rule); padding: 1px 7px; letter-spacing: 0.08em; color: var(--pj-ink); background: transparent; font: inherit; cursor: pointer; }
+.pj-stamp:hover { background: var(--pj-paper-2); }
+.pj-stars { letter-spacing: 0.08em; color: var(--pj-accent); }
+
+/* ── Markdown dentro da página ─────────────────────────────────────────────── */
+.page-journal .markdown-content { font-family: var(--pj-serif); font-size: calc(var(--chr-text, 15px) + 1px); line-height: 1.5; color: var(--pj-ink); }
+.page-journal .markdown-content p { margin: 0 0 0.8em; }
+.page-journal .markdown-content > p:first-of-type::first-letter { font-family: var(--pj-display); font-weight: 700; font-size: 3.4em; float: left; line-height: 0.82; padding: 0.06em 0.1em 0 0; color: var(--pj-accent); }
+.page-journal .markdown-content h1,
+.page-journal .markdown-content h2,
+.page-journal .markdown-content h3 { break-after: avoid; font-family: var(--pj-caps); font-weight: 400; font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--pj-ink); border-top: 1px solid var(--pj-rule); border-bottom: 1px solid var(--pj-rule); padding: 3px 0; margin: 12px 0 10px; text-align: center; }
+.page-journal .markdown-content h1 { font-size: 14px; }
+.page-journal .markdown-content h4,
+.page-journal .markdown-content h5,
+.page-journal .markdown-content h6 { font-family: var(--pj-caps); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; margin: 10px 0 6px; }
+.page-journal .markdown-content hr { border: 0; height: 16px; margin: 10px auto 14px; width: 160px; background-color: var(--pj-gold); -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 160 16' fill='none' stroke='black' stroke-width='1'><path d='M0 8h60M100 8h60'/><path d='M68 8c4-6 8-6 12 0s8 6 12 0'/><path d='M64 8l4-4M64 8l4 4M96 8l-4-4M96 8l-4 4'/><circle cx='80' cy='8' r='1.5' fill='black'/></svg>") center / 160px 16px no-repeat; mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 160 16' fill='none' stroke='black' stroke-width='1'><path d='M0 8h60M100 8h60'/><path d='M68 8c4-6 8-6 12 0s8 6 12 0'/><path d='M64 8l4-4M64 8l4 4M96 8l-4-4M96 8l-4 4'/><circle cx='80' cy='8' r='1.5' fill='black'/></svg>") center / 160px 16px no-repeat; break-inside: avoid; }
+.page-journal .markdown-content blockquote { break-inside: avoid; margin: 8px 0 14px; padding: 8px 12px; border-left: 0; border-top: 3px double var(--pj-rule); border-bottom: 3px double var(--pj-rule); background: transparent; font-family: var(--pj-italic); font-style: italic; font-size: 17px; text-align: center; color: var(--pj-ink); }
+.page-journal .markdown-content blockquote p { margin: 0; }
+.page-journal .markdown-content blockquote p + p:last-child { font-style: normal; font-family: var(--pj-caps); font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--pj-ink-2); margin-top: 5px; }
+.page-journal .pj-figure { display: block; break-inside: avoid; margin: 4px 0 14px; }
+.page-journal .pj-figure img,
+.page-journal .markdown-content > p > img { display: block; max-width: 100%; height: auto; border: 1px solid var(--pj-rule); padding: 3px; background: var(--pj-paper-2); border-radius: 0; margin: 0; }
+.page-journal .pj-caption { display: block; font-family: var(--pj-caps); font-size: 10.5px; font-style: italic; text-align: center; color: var(--pj-ink-2); margin-top: 4px; }
+.page-journal .markdown-content a { color: var(--pj-accent); text-decoration: none; border-bottom: 1px dotted var(--pj-accent); }
+.page-journal .markdown-content a > span { font-family: var(--pj-caps); font-size: 10px; letter-spacing: 0.06em; color: var(--pj-ink-2); }
+.page-journal .markdown-content ul, .page-journal .markdown-content ol { padding-left: 1.4em; margin: 0 0 0.8em; }
+.page-journal .markdown-content li { margin: 0 0 0.2em; }
+.page-journal .markdown-content code { font-family: var(--pj-caps); font-size: 0.85em; background: var(--pj-paper-2); border: 1px solid var(--pj-rule); border-radius: 0; padding: 0 4px; color: var(--pj-ink); }
+.page-journal .markdown-content pre { background: var(--pj-paper-2); border: 1px solid var(--pj-rule); border-radius: 0; padding: 10px 12px; break-inside: avoid; }
+.page-journal .markdown-content pre code { border: 0; background: none; }
+.page-journal .markdown-content table { width: 100%; border-collapse: collapse; font-size: 0.92em; margin: 0 0 1em; break-inside: avoid; }
+.page-journal .markdown-content th { font-family: var(--pj-caps); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; border-top: 1px solid var(--pj-rule); border-bottom: 1px solid var(--pj-rule); padding: 4px 6px; text-align: left; background: transparent; color: var(--pj-ink); }
+.page-journal .markdown-content td { border: 0; border-bottom: 1px dotted var(--pj-rule); padding: 4px 6px; }
+.page-journal .markdown-content strong { color: var(--pj-ink); }
+
+/* "Mencionado em" e demais blocos auxiliares da página, em versaletes discretos */
+.page-journal .pj-aux { border-top: 1px solid var(--pj-rule); margin-top: 14px; padding-top: 8px; }
+.page-journal .pj-aux h3, .page-journal .pj-aux p.pj-aux-title { font-family: var(--pj-caps) !important; font-size: 10.5px !important; letter-spacing: 0.12em !important; text-transform: uppercase; color: var(--pj-ink-2) !important; margin: 0 0 6px; }
+.page-journal .pj-aux button, .page-journal .pj-aux a { color: var(--pj-ink); font-family: var(--pj-serif); }
+.page-journal .pj-aux .pj-aux-date { font-family: var(--pj-caps); font-size: 10px; letter-spacing: 0.06em; color: var(--pj-accent); }
+.page-journal .pj-aux .pj-aux-muted { font-family: var(--pj-caps); font-size: 10px; letter-spacing: 0.06em; color: var(--pj-ink-2); }
+.page-journal .pj-aux .pj-aux-snippet { color: var(--pj-ink-2); font-size: 0.92em; }
+
+/* Botões de ação no fim da página (sub-timeline, PDF, duplicar) */
+.page-journal .pj-actions { border-top: 3px double var(--pj-rule); margin-top: 18px; padding-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
+.page-journal .pj-actions > button, .page-journal .pj-actions > div > button { font-family: var(--pj-caps); font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--pj-ink); border: 1px solid var(--pj-rule); background: transparent; padding: 5px 10px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.page-journal .pj-actions > button:hover, .page-journal .pj-actions > div > button:hover { background: var(--pj-paper-2); }
+
+/* ── Cabeçalho da timeline no mesmo estilo ──────────────────────────────── */
+.pj-timeline-head {
+  --pj-paper: #f3ead6; --pj-ink: #2b2118; --pj-ink-2: #5a4a3a; --pj-rule: #7a6248; --pj-gold: #a07a3c;
+  --pj-black: 'UnifrakturCook', 'Old English Text MT', 'Blackadder ITC', fantasy; --pj-caps: 'Old Standard TT', Georgia, serif; --pj-italic: 'IM Fell English', Georgia, serif;
+  background: var(--pj-paper); color: var(--pj-ink); border-bottom: 1px solid var(--pj-rule); text-align: center; padding: 10px 24px 6px;
+}
+.dark .pj-timeline-head:not([data-tone="light"]), .pj-timeline-head[data-tone="dark"] { --pj-paper: #1b1813; --pj-ink: #ebe1cb; --pj-ink-2: #b9ab90; --pj-rule: #8a7352; --pj-gold: #c9a961; }
+.pj-timeline-head .pj-masthead-name { font-size: 30px; }
+.pj-timeline-head .pj-masthead-sub { font-size: 12px; }
+.pj-timeline-head .pj-rule { border-top: 3px double var(--pj-rule); margin-top: 6px; }

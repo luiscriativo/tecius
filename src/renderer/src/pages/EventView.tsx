@@ -8,14 +8,14 @@
  *   - Com seções  → arquivo salvo como chronicle (type: chronicle + entries)
  */
 
-import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react'
+import React, { useEffect, useState, useRef, useCallback, useMemo, useDeferredValue } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, ExternalLink, GitBranch, ChevronLeft, ChevronRight,
   Pencil, Eye, ImagePlus, X, BookOpen, FileText, Plus,
   Code, Quote, List, ListOrdered, CheckSquare, Table, Link,
-  FileCode, Download, Tag, Maximize2, Minimize2, Trash2,
+  FileCode, Download, Tag, Trash2, PanelRight,
   Search, ChevronUp, ChevronDown, MapPin,
   Link2, Copy,
 } from 'lucide-react'
@@ -43,6 +43,7 @@ import { Backlinks, RelationsMapButton } from '@/components/Backlinks'
 import { useEventIndexStore } from '@/stores/useEventIndexStore'
 import { useVaultStore } from '@/stores/useVaultStore'
 import { useTimelineStore } from '@/stores/useTimelineStore'
+import { useAppStore } from '@/stores/useAppStore'
 import { useNotifications } from '@/hooks/useNotifications'
 import { linksToOldTitle, resolveWikiLink, wikiTextFor, type VaultEventDoc } from '@/utils/wikiLinks'
 import { LinkEventPicker } from '@/components/LinkEventPicker'
@@ -50,7 +51,15 @@ import { useOpenEvent } from '@/hooks/useOpenEvent'
 import { applyTextEdit } from '@/utils/textareaEdit'
 import { continueList, formatStateAt, indentLines, insertBlock, insertLink, linkFromPaste, outdentLines, selectionTouchesList, toggleBlock, toggleHeading, toggleInline, type FormatState, type TextEdit } from '@/utils/markdownEdit'
 import { usePref } from '@/hooks/usePref'
-import type { ChroniclerEvent, EventLocation } from '@/types/chronicler'
+import { usePageStyle } from '@/hooks/usePageStyle'
+import { columnsOf, importanceStars, resolvePageStyle, isStyledPreset, presetColumns, formatCoords, normalizeTone } from '@/utils/pageStyle'
+import { Fleuron, JournalCorners } from '@/components/journal/Ornaments'
+import { AlbumPhoto, albumPhotoHtml } from '@/components/journal/Photo'
+import { StyledHead, StyledFoot, StyledFigure, styledHeadHtml, styledFootHtml, type StyledHeadProps } from '@/components/journal/StyledPage'
+import { PageStyleMenu } from '@/components/journal/PageStyleMenu'
+import { LayoutMenu } from '@/components/LayoutMenu'
+import { dateRangeLabel } from '@/components/timeline/EventDot'
+import type { ChroniclerEvent, EventLocation, TimelineData } from '@/types/chronicler'
 
 // ── Utilitários de anchor ──────────────────────────────────────────────────────
 
@@ -236,11 +245,21 @@ interface EditFm {
   importance: number
   tags: string[]
   location: EventLocation | null
+  /** cover-image / cover-caption (capa), kicker (álbum) e deck (jornal) */
+  cover: string
+  coverCaption: string
+  /** emblem: brasão ou marca (presets decreto, rosto…) */
+  emblem: string
+  kicker: string
+  deck: string
+  /** style: e paper: do arquivo ('' = herdado / segue o tema) */
+  style: string
+  paper: string
   extra: Record<string, string>
 }
 
 function defaultEditFm(): EditFm {
-  return { title: '', date: '', dateEnd: '', hasDateEnd: false, circa: false, category: '', importance: 3, tags: [], location: null, extra: {} }
+  return { title: '', date: '', dateEnd: '', hasDateEnd: false, circa: false, category: '', importance: 3, tags: [], location: null, cover: '', coverCaption: '', emblem: '', kicker: '', deck: '', style: '', paper: '', extra: {} }
 }
 
 function parseTagsValue(value: string): string[] {
@@ -263,6 +282,13 @@ function parseEventRaw(raw: string): { fm: EditFm; body: string } {
       case 'category':   fm.category = unquoteYaml(value); break
       case 'importance': fm.importance = parseInt(value) || 3; break
       case 'tags':       fm.tags = value ? parseTagsValue(value) : parseYamlList(cont); break
+      case 'cover-image':   fm.cover = unquoteYaml(value); break
+      case 'cover-caption': fm.coverCaption = unquoteYaml(value); break
+      case 'emblem':     fm.emblem = unquoteYaml(value); break
+      case 'kicker':     fm.kicker = unquoteYaml(value); break
+      case 'deck':       fm.deck = unquoteYaml(value); break
+      case 'style':      fm.style = unquoteYaml(value); break
+      case 'paper':      fm.paper = unquoteYaml(value); break
       case 'type':       break
       default:           extra[key] = cont.length > 0 ? [value, ...cont].join('\n') : value
     }
@@ -287,6 +313,13 @@ function buildEventRaw(fm: EditFm, body: string): string {
   lines.push(`importance: ${fm.importance}`)
   if (fm.tags.length > 0) lines.push(`tags: ${buildTags(fm.tags)}`)
   if (fm.location) lines.push(yamlLine('location', locationToRaw(fm.location)))
+  if (fm.cover.trim())        lines.push(`cover-image: ${yamlStr(fm.cover.trim())}`)
+  if (fm.coverCaption.trim()) lines.push(`cover-caption: ${yamlStr(fm.coverCaption.trim())}`)
+  if (fm.emblem.trim())       lines.push(`emblem: ${yamlStr(fm.emblem.trim())}`)
+  if (fm.kicker.trim())       lines.push(`kicker: ${yamlStr(fm.kicker.trim())}`)
+  if (fm.deck.trim())         lines.push(`deck: ${yamlStr(fm.deck.trim())}`)
+  if (fm.style.trim())        lines.push(`style: ${fm.style.trim()}`)
+  if (fm.paper.trim())        lines.push(`paper: ${fm.paper.trim()}`)
   for (const [k, v] of Object.entries(fm.extra)) lines.push(yamlLine(k, v))
   lines.push('---', '')
   if (body.trim()) lines.push(body.trim())
@@ -463,7 +496,10 @@ function chronicleEditFm(parsed: ChronicleEdit): EditFm {
   fm.category = unquoteYaml(parsed.meta.extra['category'] ?? '')
   fm.importance = parseInt(parsed.meta.extra['importance'] ?? '3') || 3
   fm.tags = parsed.meta.extra['tags'] ? tagsFromRaw(parsed.meta.extra['tags']) : []
-  const { category: _c, importance: _i, tags: _t, ...restExtra } = parsed.meta.extra
+  fm.style = unquoteYaml(parsed.meta.extra['style'] ?? '')
+  fm.paper = unquoteYaml(parsed.meta.extra['paper'] ?? '')
+  fm.emblem = unquoteYaml(parsed.meta.extra['emblem'] ?? '')
+  const { category: _c, importance: _i, tags: _t, style: _s, paper: _p, emblem: _e, ...restExtra } = parsed.meta.extra
   const metaLoc = restExtra['location'] !== undefined ? parseLocationRaw(restExtra['location']) : null
   if (metaLoc) { fm.location = metaLoc; delete restExtra['location'] }
   fm.extra = restExtra
@@ -582,6 +618,9 @@ function buildSaveContent(
   if (fm.importance !== 3) extra['importance'] = String(fm.importance)
   if (fm.tags.length > 0) extra['tags'] = buildTags(fm.tags)
   if (fm.location) extra['location'] = locationToRaw(fm.location)
+  if (fm.style.trim()) extra['style'] = fm.style.trim()
+  if (fm.paper.trim()) extra['paper'] = fm.paper.trim()
+  if (fm.emblem.trim()) extra['emblem'] = yamlStr(fm.emblem.trim())
   return buildChronicleRaw({
     meta: { title: fm.title, description: chrDesc, extra },
     entries: sortEntries(entries),
@@ -677,6 +716,109 @@ function CategoryInput({ value, onChange, suggestions }: { value: string; onChan
   )
 }
 
+// ── EditPreview ────────────────────────────────────────────────────────────────
+
+/**
+ * Prévia ao lado do editor: a página como vai ficar na leitura, desenhada a
+ * partir do estado do formulário (estilo, papel, capa, texto), sem salvar.
+ */
+function EditPreview({ fm, body, entries, sectionBodies, filePath, timeline, vaultStyle }: {
+  fm: EditFm; body: string; entries: EntryEdit[]; sectionBodies: Record<string, string>
+  filePath: string; timeline: TimelineData; vaultStyle?: string
+}) {
+  const { t } = useI18n()
+  const pageStyle = resolvePageStyle(fm.style, timeline.meta.style, vaultStyle)
+  usePageStyle(pageStyle)
+  const journal = pageStyle === 'jornal'
+  const album = pageStyle === 'album'
+  const styled = isStyledPreset(pageStyle)
+  const figures = journal ? 'journal' : album ? 'album' : styled ? 'styled' : undefined
+  const tone = normalizeTone(fm.paper)
+  const deferredBody = useDeferredValue(body)
+  const cover = fm.cover.trim() ? window.electronAPI.resolveAssetPath(filePath, fm.cover.trim()) : ''
+  const emblem = fm.emblem.trim() ? window.electronAPI.resolveAssetPath(filePath, fm.emblem.trim()) : ''
+  const date = `${fm.circa ? '~ ' : ''}${fm.date || '…'}${fm.hasDateEnd && fm.dateEnd ? ` → ${fm.dateEnd}` : ''}`
+  const place = fm.location?.name
+  const coords = fm.location ? formatCoords(fm.location.lat, fm.location.lng) : undefined
+  const title = fm.title || t('event_title_placeholder')
+  const kicker = fm.kicker || (entries.length > 0 ? fm.title : timeline.meta.title)
+  const cols = columnsOf(fm.extra['columns'] ?? timeline.meta.columns, presetColumns(pageStyle))
+  const bodyNode = entries.length > 0
+    ? entries.map((e) => (
+        <section key={e.id}>
+          <h2>{e.title || '…'}</h2>
+          <MarkdownBody body={sectionBodies[e.id] ?? ''} eventFilePath={filePath} figures={figures} />
+        </section>
+      ))
+    : <MarkdownBody body={deferredBody} eventFilePath={filePath} figures={figures} />
+  const tags = fm.tags
+  return (
+    <div className="flex-none w-1/2 min-w-0 overflow-y-auto border-l border-chr-subtle bg-vault print:hidden" data-testid="edit-preview">
+      <article data-page-style={pageStyle} data-tone={tone} style={{ width: '100%', maxWidth: 'min(100%, 760px)' }}
+        className={cn(journal ? 'page-journal mx-auto my-6' : album ? 'page-album mx-auto my-6' : styled ? `page-styled page-${pageStyle} mx-auto my-6` : 'mx-auto px-8 pt-10 pb-16')}>
+        {journal && <JournalCorners />}
+        {journal ? (
+          <>
+            {timeline.meta.masthead && (
+              <div className="pj-masthead"><div className="pj-masthead-name">{timeline.meta.masthead}</div>{timeline.meta.mastheadSub && <div className="pj-masthead-sub">{timeline.meta.mastheadSub}</div>}</div>
+            )}
+            <div className="pj-dateline">
+              <span className="truncate">{[unquoteYaml(fm.extra['edition'] ?? ''), fm.category].filter(Boolean).join(' · ') || ' '}</span>
+              <b>{date}</b>
+              <span className="pj-dateline-right truncate">{place ?? ' '}</span>
+            </div>
+            {cover && <span className="pj-figure" style={{ display: 'block', marginTop: 16 }}><img src={cover} alt="" />{fm.coverCaption && <span className="pj-caption">{fm.coverCaption}</span>}</span>}
+            <h1 className="pj-headline">{title}</h1>
+            {fm.deck && <p className="pj-deck">{fm.deck}</p>}
+            <Fleuron />
+          </>
+        ) : styled ? (
+          <StyledHead title={title} kicker={kicker} edition={unquoteYaml(fm.extra['edition'] ?? '') || undefined} deck={fm.deck} date={date} place={place} coords={coords}
+            category={fm.category || undefined} importance={fm.importance} coverSrc={cover || undefined} coverCaption={fm.coverCaption || undefined}
+            emblemSrc={emblem || undefined} labels={{ period: t('page_period'), place: t('page_place'), category: t('page_category'), importance: t('importance') }} />
+        ) : album ? (
+          <>
+            <p className="pa-kicker">{kicker}</p>
+            <h1 className="pa-title">{title}</h1>
+            <p className="pa-date">{date}{place ? ` · ${place}` : ''}</p>
+            {cover && <AlbumPhoto src={cover} caption={fm.coverCaption || undefined} wide />}
+          </>
+        ) : (
+          <>
+            {cover && <img src={cover} alt="" className="w-full max-h-80 object-cover rounded-sm border border-chr-subtle mb-8" />}
+            <p className="chr-date mb-3 tracking-wider">{date}</p>
+            {place && <p className="flex items-center gap-1.5 font-mono text-xs text-chr-secondary mb-3"><MapPin size={12} strokeWidth={1.5} />{place}</p>}
+            <h1 className="font-serif text-display text-chr-primary leading-tight mb-6">{title}</h1>
+            {(fm.category || tags.length > 0) && (
+              <div className="flex flex-wrap gap-1.5 mb-10 pb-8 border-b border-chr-subtle">
+                {fm.category && <span className="chr-badge">{fm.category}</span>}
+                {tags.map((tag) => <span key={tag} className="chr-tag">#{tag}</span>)}
+                <span className="chr-tag font-mono">{t('importance_badge', { n: fm.importance })}</span>
+              </div>
+            )}
+          </>
+        )}
+        <div className={journal ? 'pj-cols' : album ? 'pa-body' : styled ? 'pg-body' : undefined} data-cols={journal || styled ? cols : undefined}>
+          {bodyNode}
+        </div>
+        {styled && <StyledFoot importance={fm.importance} category={fm.category || undefined} tags={tags} importanceLabel={t('importance')} />}
+        {journal && (
+          <div className="pj-foot">
+            <span>{t('importance')} <span className="pj-stars">{importanceStars(fm.importance)}</span></span>
+            <span className="pj-stamps">{fm.category && <span className="pj-stamp">{fm.category}</span>}{tags.map((tag) => <span key={tag} className="pj-stamp">#{tag}</span>)}</span>
+          </div>
+        )}
+        {album && (
+          <div className="pa-foot">
+            <span>{t('importance')} <span className="pa-stars">{importanceStars(fm.importance)}</span>{fm.category && <> · <span className="pa-tag" style={{ letterSpacing: 'inherit' }}>{fm.category}</span></>}</span>
+            <span className="pa-tags">{tags.map((tag) => <span key={tag} className="pa-tag">{tag}</span>)}</span>
+          </div>
+        )}
+      </article>
+    </div>
+  )
+}
+
 // ── EditHeader ─────────────────────────────────────────────────────────────────
 
 // ── LocationChip ───────────────────────────────────────────────────────────────
@@ -708,12 +850,18 @@ interface EditHeaderProps {
   chrDescription: string
   onChrDescChange: (v: string) => void
   categorySuggestions: string[]
-  wideLayout?: boolean
+  widthStyle: React.CSSProperties
   onEditLocation: () => void
+  /** Caminho do arquivo (miniatura da capa), estilo herdado (timeline/vault) e seletor de imagem da capa */
+  filePath: string
+  inheritedStyle: string
+  onPickCover: () => void
+  onPickEmblem: () => void
 }
 
-function EditHeader({ fm, onChange, hasEntries, chrDescription, onChrDescChange, categorySuggestions, wideLayout, onEditLocation }: EditHeaderProps) {
+function EditHeader({ fm, onChange, hasEntries, chrDescription, onChrDescChange, categorySuggestions, widthStyle, onEditLocation, filePath, inheritedStyle, onPickCover, onPickEmblem }: EditHeaderProps) {
   const set = <K extends keyof EditFm>(key: K, val: EditFm[K]) => onChange({ ...fm, [key]: val })
+  const pageStyle = resolvePageStyle(fm.style, inheritedStyle)
   const { t } = useI18n()
   const [addingTag, setAddingTag] = useState(false)
   const [tagInput, setTagInput] = useState('')
@@ -728,13 +876,14 @@ function EditHeader({ fm, onChange, hasEntries, chrDescription, onChrDescChange,
     setAddingTag(false)
   }
 
-  const contentCls = wideLayout ? 'max-w-5xl mx-auto px-8 pt-10 pb-2' : 'max-w-2xl mx-auto px-12 pt-10 pb-2'
   return (
-    <div className={contentCls}>
-      {/* Category + Importance */}
-      <div className="flex items-center justify-between mb-6">
+    <div className="mx-auto px-10 pt-10 pb-2" style={widthStyle}>
+      {/* Category + Importance + estilo e papel da página (gravados no arquivo ao salvar) */}
+      <div className="flex items-center justify-between gap-3 mb-6">
         <CategoryInput value={fm.category} onChange={(v) => set('category', v)} suggestions={categorySuggestions} />
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          <PageStyleMenu compact target={{ kind: 'event', filePath }} own={fm.style || undefined} inherited={inheritedStyle}
+            onPick={(style) => set('style', style ?? '')} tone={fm.paper || undefined} onPickTone={(tone) => set('paper', tone ?? '')} />
           <span className="font-mono text-2xs text-chr-muted uppercase tracking-wider">{t('importance')}</span>
           <ImportanceSelector value={fm.importance} onChange={(v) => set('importance', v)} />
         </div>
@@ -778,6 +927,67 @@ function EditHeader({ fm, onChange, hasEntries, chrDescription, onChrDescChange,
         rows={1}
         className="w-full font-serif text-display text-chr-primary bg-transparent border-0 outline-none focus:outline-none placeholder:text-chr-muted/60 leading-tight block mb-5 resize-none overflow-hidden"
       />
+
+      {/* Capa: imagem com legenda; linha de abertura e subtítulo só nos estilos de página que os usam */}
+      {!hasEntries && (
+        <div className="mb-5" data-testid="cover-block">
+          <div className="flex items-center gap-3">
+            <button type="button" onClick={onPickCover} title={t('cover_pick')} data-testid="cover-pick"
+              className={cn('shrink-0 w-20 h-14 rounded-sm border overflow-hidden flex items-center justify-center transition-colors',
+                fm.cover ? 'border-chr-subtle hover:border-chr' : 'border-dashed border-chr-subtle text-chr-muted hover:text-chr-secondary hover:border-chr')}>
+              {fm.cover
+                ? <img src={window.electronAPI.resolveAssetPath(filePath, fm.cover)} alt="" className="w-full h-full object-cover" />
+                : <ImagePlus size={14} strokeWidth={1.5} />}
+            </button>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-2xs text-chr-muted uppercase tracking-wider shrink-0">{t('cover_image')}</span>
+                <input type="text" value={fm.cover} onChange={(e) => set('cover', e.target.value)} placeholder={t('cover_path_ph')} spellCheck={false}
+                  className="flex-1 min-w-0 font-mono text-2xs text-chr-secondary bg-transparent outline-none border-0 placeholder:text-chr-muted/60" />
+                {fm.cover && (
+                  <button type="button" onClick={() => set('cover', '')} title={t('cover_remove')} className="text-chr-muted hover:text-red-400 transition-colors">
+                    <X size={11} strokeWidth={2} />
+                  </button>
+                )}
+              </div>
+              {fm.cover && (
+                <input type="text" value={fm.coverCaption} onChange={(e) => set('coverCaption', e.target.value)} placeholder={t('cover_caption_ph')} spellCheck={false}
+                  className="w-full mt-1 font-serif italic text-sm text-chr-secondary bg-transparent outline-none border-0 placeholder:text-chr-muted/60" />
+              )}
+            </div>
+          </div>
+          {/* Brasão ou marca (presets pg): imagem do vault, com o caminho escrito */}
+          {isStyledPreset(pageStyle) && (
+            <div className="flex items-center gap-3 mt-2" data-testid="emblem-block">
+              <button type="button" onClick={onPickEmblem} title={t('emblem_pick')} data-testid="emblem-pick"
+                className={cn('shrink-0 w-10 h-10 rounded-sm border overflow-hidden flex items-center justify-center transition-colors',
+                  fm.emblem ? 'border-chr-subtle hover:border-chr' : 'border-dashed border-chr-subtle text-chr-muted hover:text-chr-secondary hover:border-chr')}>
+                {fm.emblem
+                  ? <img src={window.electronAPI.resolveAssetPath(filePath, fm.emblem)} alt="" className="w-full h-full object-contain" />
+                  : <ImagePlus size={12} strokeWidth={1.5} />}
+              </button>
+              <div className="flex-1 min-w-0 flex items-center gap-2">
+                <span className="font-mono text-2xs text-chr-muted uppercase tracking-wider shrink-0">{t('emblem_image')}</span>
+                <input type="text" value={fm.emblem} onChange={(e) => set('emblem', e.target.value)} placeholder={t('emblem_path_ph')} spellCheck={false}
+                  className="flex-1 min-w-0 font-mono text-2xs text-chr-secondary bg-transparent outline-none border-0 placeholder:text-chr-muted/60" />
+                {fm.emblem && (
+                  <button type="button" onClick={() => set('emblem', '')} title={t('emblem_remove')} className="text-chr-muted hover:text-red-400 transition-colors">
+                    <X size={11} strokeWidth={2} />
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+          {pageStyle !== 'classico' && (
+            <div className="flex gap-4 mt-2">
+              <input type="text" value={fm.kicker} onChange={(e) => set('kicker', e.target.value)} placeholder={t('kicker_ph')} spellCheck={false} data-testid="edit-kicker"
+                className="flex-1 min-w-0 font-mono text-2xs uppercase tracking-wider text-chr-secondary bg-transparent outline-none border-0 placeholder:text-chr-muted/60 placeholder:normal-case placeholder:tracking-normal" />
+              <input type="text" value={fm.deck} onChange={(e) => set('deck', e.target.value)} placeholder={t('deck_ph')} spellCheck={false} data-testid="edit-deck"
+                className="flex-1 min-w-0 font-serif italic text-sm text-chr-secondary bg-transparent outline-none border-0 placeholder:text-chr-muted/60" />
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Description — chronicle only */}
       {hasEntries && (
@@ -875,7 +1085,7 @@ interface SectionBlocksEditorProps {
   onAddSection: () => void
   onBodyFocus: (el: HTMLTextAreaElement, id: string) => void
   onBodyBlur: () => void
-  wideLayout?: boolean
+  widthStyle: React.CSSProperties
   onEditEntryLocation: (id: string) => void
   /** Colar / arrastar imagens no texto do trecho (mesmo tratamento do texto principal) */
   onBodyPaste: (e: React.ClipboardEvent<HTMLTextAreaElement>) => void
@@ -889,7 +1099,7 @@ interface SectionBlocksEditorProps {
   filePath: string
 }
 
-function SectionBlocksEditor({ entries, sectionBodies, onEntriesChange, onBodyChange, onAddSection, onBodyFocus, onBodyBlur, wideLayout, onEditEntryLocation, onBodyPaste, onBodyDrop, onBodyDragOver, onBodyKeyDown, onAddLinked, contextDir, filePath }: SectionBlocksEditorProps) {
+function SectionBlocksEditor({ entries, sectionBodies, onEntriesChange, onBodyChange, onAddSection, onBodyFocus, onBodyBlur, widthStyle, onEditEntryLocation, onBodyPaste, onBodyDrop, onBodyDragOver, onBodyKeyDown, onAddLinked, contextDir, filePath }: SectionBlocksEditorProps) {
   const { t } = useI18n()
   const indexDocs = useEventIndexStore((s) => s.docs)
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
@@ -950,7 +1160,7 @@ function SectionBlocksEditor({ entries, sectionBodies, onEntriesChange, onBodyCh
       />
     )}
     <div className="bg-vault">
-      <div className={wideLayout ? 'max-w-5xl mx-auto px-8 pt-2 pb-20' : 'max-w-2xl mx-auto px-12 pt-2 pb-20'}>
+      <div className="mx-auto px-10 pt-2 pb-20" style={widthStyle}>
 
         {sorted.map((entry, idx) => (
           <div key={entry.id} data-entry-id={entry.id} className="group relative">
@@ -1228,14 +1438,26 @@ const REMARK_PLUGINS = [remarkGfm, remarkBreaks, remarkWikiLinks]
  * Markdown renderizado. Memoizado: sem isso o documento inteiro era re-parseado
  * a cada render da página (ex: a cada tecla na busca, a cada mudança de store).
  */
-const MarkdownBody = React.memo(function MarkdownBody({ body, eventFilePath }: { body: string; eventFilePath: string }) {
+const MarkdownBody = React.memo(function MarkdownBody({ body, eventFilePath, figures }: { body: string; eventFilePath: string; figures?: 'journal' | 'album' | 'styled' }) {
   const components = useMemo(() => ({
     a: wikiAnchor(eventFilePath),
     img: ({ src, alt, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => {
       const resolved = src ? window.electronAPI.resolveAssetPath(eventFilePath, src) : ''
+      // Estilo álbum: foto colada com legenda (o alt é a legenda)
+      if (figures === 'album') return <AlbumPhoto src={resolved} caption={alt} />
+      if (figures === 'styled') return <StyledFigure src={resolved} caption={alt} />
+      // Estilo jornal: a imagem vira gravura com legenda (o alt é a legenda)
+      if (figures === 'journal') {
+        return (
+          <span className="pj-figure">
+            <img {...props} src={resolved} alt={alt ?? ''} />
+            {alt && <span className="pj-caption">{alt}</span>}
+          </span>
+        )
+      }
       return <img {...props} src={resolved} alt={alt ?? ''} className="max-w-full rounded border border-chr-subtle my-4" />
     },
-  }), [eventFilePath])
+  }), [eventFilePath, figures])
   return <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={components}>{body}</ReactMarkdown>
 })
 
@@ -1494,8 +1716,12 @@ export default function EventView(): React.ReactElement {
     }
   }, [])
 
-  const [wideLayout, setWideLayout] = useState(() => localStorage.getItem('chr-wide-layout') === '1')
-  const toggleWideLayout = () => setWideLayout((v) => { const next = !v; localStorage.setItem('chr-wide-layout', next ? '1' : '0'); return next })
+  // Largura da página (% do painel, preferência salva); nunca mais estreita que 560px se couber
+  const readingWidth = useAppStore((s) => s.readingWidth)
+  // Prévia ao lado do editor (lembrada)
+  const [showPreview, setShowPreview] = useState(() => { try { return localStorage.getItem('chr-edit-preview') !== '0' } catch { return true } })
+  const togglePreview = () => setShowPreview((v) => { try { localStorage.setItem('chr-edit-preview', v ? '0' : '1') } catch { /* sem localStorage */ } return !v })
+  const widthStyle = useMemo<React.CSSProperties>(() => ({ width: '100%', maxWidth: `max(${readingWidth}%, min(100%, 560px))` }), [readingWidth])
   const [focusedSectionId, setFocusedSectionId] = useState<string | null>(null)
   const skipDirtyRef = useRef(false)
   const editInitializedRef = useRef(false)
@@ -1668,6 +1894,46 @@ export default function EventView(): React.ReactElement {
   const { notify } = useNotifications()
   const openEvent = useOpenEvent()
   const vaultPath = useVaultStore((s) => s.vaultPath)
+
+  // ── Estilo de página: evento → timeline → vault (ver utils/pageStyle) ──────
+  const vaultStyle = useVaultStore((s) => s.vaultInfo?.style)
+  const pageStyle = resolvePageStyle(selectedEvent?.frontmatter.style, currentTimeline?.meta.style, vaultStyle)
+  const journal = pageStyle === 'jornal'
+  const album = pageStyle === 'album'
+  const styled = isStyledPreset(pageStyle)   // campo, dossiê, iluminura, cartaz, correio (StyledPage)
+  const figures = journal ? 'journal' : album ? 'album' : styled ? 'styled' : undefined
+  const toneAttr = normalizeTone(selectedEvent?.frontmatter.paper)
+  usePageStyle(pageStyle)   // estilos próprios do vault (_styles/<nome>.css)
+  /** Dados do cabeçalho comum dos presets pg (tela e exportação) */
+  const styledHead = useMemo<StyledHeadProps | null>(() => {
+    if (!styled || !selectedEvent || !currentTimeline) return null
+    const f = selectedEvent.frontmatter
+    const c = selectedEvent.chronicle
+    const loc = selectedEvent.location
+    const cover = typeof f['cover-image'] === 'string' && f['cover-image'].trim() ? window.electronAPI.resolveAssetPath(selectedEvent.filePath, f['cover-image'].trim()) : ''
+    return {
+      title: f.title || selectedEvent.slug,
+      kicker: f.kicker ?? (c ? `${c.title} · ${c.entryIndex + 1} ${t('of_total', { total: c.totalEntries })}` : currentTimeline.meta.title),
+      edition: f.edition, deck: f.deck,
+      date: `${f.circa ? '~ ' : ''}${dateRangeLabel(selectedEvent)}`,
+      place: loc?.name, coords: loc ? formatCoords(loc.lat, loc.lng) : undefined,
+      category: f.category, importance: f.importance,
+      coverSrc: cover || undefined, coverCaption: f['cover-caption'],
+      emblemSrc: typeof f.emblem === 'string' && f.emblem.trim() ? window.electronAPI.resolveAssetPath(selectedEvent.filePath, f.emblem.trim()) : undefined,
+      labels: { period: t('page_period'), place: t('page_place'), category: t('page_category'), importance: t('importance') },
+    }
+  }, [styled, selectedEvent, currentTimeline, t])
+  /** Depois de gravar o `style:` no arquivo: relê a timeline e troca o evento selecionado pela versão nova */
+  const handleStyleChanged = useCallback(async () => {
+    const fp = selectedEvent?.filePath
+    const idx = selectedEvent?.chronicle?.entryIndex
+    await refreshTimeline()
+    const ev = useTimelineStore.getState().currentTimeline?.events.find((e) => e.filePath === fp && (idx === undefined || e.chronicle?.entryIndex === idx))
+    if (ev) useTimelineStore.getState().setSelectedEvent(ev)
+    // O estado de edição guardado ficou velho: a próxima edição relê o arquivo
+    editInitializedRef.current = false
+  }, [selectedEvent, refreshTimeline])
+
   const [pendingRename, setPendingRename] = useState<Array<{ old: string; now: string; anchor?: string }>>([])
   const [renamePrompt, setRenamePrompt] = useState<Array<{ old: string; now: string; newText: string; files: string[]; targets: string[]; count: number }>>([])
   const [isRenamingLinks, setIsRenamingLinks] = useState(false)
@@ -1862,7 +2128,7 @@ export default function EventView(): React.ReactElement {
     if (!el || !isEditing || editIsRaw || editEntries.length > 0) return
     el.style.height = 'auto'
     el.style.height = el.scrollHeight + 'px'
-  }, [editBody, isEditing, editIsRaw, editEntries.length, wideLayout])
+  }, [editBody, isEditing, editIsRaw, editEntries.length, readingWidth])
 
   // ── Add section ───────────────────────────────────────────────────────────
   const handleAddSection = useCallback((link?: VaultEventDoc) => {
@@ -2017,6 +2283,26 @@ export default function EventView(): React.ReactElement {
     } finally { setIsInsertingImage(false) }
   }, [selectedEvent, isInsertingImage, insertImageMarkdown])
 
+  /** Capa: escolhe a imagem, copia para _assets/ e grava o caminho no formulário */
+  const handlePickCover = useCallback(async () => {
+    if (!selectedEvent || isInsertingImage) return
+    setIsInsertingImage(true)
+    try {
+      const result = await window.electronAPI.invoke<{ success: boolean; relativePath?: string }>('fs:pick-image', selectedEvent.filePath)
+      if (result.success && result.relativePath) setEditFm((f) => ({ ...f, cover: result.relativePath! }))
+    } finally { setIsInsertingImage(false) }
+  }, [selectedEvent, isInsertingImage])
+
+  /** Brasão: escolhe a imagem, copia para _assets/ e grava o caminho no formulário */
+  const handlePickEmblem = useCallback(async () => {
+    if (!selectedEvent || isInsertingImage) return
+    setIsInsertingImage(true)
+    try {
+      const result = await window.electronAPI.invoke<{ success: boolean; relativePath?: string }>('fs:pick-image', selectedEvent.filePath)
+      if (result.success && result.relativePath) setEditFm((f) => ({ ...f, emblem: result.relativePath! }))
+    } finally { setIsInsertingImage(false) }
+  }, [selectedEvent, isInsertingImage])
+
   // ── Export PDF ────────────────────────────────────────────────────────────
   const handleExportPdf = useCallback(() => {
     setPdfError(null)
@@ -2040,7 +2326,14 @@ export default function EventView(): React.ReactElement {
               a: StaticWikiAnchor,
               img: ({ src, alt }) => {
                 const resolved = src ? window.electronAPI.resolveAssetPath(filePath, src) : ''
-                return <img src={resolved} alt={alt ?? ''} />
+                // Estilos jornal e álbum: gravura / foto colada com legenda, como na tela
+                return journal
+                  ? <span className="pj-figure"><img src={resolved} alt={alt ?? ''} />{alt && <span className="pj-caption">{alt}</span>}</span>
+                  : album
+                    ? <AlbumPhoto src={resolved} caption={alt} />
+                    : styled
+                      ? <StyledFigure src={resolved} caption={alt} />
+                      : <img src={resolved} alt={alt ?? ''} />
               },
             }}
           >
@@ -2048,6 +2341,41 @@ export default function EventView(): React.ReactElement {
           </ReactMarkdown>
         )
       : ''
+
+    // Estilo jornal: o cabeçalho (gótica, linha de data, manchete, subtítulo) e o
+    // rodapé (estrelas, carimbos) já vão prontos; o main só envolve no modelo
+    const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    const journalParts = journal ? {
+      pageStyle: 'jornal',
+      columns: columnsOf((fm as unknown as Record<string, unknown>).columns ?? currentTimeline?.meta.columns),
+      preHtml: [
+        currentTimeline?.meta.masthead ? `<header class="pj-masthead"><div class="pj-masthead-name">${esc(currentTimeline.meta.masthead)}</div>${currentTimeline.meta.mastheadSub ? `<div class="pj-masthead-sub">${esc(currentTimeline.meta.mastheadSub)}</div>` : ''}</header>` : '',
+        `<div class="pj-dateline"><span>${esc([fm.edition, fm.category].filter(Boolean).join(' · ') || ' ')}</span><b>${fm.circa ? '~ ' : ''}${esc(dateRangeLabel(selectedEvent))}</b><span class="pj-dateline-right">${esc(selectedEvent.location?.name ?? ' ')}</span></div>`,
+        `<h1 class="pj-headline">${esc(fm.title || selectedEvent.slug)}</h1>`,
+        fm.deck ? `<p class="pj-deck">${esc(fm.deck)}</p>` : '',
+        `<div class="pj-fleuron"><svg viewBox="0 0 160 16" fill="none" stroke="currentColor" stroke-width="1"><path d="M0 8h60M100 8h60"/><path d="M68 8c4-6 8-6 12 0s8 6 12 0"/><path d="M64 8l4-4M64 8l4 4M96 8l-4-4M96 8l-4 4"/><circle cx="80" cy="8" r="1.5" fill="currentColor"/></svg></div>`,
+      ].join(''),
+      footHtml: (fm.importance || fm.category || (opts.includeTags && fm.tags?.length))
+        ? `<div class="pj-foot"><span>${esc(t('importance'))} <span class="pj-stars">${importanceStars(fm.importance)}</span></span><span class="pj-stamps">${fm.category ? `<span class="pj-stamp">${esc(fm.category)}</span>` : ''}${opts.includeTags ? (fm.tags ?? []).map((tg) => `<span class="pj-stamp">#${esc(tg)}</span>`).join('') : ''}</span></div>`
+        : '',
+    } : album ? {
+      pageStyle: 'album',
+      columns: 1,
+      preHtml: [
+        `<p class="pa-kicker">${esc(fm.kicker ?? (selectedEvent.chronicle ? `${selectedEvent.chronicle.title} · ${selectedEvent.chronicle.entryIndex + 1} ${t('of_total', { total: selectedEvent.chronicle.totalEntries })}` : currentTimeline?.meta.title ?? ''))}</p>`,
+        `<h1 class="pa-title">${esc(fm.title || selectedEvent.slug)}</h1>`,
+        `<p class="pa-date">${fm.circa ? '~ ' : ''}${esc(dateRangeLabel(selectedEvent))}${selectedEvent.location?.name ? ` · ${esc(selectedEvent.location.name)}` : ''}</p>`,
+        (typeof fm['cover-image'] === 'string' && fm['cover-image'].trim()) ? albumPhotoHtml(window.electronAPI.resolveAssetPath(selectedEvent.filePath, fm['cover-image'].trim()), fm['cover-caption'] ?? '', true) : '',
+      ].join(''),
+      footHtml: (fm.importance || fm.category || (opts.includeTags && fm.tags?.length))
+        ? `<div class="pa-foot"><span>${esc(t('importance'))} <span class="pa-stars">${importanceStars(fm.importance)}</span>${fm.category ? ` · ${esc(fm.category)}` : ''}</span><span class="pa-tags">${opts.includeTags ? (fm.tags ?? []).map((tg) => `<span class="pa-tag">${esc(tg)}</span>`).join('') : ''}</span></div>`
+        : '',
+    } : styledHead ? {
+      pageStyle,
+      columns: columnsOf((fm as unknown as Record<string, unknown>).columns ?? currentTimeline?.meta.columns, presetColumns(pageStyle)),
+      preHtml: styledHeadHtml(styledHead),
+      footHtml: styledFootHtml({ importance: fm.importance, category: fm.category, tags: opts.includeTags ? (fm.tags ?? []) : [], importanceLabel: t('importance') }),
+    } : {}
 
     try {
       const result = await window.electronAPI.invoke<{
@@ -2062,6 +2390,7 @@ export default function EventView(): React.ReactElement {
         dateDisplay: selectedEvent.date.display,
         tags: opts.includeTags ? (fm.tags ?? []) : [],
         ...opts,
+        ...journalParts,
       })
       if (result.success || result.canceled) {
         setShowPdfModal(false)
@@ -2073,7 +2402,7 @@ export default function EventView(): React.ReactElement {
     } finally {
       setIsPdfExporting(false)
     }
-  }, [selectedEvent, displayBody, t])
+  }, [selectedEvent, displayBody, t, journal, album, styled, styledHead, pageStyle, currentTimeline])
 
   const handlePaste = useCallback(async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     // URL colada com um texto selecionado: vira link [texto](url)
@@ -2280,22 +2609,14 @@ export default function EventView(): React.ReactElement {
               : <><Pencil size={12} strokeWidth={1.5} /><span className="font-mono text-2xs">{t('edit')}</span></>
             }
           </button>
-          <button
-            type="button"
-            onClick={toggleWideLayout}
-            title={wideLayout ? t('layout_compress') : t('layout_expand')}
-            className={cn(
-              'flex items-center gap-1 px-2 py-1 rounded-sm border transition-colors',
-              wideLayout
-                ? 'border-chr-subtle text-chr-primary bg-active hover:border-chr-strong'
-                : 'border-transparent text-chr-muted hover:text-chr-secondary hover:border-chr-subtle'
-            )}
-          >
-            {wideLayout
-              ? <><Minimize2 size={12} strokeWidth={1.5} /><span className="font-mono text-2xs">{t('compress')}</span></>
-              : <><Maximize2 size={12} strokeWidth={1.5} /><span className="font-mono text-2xs">{t('expand')}</span></>
-            }
-          </button>
+          {isEditing && (
+            <button type="button" onClick={togglePreview} title={t('preview_hint')} aria-pressed={showPreview} data-testid="toggle-preview"
+              className={cn('flex items-center gap-1 px-2 py-1 rounded-sm border transition-colors',
+                showPreview ? 'border-chr-subtle text-chr-primary bg-active hover:border-chr-strong' : 'border-transparent text-chr-muted hover:text-chr-secondary hover:border-chr-subtle')}>
+              <PanelRight size={12} strokeWidth={1.5} /><span className="font-mono text-2xs">{t('preview_toggle')}</span>
+            </button>
+          )}
+          <LayoutMenu />
         </div>
       </header>
 
@@ -2387,9 +2708,10 @@ export default function EventView(): React.ReactElement {
             </div>
           )}
 
-          {/* Content area */}
+          {/* Content area (com a prévia ao lado, quando ligada) */}
+          <div className="flex flex-1 min-h-0">
           {!editIsRaw ? (
-            <div ref={editScrollRef} className="flex-1 overflow-y-auto bg-vault
+            <div ref={editScrollRef} className="flex-1 min-w-0 overflow-y-auto bg-vault
               [&::-webkit-scrollbar]:w-1
               [&::-webkit-scrollbar-track]:bg-transparent
               [&::-webkit-scrollbar-thumb]:bg-chr-subtle
@@ -2402,7 +2724,11 @@ export default function EventView(): React.ReactElement {
                 chrDescription={editChrDesc}
                 onChrDescChange={setEditChrDesc}
                 categorySuggestions={categorySuggestions}
-                wideLayout={wideLayout}
+                widthStyle={widthStyle}
+                filePath={selectedEvent.filePath}
+                inheritedStyle={resolvePageStyle(currentTimeline.meta.style, vaultStyle)}
+                onPickCover={() => void handlePickCover()}
+                onPickEmblem={() => void handlePickEmblem()}
                 onEditLocation={() => setPickerTarget('event')}
               />
               {hasEntries ? (
@@ -2425,7 +2751,7 @@ export default function EventView(): React.ReactElement {
                   filePath={selectedEvent.filePath}
                   onBodyFocus={(el, id) => { textareaRef.current = el; setBodyFocused(true); setFocusedSectionId(id) }}
                   onBodyBlur={() => { setBodyFocused(false); setFocusedSectionId(null) }}
-                  wideLayout={wideLayout}
+                  widthStyle={widthStyle}
                   onEditEntryLocation={(id) => setPickerTarget(id)}
                   onBodyPaste={handlePaste}
                   onBodyDrop={handleDrop}
@@ -2433,7 +2759,7 @@ export default function EventView(): React.ReactElement {
                   onBodyKeyDown={handleKeyDown}
                 />
               ) : (
-                <div className={wideLayout ? 'max-w-5xl mx-auto px-8 pt-2 pb-20' : 'max-w-2xl mx-auto px-12 pt-2 pb-20'}>
+                <div className="mx-auto px-10 pt-2 pb-20" style={widthStyle}>
                   <textarea
                     ref={textareaRef}
                     value={textareaValue}
@@ -2470,6 +2796,11 @@ export default function EventView(): React.ReactElement {
               placeholder={t('textarea_raw_ph')}
             />
           )}
+          {showPreview && selectedEvent && currentTimeline && (
+            <EditPreview fm={editIsRaw ? parseEventRaw(editContent).fm : editFm} body={editIsRaw ? parseEventRaw(editContent).body : editBody}
+              entries={editIsRaw ? [] : editEntries} sectionBodies={editSectionBodies} filePath={selectedEvent.filePath} timeline={currentTimeline} vaultStyle={vaultStyle} />
+          )}
+          </div>
 
           {/* ── Floating save status — bottom-right of content area ──────── */}
           {saveStatus !== 'idle' && (
@@ -2493,7 +2824,20 @@ export default function EventView(): React.ReactElement {
 
         /* ── View mode ───────────────────────────────────────────────────── */
         <div ref={viewContentRef} className="flex-1 overflow-y-auto print:overflow-visible print:flex-none print:h-auto">
-          <article className={cn(wideLayout ? 'max-w-5xl mx-auto px-8 pt-12 pb-20' : 'max-w-2xl mx-auto px-8 pt-12 pb-20', 'print:max-w-none print:px-12 print:pt-8 print:pb-8')}>
+          <article
+            data-page-style={pageStyle} data-tone={toneAttr} style={widthStyle}
+            className={cn(
+              journal
+                // A página do jornal tem o próprio papel, margens e cantos (journal.css)
+                ? 'page-journal mx-auto my-8'
+                : album
+                  ? 'page-album mx-auto my-8'
+                  : styled
+                    ? `page-styled page-${pageStyle} mx-auto my-8`
+                    : 'mx-auto px-8 pt-12 pb-20',
+              'print:max-w-none print:px-12 print:pt-8 print:pb-8'
+            )}>
+            {journal && <JournalCorners />}
 
             {/* Renomeou o evento: oferece atualizar as ligações [[…]] com o nome antigo */}
             {renamePrompt.length > 0 && (
@@ -2518,23 +2862,68 @@ export default function EventView(): React.ReactElement {
               </div>
             )}
 
-            {coverSrc && (
-              <img src={coverSrc} alt="" data-testid="event-cover"
-                className="w-full max-h-80 object-cover rounded-sm border border-chr-subtle mb-8" />
-            )}
+            {journal ? (
+              /* ── Cabeçalho do jornal: nome em gótica, linha de data, manchete, subtítulo ── */
+              <>
+                {currentTimeline.meta.masthead && (
+                  <div className="pj-masthead" data-testid="journal-masthead">
+                    <div className="pj-masthead-name">{currentTimeline.meta.masthead}</div>
+                    {currentTimeline.meta.mastheadSub && <div className="pj-masthead-sub">{currentTimeline.meta.mastheadSub}</div>}
+                  </div>
+                )}
+                <div className="pj-dateline" data-testid="journal-dateline">
+                  <span className="truncate">{[fm.edition, viewFm.category].filter(Boolean).join(' · ') || ' '}</span>
+                  <b>{viewFm.circa ? '~ ' : ''}{dateRangeLabel(selectedEvent)}</b>
+                  <span className="pj-dateline-right truncate" data-testid="event-location">
+                    {selectedEvent.location ? (selectedEvent.location.name ?? `${selectedEvent.location.lat}, ${selectedEvent.location.lng}`) : ' '}
+                  </span>
+                </div>
+                {coverSrc && (
+                  <span className="pj-figure" style={{ display: 'block', marginTop: 16 }}>
+                    <img src={coverSrc} alt="" data-testid="event-cover" />
+                  </span>
+                )}
+                <h1 className="pj-headline">{viewFm.title}</h1>
+                {fm.deck && <p className="pj-deck" data-testid="journal-deck">{fm.deck}</p>}
+                <Fleuron />
+              </>
+            ) : styledHead ? (
+              /* ── Presets pg: cabeçalho comum, desenhado pelo CSS de cada um ── */
+              <StyledHead {...styledHead} />
+            ) : album ? (
+              /* ── Álbum: linha de abertura, título em itálico, data, foto colada ── */
+              <>
+                <p className="pa-kicker" data-testid="album-kicker">
+                  {fm.kicker ?? (chr ? `${chr.title} · ${chr.entryIndex + 1} ${t('of_total', { total: chr.totalEntries })}` : currentTimeline.meta.title)}
+                </p>
+                <h1 className="pa-title">{viewFm.title}</h1>
+                <p className="pa-date" data-testid="event-location">
+                  {viewFm.circa ? '~ ' : ''}{dateRangeLabel(selectedEvent)}
+                  {selectedEvent.location ? ` · ${selectedEvent.location.name ?? `${selectedEvent.location.lat}, ${selectedEvent.location.lng}`}` : ''}
+                </p>
+                {coverSrc && <AlbumPhoto src={coverSrc} caption={fm['cover-caption']} wide />}
+              </>
+            ) : (
+              <>
+                {coverSrc && (
+                  <img src={coverSrc} alt="" data-testid="event-cover"
+                    className="w-full max-h-80 object-cover rounded-sm border border-chr-subtle mb-8" />
+                )}
 
-            <p className="chr-date mb-3 tracking-wider">
-              {viewFm.circa && <span className="mr-1 opacity-60">~</span>}
-              {selectedEvent.date.display}
-            </p>
-            {selectedEvent.location && (
-              <p className="flex items-center gap-1.5 font-mono text-xs text-chr-secondary mb-3" data-testid="event-location">
-                <MapPin size={12} strokeWidth={1.5} />
-                {selectedEvent.location.name ?? `${selectedEvent.location.lat}, ${selectedEvent.location.lng}`}
-              </p>
-            )}
+                <p className="chr-date mb-3 tracking-wider">
+                  {viewFm.circa && <span className="mr-1 opacity-60">~</span>}
+                  {selectedEvent.date.display}
+                </p>
+                {selectedEvent.location && (
+                  <p className="flex items-center gap-1.5 font-mono text-xs text-chr-secondary mb-3" data-testid="event-location">
+                    <MapPin size={12} strokeWidth={1.5} />
+                    {selectedEvent.location.name ?? `${selectedEvent.location.lat}, ${selectedEvent.location.lng}`}
+                  </p>
+                )}
 
-            <h1 className="font-serif text-display text-chr-primary leading-tight mb-6">{viewFm.title}</h1>
+                <h1 className="font-serif text-display text-chr-primary leading-tight mb-6">{viewFm.title}</h1>
+              </>
+            )}
 
             {/* Seção vinculada: título, data e local vêm de outro evento */}
             {!isDraftActive && (() => {
@@ -2556,7 +2945,7 @@ export default function EventView(): React.ReactElement {
               )
             })()}
 
-            {(viewFm.category || (viewFm.tags && viewFm.tags.length > 0) || viewFm.importance) && (
+            {!journal && !album && !styled && (viewFm.category || (viewFm.tags && viewFm.tags.length > 0) || viewFm.importance) && (
               <div className="flex flex-wrap gap-1.5 mb-10 pb-8 border-b border-chr-subtle">
                 {/* Categoria e tags abrem a página de tags já filtrada */}
                 {viewFm.category && (
@@ -2589,6 +2978,7 @@ export default function EventView(): React.ReactElement {
               </div>
             )}
 
+            <div className={journal ? 'pj-cols' : album ? 'pa-body' : styled ? 'pg-body' : undefined} data-cols={journal || styled ? columnsOf((fm as unknown as Record<string, unknown>).columns ?? currentTimeline.meta.columns, presetColumns(pageStyle)) : undefined}>
             {isLoadingEvent ? (
               <div className="space-y-3 animate-pulse">
                 {[92, 78, 88, 65, 82, 72, 90, 58, 84, 70, 88].map((w, i) => (
@@ -2607,7 +2997,7 @@ export default function EventView(): React.ReactElement {
                     <h2 className="font-serif text-2xl text-chr-primary leading-tight mb-4">{entry.title}</h2>
                     {entry.body ? (
                       <div className="markdown-content">
-                        <MarkdownBody body={entry.body} eventFilePath={selectedEvent.filePath} />
+                        <MarkdownBody body={entry.body} eventFilePath={selectedEvent.filePath} figures={figures} />
                       </div>
                     ) : (
                       <p className="font-mono text-sm text-chr-muted italic">{t('no_content')}</p>
@@ -2617,7 +3007,7 @@ export default function EventView(): React.ReactElement {
               </div>
             ) : viewBody ? (
               <div className="markdown-content">
-                <MarkdownBody body={viewBody} eventFilePath={selectedEvent.filePath} />
+                <MarkdownBody body={viewBody} eventFilePath={selectedEvent.filePath} figures={figures} />
               </div>
             ) : !isLoadingEvent ? (
               <p className="font-mono text-sm text-chr-muted italic">
@@ -2625,10 +3015,46 @@ export default function EventView(): React.ReactElement {
                 <button onClick={handleStartEdit} className="underline hover:text-chr-secondary transition-colors">{t('click_to_edit')}</button>
               </p>
             ) : null}
+            </div>
+
+            {/* Rodapé do álbum: importância e categoria à esquerda, tags à direita */}
+            {styled && (
+              <StyledFoot importance={viewFm.importance} category={viewFm.category} tags={viewFm.tags ?? []} importanceLabel={t('importance')}
+                onTag={(tag) => openTag({ kind: 'tag', name: tag })} onCategory={(name) => openTag({ kind: 'category', name })} />
+            )}
+
+            {album && (viewFm.category || (viewFm.tags && viewFm.tags.length > 0) || viewFm.importance) && (
+              <div className="pa-foot" data-testid="album-foot">
+                <span>
+                  {t('importance')} <span className="pa-stars">{importanceStars(viewFm.importance)}</span>
+                  {viewFm.category && <> · <button type="button" className="pa-tag" style={{ letterSpacing: 'inherit' }} onClick={() => openTag({ kind: 'category', name: viewFm.category! })}>{viewFm.category}</button></>}
+                </span>
+                <span className="pa-tags">
+                  {viewFm.tags?.map((tag) => (
+                    <button key={tag} type="button" className="pa-tag" onClick={() => openTag({ kind: 'tag', name: tag })} title={t('nav_tags')}>{tag}</button>
+                  ))}
+                </span>
+              </div>
+            )}
+
+            {/* Rodapé do jornal: importância em estrelas, categoria e tags como carimbos */}
+            {journal && (viewFm.category || (viewFm.tags && viewFm.tags.length > 0) || viewFm.importance) && (
+              <div className="pj-foot" data-testid="journal-foot">
+                <span>{t('importance')} <span className="pj-stars">{importanceStars(viewFm.importance)}</span></span>
+                <span className="pj-stamps">
+                  {viewFm.category && (
+                    <button type="button" className="pj-stamp" onClick={() => openTag({ kind: 'category', name: viewFm.category! })} title={t('nav_tags')}>{viewFm.category}</button>
+                  )}
+                  {viewFm.tags?.map((tag) => (
+                    <button key={tag} type="button" className="pj-stamp" onClick={() => openTag({ kind: 'tag', name: tag })} title={t('nav_tags')}>#{tag}</button>
+                  ))}
+                </span>
+              </div>
+            )}
 
             {/* Links internos (outros eventos) e referências externas do frontmatter */}
             {(eventLinks.length > 0 || eventRefs.length > 0) && (
-              <div className="mt-12 grid gap-6 sm:grid-cols-2" data-testid="event-links">
+              <div className={cn('mt-12 grid gap-6 sm:grid-cols-2', journal && 'pj-aux', album && 'pa-aux', styled && 'pg-aux')} data-testid="event-links">
                 {eventLinks.length > 0 && (
                   <div>
                     <p className="font-mono text-2xs text-chr-muted uppercase tracking-wider mb-2">{t('event_links')}</p>
@@ -2670,12 +3096,12 @@ export default function EventView(): React.ReactElement {
             )}
 
             {/* Eventos que citam este com [[…]] */}
-            <div className="print:hidden">
+            <div className={cn('print:hidden', journal && 'pj-aux', album && 'pa-aux', styled && 'pg-aux')}>
               <Backlinks filePath={selectedEvent.filePath} slug={selectedEvent.slug} />
               <RelationsMapButton filePath={selectedEvent.filePath} slug={selectedEvent.slug} />
             </div>
 
-            <div className="flex items-center gap-3 mt-14 pt-8 border-t border-chr-subtle print:hidden">
+            <div className={cn('flex items-center gap-3 mt-14 pt-8 border-t border-chr-subtle print:hidden', journal && 'pj-actions', album && 'pa-actions', styled && 'pg-actions')}>
               {selectedEvent.hasSubtimeline && (
                 <button onClick={handleEnterSubtimeline} className={cn('flex items-center gap-1.5 px-4 py-2 rounded-sm text-sm font-medium border border-chr-strong text-chr-primary hover:bg-active transition-colors')}>
                   <GitBranch size={13} strokeWidth={1.5} />{t('view_subtimeline')}
@@ -2689,6 +3115,9 @@ export default function EventView(): React.ReactElement {
                 className={cn('flex items-center gap-1.5 px-4 py-2 rounded-sm text-sm border border-chr-subtle text-chr-muted hover:border-chr hover:text-chr-secondary transition-colors')}>
                 <Copy size={13} strokeWidth={1.5} />{t('duplicate')}
               </button>
+              {/* Estilo de página deste arquivo (num chronicle, vale para o documento inteiro) */}
+              <PageStyleMenu target={{ kind: 'event', filePath: selectedEvent.filePath }} own={selectedEvent.frontmatter.style} tone={selectedEvent.frontmatter.paper}
+                inherited={resolvePageStyle(currentTimeline.meta.style, vaultStyle)} onChanged={handleStyleChanged} className="ml-auto" up />
             </div>
 
           </article>

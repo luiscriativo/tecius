@@ -1,0 +1,85 @@
+/*
+ * Estilo "iluminura" — manuscrito rubricado: pergaminho, título em gótica com
+ * sombra de ouro, capitular em lápis-lazúli, rubricas vermelhas, trepadeira
+ * na margem esquerda e glosa (edition) na direita.
+ */
+
+.page-iluminura {
+  --pg-paper: #efe3c6;
+  --pg-paper-2: #e6d8b6;
+  --pg-ink: #3a2a1a;
+  --pg-ink-2: #7a6448;
+  --pg-rule: #c6a24a;
+  --pg-accent: #9c2a1f;
+  --pg-gold: #c6a24a;
+  --pg-lapis: #2e4a8a;
+  --pg-serif: 'EB Garamond', 'Cormorant Garamond', 'Palatino Linotype', Georgia, serif;
+  --pg-caps: 'EB Garamond', Georgia, serif;
+  --pg-display: 'UnifrakturCook', 'Old English Text MT', 'Blackadder ITC', fantasy;
+  --pg-hand: 'EB Garamond', Georgia, serif;
+  --pg-vine: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 34 400' fill='none' stroke='%238a6a2a' stroke-width='1.6'%3E%3Cpath d='M17 0 C 4 60, 30 90, 17 150 S 4 240, 17 300 S 30 370, 17 400'/%3E%3Cpath d='M17 40 c -10 -4 -14 6 -8 12 M17 110 c 10 -4 14 6 8 12 M17 190 c -10 -4 -14 6 -8 12 M17 260 c 10 -4 14 6 8 12 M17 340 c -10 -4 -14 6 -8 12'/%3E%3Ccircle cx='9' cy='52' r='2.5' fill='%23c6a24a'/%3E%3Ccircle cx='25' cy='122' r='2.5' fill='%23c6a24a'/%3E%3Ccircle cx='9' cy='202' r='2.5' fill='%239c2a1f'/%3E%3Ccircle cx='25' cy='272' r='2.5' fill='%23c6a24a'/%3E%3Ccircle cx='9' cy='352' r='2.5' fill='%239c2a1f'/%3E%3C/svg%3E");
+}
+.dark .page-iluminura:not([data-tone="light"]), [data-theme="dark"] .page-iluminura:not([data-tone="light"]), .page-iluminura[data-tone="dark"] {
+  --pg-paper: #1b1a24;
+  --pg-paper-2: #23222e;
+  --pg-ink: #e6dcc3;
+  --pg-ink-2: #b5a98c;
+  --pg-rule: #dcb75c;
+  --pg-accent: #e07b62;
+  --pg-gold: #dcb75c;
+  --pg-lapis: #7f9ad8;
+  --pg-vine: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 34 400' fill='none' stroke='%23dcb75c' stroke-width='1.6'%3E%3Cpath d='M17 0 C 4 60, 30 90, 17 150 S 4 240, 17 300 S 30 370, 17 400'/%3E%3Cpath d='M17 40 c -10 -4 -14 6 -8 12 M17 110 c 10 -4 14 6 8 12 M17 190 c -10 -4 -14 6 -8 12 M17 260 c 10 -4 14 6 8 12 M17 340 c -10 -4 -14 6 -8 12'/%3E%3Ccircle cx='9' cy='52' r='2.5' fill='%23dcb75c'/%3E%3Ccircle cx='25' cy='122' r='2.5' fill='%23dcb75c'/%3E%3Ccircle cx='9' cy='202' r='2.5' fill='%23e07b62'/%3E%3Ccircle cx='25' cy='272' r='2.5' fill='%23dcb75c'/%3E%3Ccircle cx='9' cy='352' r='2.5' fill='%23e07b62'/%3E%3C/svg%3E");
+}
+
+.page-styled.page-iluminura {
+  padding: 28px 96px 24px 70px;
+  line-height: 1.5;
+  background-image: radial-gradient(ellipse at 30% 20%, rgba(120, 90, 40, 0.10), transparent 60%), radial-gradient(ellipse at 80% 90%, rgba(120, 90, 40, 0.14), transparent 55%);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.25);
+}
+.page-styled.page-iluminura::before { content: ''; position: absolute; left: 18px; top: 24px; bottom: 24px; width: 34px; background: var(--pg-vine) 0 0 / 34px auto repeat-y; pointer-events: none; }
+.page-styled.page-iluminura .pg-ornament { display: none; }
+
+/* Cabeçalho: incipit, título gótico, rubrica, linha de data em itálico */
+.page-styled.page-iluminura .pg-kicker { order: 1; font-size: 12.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--pg-accent); margin: 0 0 4px; }
+.page-styled.page-iluminura .pg-title { order: 2; font-family: var(--pg-display); font-weight: 700; font-size: 38px; line-height: 1; margin: 0 0 8px; text-shadow: 1px 1px 0 var(--pg-gold); }
+.page-styled.page-iluminura .pg-deck { order: 3; color: var(--pg-accent); font-style: italic; margin: 0 0 6px; }
+.page-styled.page-iluminura .pg-meta { order: 4; color: var(--pg-accent); font-style: italic; margin: 0 0 12px; gap: 4px 6px; }
+.page-styled.page-iluminura .pg-place::before { content: '— '; }
+.page-styled.page-iluminura .pg-head .pg-category { display: none; }
+.page-styled.page-iluminura .pg-edition { position: absolute; right: -84px; top: 150px; width: 72px; font-size: 11px; font-style: italic; color: var(--pg-accent); line-height: 1.25; }
+.page-styled.page-iluminura .pg-cover { order: 5; }
+
+/* Capitular em lápis-lazúli e ouro */
+.page-styled.page-iluminura .markdown-content > p:first-of-type::first-letter {
+  float: left; font-family: var(--pg-display); font-size: 3.4em; line-height: 0.9; padding: 0.12em 0.2em; margin: 0.06em 0.18em 0 0;
+  background: var(--pg-lapis); color: var(--pg-gold); border: 2px solid var(--pg-gold); box-shadow: inset 0 0 0 3px var(--pg-lapis), inset 0 0 0 4px var(--pg-gold);
+}
+
+/* Figuras com moldura dourada */
+.page-styled.page-iluminura .pg-cover, .page-styled.page-iluminura .pg-figure { border: 3px solid var(--pg-gold); outline: 1px solid var(--pg-ink); outline-offset: 2px; padding: 4px; background: var(--pg-paper-2); margin: 12px 0 14px; }
+.page-styled.page-iluminura .pg-cover img, .page-styled.page-iluminura .pg-figure img { filter: sepia(0.7) contrast(1.05); }
+.page-styled.page-iluminura .pg-caption { text-align: center; font-size: 13px; color: var(--pg-accent); padding-top: 4px; }
+
+/* Texto: rubricas, preenchimentos de linha, citações em lápis */
+.page-styled.page-iluminura .markdown-content h1, .page-styled.page-iluminura .markdown-content h2 { font-family: var(--pg-serif); font-weight: 500; font-variant: small-caps; color: var(--pg-accent); font-size: 1.05em; letter-spacing: 0.06em; margin: 12px 0 4px; }
+.page-styled.page-iluminura .markdown-content h2::before { content: '¶ '; }
+.page-styled.page-iluminura .markdown-content h3 { font-family: var(--pg-serif); font-style: italic; font-weight: 500; color: var(--pg-accent); font-size: 1em; margin: 10px 0 4px; }
+.page-styled.page-iluminura .markdown-content hr { height: 6px; border: 0; background: repeating-linear-gradient(90deg, var(--pg-gold) 0 6px, transparent 6px 10px); opacity: 0.8; margin: 4px 0 12px; }
+.page-styled.page-iluminura .markdown-content blockquote { margin: 8px 20px 10px 0; padding: 0; border: 0; color: var(--pg-lapis); font-style: italic; }
+.page-styled.page-iluminura .markdown-content blockquote p { margin: 0 0 0.3em; }
+.page-styled.page-iluminura .markdown-content blockquote > p:first-child::before { content: '« '; }
+.page-styled.page-iluminura .markdown-content blockquote > p:last-child::after { content: ' »'; }
+.page-styled.page-iluminura .markdown-content strong { color: var(--pg-accent); font-weight: 600; }
+.page-styled.page-iluminura .markdown-content li::marker { color: var(--pg-gold); }
+
+/* Rodapé centrado entre cruzes */
+.page-styled.page-iluminura .pg-foot { justify-content: center; gap: 8px; color: var(--pg-accent); font-size: 13px; letter-spacing: 0.1em; border-top: 0; }
+.page-styled.page-iluminura .pg-foot::before, .page-styled.page-iluminura .pg-foot::after { content: '✠'; color: var(--pg-gold); }
+.page-styled.page-iluminura .pg-foot .pg-stars { color: var(--pg-gold); }
+.page-styled.page-iluminura .pg-foot-label { display: none; }
+.page-styled.page-iluminura .pg-tag::before { content: none; }
+.page-styled.page-iluminura .pg-tags { gap: 6px; }
+.page-styled.page-iluminura .pg-tag + .pg-tag::before { content: '· '; }
+.page-styled.page-iluminura .pg-actions, .page-styled.page-iluminura .pg-aux { border-top: 1px solid var(--pg-gold); }
+

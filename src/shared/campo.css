@@ -1,0 +1,76 @@
+/*
+ * Estilo "campo" — caderno de campo de naturalista: papel quadriculado, margem
+ * vermelha, anéis, anotações à mão em tinta azul, figuras numeradas.
+ * Tokens em `.page-campo`; desenho em `.page-styled.page-campo` (ver page.css).
+ */
+
+.page-campo {
+  --pg-paper: #f4efe1;
+  --pg-paper-2: #ebe4d2;
+  --pg-grid: rgba(90, 110, 140, 0.18);
+  --pg-ink: #2f3a3a;
+  --pg-ink-2: #6c6a62;
+  --pg-rule: #9a9589;
+  --pg-accent: #b4443a;
+  --pg-blue: #2b4f8a;
+  --pg-serif: 'Cormorant Garamond', 'Palatino Linotype', 'Book Antiqua', Georgia, serif;
+  --pg-caps: 'Cormorant Garamond', Georgia, serif;
+  --pg-display: 'Cormorant Garamond', Georgia, serif;
+  --pg-hand: 'Caveat', 'Segoe Print', 'Bradley Hand', cursive;
+}
+.dark .page-campo:not([data-tone="light"]), [data-theme="dark"] .page-campo:not([data-tone="light"]), .page-campo[data-tone="dark"] {
+  --pg-paper: #1d2320;
+  --pg-paper-2: #242b27;
+  --pg-grid: rgba(160, 190, 170, 0.12);
+  --pg-ink: #dfe4d8;
+  --pg-ink-2: #a7ad9f;
+  --pg-rule: #5e685f;
+  --pg-accent: #e07a6a;
+  --pg-blue: #8fb0e6;
+}
+
+.page-styled.page-campo {
+  padding: 30px 30px 24px 56px;
+  border-radius: 2px;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.2);
+  background-image: linear-gradient(var(--pg-grid) 1px, transparent 1px), linear-gradient(90deg, var(--pg-grid) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+/* Margem vermelha e anéis */
+.page-styled.page-campo::before { content: ''; position: absolute; left: 40px; top: 0; bottom: 0; border-left: 1.5px solid var(--pg-accent); opacity: 0.7; pointer-events: none; }
+.page-styled.page-campo::after {
+  content: ''; position: absolute; left: 8px; top: 30px; bottom: 30px; width: 14px; pointer-events: none;
+  background: radial-gradient(circle at 7px 7px, var(--pg-paper) 4.5px, var(--pg-ink-2) 5px, var(--pg-ink-2) 7px, transparent 7.5px) 0 0 / 14px 25% repeat-y;
+}
+.page-styled.page-campo .pg-ornament { display: none; }
+
+/* Cabeçalho: título, linha de observação, anotação do canto, dados à mão */
+.page-styled.page-campo .pg-title { order: 1; font-family: var(--pg-display); font-weight: 600; font-size: 34px; line-height: 1.05; letter-spacing: 0.01em; margin: 0 180px 2px 0; }
+.page-styled.page-campo .pg-kicker { order: 2; font-style: italic; color: var(--pg-ink-2); font-size: 17px; margin: 0 0 8px; }
+.page-styled.page-campo .pg-deck { order: 3; font-style: italic; color: var(--pg-ink); margin: 0 0 8px; }
+.page-styled.page-campo .pg-edition { position: absolute; right: 0; top: -12px; font-family: var(--pg-hand); color: var(--pg-blue); font-size: 22px; transform: rotate(-3deg); }
+.page-styled.page-campo .pg-meta { order: 4; font-family: var(--pg-hand); font-size: 19px; color: var(--pg-blue); border-bottom: 1px dashed var(--pg-ink-2); padding-bottom: 6px; margin-bottom: 12px; gap: 4px 18px; }
+.page-styled.page-campo .pg-coords, .page-styled.page-campo .pg-category { display: inline; }
+.page-styled.page-campo .pg-cover { order: 5; }
+
+/* Figuras numeradas, com a legenda ao lado como chave */
+.page-styled.page-campo .pg-cover, .page-styled.page-campo .pg-figure { display: grid; grid-template-columns: 1fr 140px; gap: 10px; align-items: start; margin: 10px 0 12px; }
+.page-styled.page-campo .pg-cover img, .page-styled.page-campo .pg-figure img { border: 1px solid var(--pg-ink-2); filter: grayscale(0.5) sepia(0.3) contrast(1.05); }
+.page-styled.page-campo .pg-caption { font-family: var(--pg-hand); font-size: 17px; color: var(--pg-ink); line-height: 1.25; margin: 0; }
+.page-styled.page-campo .pg-caption::before { content: 'Fig. ' counter(fig); display: block; font-family: var(--pg-serif); font-style: italic; font-weight: 600; font-size: 13px; color: var(--pg-ink-2); letter-spacing: 0.05em; }
+
+/* Texto */
+.page-styled.page-campo .markdown-content h1, .page-styled.page-campo .markdown-content h2 { font-family: var(--pg-serif); font-weight: 600; font-size: 14px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--pg-ink-2); margin: 14px 0 6px; }
+.page-styled.page-campo .markdown-content h3 { font-family: var(--pg-serif); font-style: italic; font-weight: 600; font-size: 1.05em; margin: 12px 0 4px; }
+.page-styled.page-campo .markdown-content blockquote { font-family: var(--pg-hand); font-size: 19px; color: var(--pg-blue); margin: 8px 0 10px 14px; padding: 0; border: 0; line-height: 1.25; }
+.page-styled.page-campo .markdown-content blockquote::before { content: '↳ '; }
+.page-styled.page-campo .markdown-content blockquote p { margin: 0; display: inline; }
+.page-styled.page-campo .markdown-content hr { border-top: 1px dashed var(--pg-ink-2); }
+.page-styled.page-campo .markdown-content strong { color: var(--pg-ink); border-bottom: 1.5px solid var(--pg-accent); font-weight: 600; }
+
+/* Rodapé e ações */
+.page-styled.page-campo .pg-foot { font-family: var(--pg-hand); font-size: 17px; color: var(--pg-ink-2); border-top: 1px dashed var(--pg-ink-2); }
+.page-styled.page-campo .pg-foot .pg-stars { color: var(--pg-ink); text-decoration: underline; text-decoration-color: var(--pg-accent); text-underline-offset: 3px; }
+.page-styled.page-campo .pg-actions, .page-styled.page-campo .pg-aux { border-top-style: dashed; border-top-color: var(--pg-ink-2); }
+.page-styled.page-campo .pg-actions > button, .page-styled.page-campo .pg-actions > div > button { font-family: var(--pg-hand); font-size: 15px; letter-spacing: 0; text-transform: none; border-style: dashed; }
+

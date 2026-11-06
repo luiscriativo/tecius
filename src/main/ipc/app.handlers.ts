@@ -10,6 +10,55 @@ import { promises as fs } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { getMainLanguage, setMainLanguage, tm } from '../i18n'
+import journalCss from '../../shared/journal.css?raw'
+import albumCss from '../../shared/album.css?raw'
+import pageCss from '../../shared/page.css?raw'
+import campoCss from '../../shared/campo.css?raw'
+import dossieCss from '../../shared/dossie.css?raw'
+import iluminuraCss from '../../shared/iluminura.css?raw'
+import cartazCss from '../../shared/cartaz.css?raw'
+import correioCss from '../../shared/correio.css?raw'
+import rostoCss from '../../shared/rosto.css?raw'
+import verbeteCss from '../../shared/verbete.css?raw'
+import gazetaCss from '../../shared/gazeta.css?raw'
+import diarioCss from '../../shared/diario.css?raw'
+import decretoCss from '../../shared/decreto.css?raw'
+import revistaCss from '../../shared/revista.css?raw'
+
+/** Estilos de página com modelo próprio de exportação */
+const STYLED_PAGES: Record<string, { cls: string; sel: string; body: string; css: string; paper: string }> = {
+  jornal: {
+    cls: 'page-journal', sel: '.page-journal', body: 'pj-cols', css: journalCss, paper: '#f3ead6',
+  },
+  album: {
+    cls: 'page-album', sel: '.page-album', body: 'pa-body', css: albumCss, paper: '#efe6d3',
+  },
+}
+// Presets sobre a estrutura comum pg-*; os tokens escuros de todos os estilos já estão no CSS (.dark no <html> ou paper: dark)
+for (const [name, css, paper] of [['campo', campoCss, '#f4efe1'], ['dossie', dossieCss, '#d8bd87'], ['iluminura', iluminuraCss, '#efe3c6'], ['cartaz', cartazCss, '#f2ecdc'], ['correio', correioCss, '#f6f1e4'],
+  ['rosto', rostoCss, '#f1e8d2'], ['verbete', verbeteCss, '#f7f3ea'], ['gazeta', gazetaCss, '#efe4c8'], ['diario', diarioCss, '#fbf6ea'], ['decreto', decretoCss, '#ecdfbf'], ['revista', revistaCss, '#f6efe0']] as const) {
+  STYLED_PAGES[name] = { cls: `page-styled page-${name}`, sel: `.page-${name}`, body: 'pg-body', css: `${pageCss}\n${css}`, paper }
+}
+const styledPage = (style?: string) => (style ? STYLED_PAGES[style] : undefined)
+
+/**
+ * CSS de um estilo de página para a exportação. O app usa a classe `.dark` no
+ * <html>; a página web exportada segue o tema do sistema, então os mesmos
+ * tokens escuros entram sob prefers-color-scheme. O PDF é sempre claro.
+ */
+function styleExportCss(style: string): string {
+  const s = STYLED_PAGES[style]
+  const c = s.sel
+  // Os tokens escuros (.dark no <html>, ou paper: dark no arquivo) já estão no CSS de cada estilo
+  return `${s.css}
+  body.pj-body { background: ${s.paper}; }
+  ${c}.chapter-styled { margin: 26px 0; break-inside: avoid-page; }
+  ${c} .pj-headline { font-size: 30px; margin-top: 14px; }
+  ${c} .pa-title { font-size: 32px; }
+  ${c} .entries { font-family: 'Old Standard TT', Georgia, serif; font-size: 12px; margin: 0 0 12px; padding-left: 18px; }
+  ${c} .muted { opacity: .7; font-style: italic; }
+  @media print { ${c}.chapter-styled { box-shadow: none; } }`
+}
 
 export function registerAppHandlers(): void {
   // ── app:set-language ───────────────────────────────────────────────────────
@@ -75,6 +124,11 @@ export function registerAppHandlers(): void {
     marginType: 'default' | 'none' | 'printableArea'
     scaleFactor: number
     includeTags: boolean
+    /** Estilo de página ('jornal' → modelo de jornal) e o cabeçalho já renderizado pelo renderer */
+    pageStyle?: string
+    preHtml?: string
+    columns?: number
+    footHtml?: string
   }) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (!win) return { success: false, error: 'No window found' }
@@ -187,6 +241,8 @@ export function registerTimelineExport(): void {
     suggestedName: string
     title: string
     bodyHtml: string
+    /** Estilos de página usados pelos capítulos (cada arquivo tem o seu) */
+    styles?: string[]
   }) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (!win) return { success: false, error: 'No window found' }
@@ -203,7 +259,7 @@ export function registerTimelineExport(): void {
     })
     if (canceled || !filePath) return { success: false, canceled: true }
 
-    const html = await inlineAssets(buildTimelineHtml(options.title, options.bodyHtml, !isPdf))
+    const html = await inlineAssets(buildTimelineHtml(options.title, options.bodyHtml, !isPdf, options.styles ?? []))
     if (!isPdf) {
       await fs.writeFile(filePath, html, 'utf-8')
       return { success: true, filePath }
@@ -233,7 +289,12 @@ function safeFileName(name: string, fallback: string): string {
 }
 
 /** Documento da timeline: capa, índice e um capítulo por evento */
-function buildTimelineHtml(title: string, bodyHtml: string, forScreen: boolean): string {
+function buildTimelineHtml(title: string, bodyHtml: string, forScreen: boolean, styles: string[] = []): string {
+  // Cada capítulo veste o estilo do próprio arquivo; só o CSS dos estilos usados entra
+  const used = styles.filter((n) => styledPage(n))
+  const stylesCss = used.map((n) => styleExportCss(n)).join('\n')
+  // Os presets pg leem os tokens escuros da classe .dark no <html>
+  const darkScript = forScreen && used.length ? '<script>if (matchMedia("(prefers-color-scheme: dark)").matches) document.documentElement.classList.add("dark")</script>' : ''
   return `<!DOCTYPE html>
 <html lang="${getMainLanguage()}">
 <head>
@@ -243,7 +304,7 @@ function buildTimelineHtml(title: string, bodyHtml: string, forScreen: boolean):
 <style>
   *, *::before, *::after { box-sizing: border-box; }
   body { margin: 0; font-family: Georgia, 'Times New Roman', serif; font-size: 16px; line-height: 1.7; color: #1a1a1a; background: #fff; }
-  .doc { max-width: 720px; margin: 0 auto; padding: 56px 40px; }
+  .doc { max-width: ${used.length ? 840 : 720}px; margin: 0 auto; padding: 56px 40px; }
   .mono { font-family: 'Courier New', monospace; }
   .cover { padding-bottom: 28px; margin-bottom: 28px; border-bottom: 2px solid #1a1a1a; }
   .cover h1 { font-size: 2.4rem; line-height: 1.15; margin: 0 0 10px; }
@@ -253,12 +314,12 @@ function buildTimelineHtml(title: string, bodyHtml: string, forScreen: boolean):
   .toc li { break-inside: avoid; padding: 2px 0; }
   .toc a { color: #1a1a1a; text-decoration: none; }
   .toc .d { font-family: 'Courier New', monospace; font-size: 0.72rem; color: #8a6a2a; margin-right: 6px; }
-  article { padding: 26px 0; border-top: 1px solid #e3e3e3; }
-  article .date, article h2, article h3 { break-after: avoid; }
+  .chapter { padding: 26px 0; border-top: 1px solid #e3e3e3; }
+  .chapter .date, .chapter h2, .chapter h3 { break-after: avoid; }
   .body img, .chips { break-inside: avoid; }
-  article .date { font-family: 'Courier New', monospace; font-size: 0.75rem; color: #8a6a2a; letter-spacing: 0.06em; text-transform: uppercase; }
-  article h2 { font-size: 1.5rem; line-height: 1.25; margin: 4px 0 8px; }
-  article h3 { font-size: 1.1rem; margin: 18px 0 4px; }
+  .chapter .date { font-family: 'Courier New', monospace; font-size: 0.75rem; color: #8a6a2a; letter-spacing: 0.06em; text-transform: uppercase; }
+  .chapter h2 { font-size: 1.5rem; line-height: 1.25; margin: 4px 0 8px; }
+  .chapter h3 { font-size: 1.1rem; margin: 18px 0 4px; }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
   .chip { font-family: 'Courier New', monospace; font-size: 0.68rem; padding: 1px 7px; border: 1px solid #ccc; border-radius: 3px; color: #555; background: #f7f7f7; }
   .loc { font-family: 'Courier New', monospace; font-size: 0.75rem; color: #555; margin-bottom: 8px; }
@@ -269,10 +330,11 @@ function buildTimelineHtml(title: string, bodyHtml: string, forScreen: boolean):
   .body table { border-collapse: collapse; } .body td, .body th { border: 1px solid #ddd; padding: 4px 8px; }
   .muted { color: #999; font-style: italic; }
   footer { margin-top: 40px; font-size: 0.7rem; color: #999; font-family: 'Courier New', monospace; }
-  ${forScreen ? '@media (prefers-color-scheme: dark) { body { background: #141414; color: #e8e6e1; } .cover { border-color: #e8e6e1; } .toc a { color: #e8e6e1; } article { border-color: #333; } .chip { background: #1f1f1f; border-color: #3a3a3a; color: #bbb; } .cover .desc, .loc, .body blockquote { color: #aaa; } }' : ''}
+  ${forScreen ? '@media (prefers-color-scheme: dark) { body { background: #141414; color: #e8e6e1; } .cover { border-color: #e8e6e1; } .toc a { color: #e8e6e1; } .chapter { border-color: #333; } .chip { background: #1f1f1f; border-color: #3a3a3a; color: #bbb; } .cover .desc, .loc, .body blockquote { color: #aaa; } }' : ''}
+  ${stylesCss}
 </style>
 </head>
-<body><div class="doc">${bodyHtml}<footer>Tecius</footer></div></body>
+<body>${darkScript}<div class="doc">${bodyHtml}<footer>Tecius</footer></div></body>
 </html>`
 }
 
@@ -291,7 +353,33 @@ function buildPdfHtml(options: {
   title: string
   dateDisplay: string
   tags: string[]
+  pageStyle?: string
+  preHtml?: string
+  columns?: number
+  footHtml?: string
 }): string {
+  const styled = styledPage(options.pageStyle)
+  if (styled && options.pageStyle) {
+    return `<!DOCTYPE html>
+<html lang="${getMainLanguage()}">
+<head>
+  <meta charset="utf-8">
+  <title>${escapeHtml(options.title)}</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body { margin: 0; }
+    ${styleExportCss(options.pageStyle)}
+  </style>
+</head>
+<body class="pj-body">
+  <article class="${styled.cls}">
+    ${options.preHtml ?? `<h1>${escapeHtml(options.title)}</h1>`}
+    <div class="${styled.body} markdown-content" data-cols="${options.columns ?? 2}">${options.htmlContent}</div>
+    ${options.footHtml ?? ''}
+  </article>
+</body>
+</html>`
+  }
   const tagsHtml = options.tags.length > 0
     ? `<div class="tags">${options.tags.map((t) => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>`
     : ''

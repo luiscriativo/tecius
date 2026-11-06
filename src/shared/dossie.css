@@ -1,0 +1,89 @@
+/*
+ * Estilo "dossie" — pasta de arquivo dos anos 1940–60: folha datilografada
+ * dentro de uma pasta de papel pardo, aba com o nome da timeline, carimbo da
+ * categoria, foto presa com clipe. No escuro vira cópia carbono.
+ */
+
+.page-dossie {
+  --pg-folder: #d8bd87;
+  --pg-paper: #f1ebdc;
+  --pg-paper-2: #e8e1cf;
+  --pg-ink: #2a2622;
+  --pg-ink-2: #6a645a;
+  --pg-rule: #b9b2a2;
+  --pg-accent: #b8322a;
+  --pg-photo: #ffffff;
+  --pg-serif: 'Special Elite', 'Courier Prime', 'Courier New', monospace;
+  --pg-caps: 'Special Elite', 'Courier New', monospace;
+  --pg-display: 'Special Elite', 'Courier New', monospace;
+  --pg-hand: 'Special Elite', 'Courier New', monospace;
+}
+.dark .page-dossie:not([data-tone="light"]), [data-theme="dark"] .page-dossie:not([data-tone="light"]), .page-dossie[data-tone="dark"] {
+  --pg-folder: #101010;
+  --pg-paper: #1e1d1b;
+  --pg-paper-2: #262522;
+  --pg-ink: #d9d4c7;
+  --pg-ink-2: #9a948a;
+  --pg-rule: #4a463f;
+  --pg-accent: #e2574b;
+  --pg-photo: #2b2a27;
+}
+
+.page-styled.page-dossie {
+  font-size: calc(var(--chr-text, 15px) - 1px);
+  line-height: 1.6;
+  padding: 28px 26px 70px 34px;
+  margin-top: 72px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+/* A pasta atrás da folha, e os furos */
+.page-styled.page-dossie::before { content: ''; position: absolute; inset: -36px -18px -18px -18px; background: var(--pg-folder); border-radius: 3px 10px 3px 3px; z-index: -1; box-shadow: 0 3px 0 rgba(0, 0, 0, 0.25); }
+.page-styled.page-dossie::after { content: ''; position: absolute; left: 12px; top: 40px; width: 9px; height: 9px; border-radius: 50%; background: var(--pg-folder); box-shadow: 0 110px 0 var(--pg-folder), 0 220px 0 var(--pg-folder); pointer-events: none; }
+
+/* Cabeçalho em grade: a foto fica ao lado dos campos */
+.page-styled.page-dossie .pg-head { position: static; display: grid; grid-template-columns: 1fr 170px; grid-template-areas: 'e e' 't t' 'd d' 'm c'; gap: 0 16px; align-items: start; }
+.page-styled.page-dossie .pg-ornament { display: none; }
+.page-styled.page-dossie .pg-kicker { position: absolute; top: -30px; left: 12px; background: var(--pg-folder); border: 1px solid rgba(0, 0, 0, 0.25); border-bottom: 0; padding: 3px 14px; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; border-radius: 4px 4px 0 0; color: var(--pg-ink); }
+.dark .page-styled.page-dossie:not([data-tone="light"]) .pg-kicker, .page-styled.page-dossie[data-tone="dark"] .pg-kicker { border-color: rgba(255, 255, 255, 0.2); }
+.page-styled.page-dossie .pg-edition { grid-area: e; font-size: 11.5px; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.75; margin: 0 0 14px; }
+.page-styled.page-dossie .pg-title { grid-area: t; font-weight: normal; font-size: 22px; text-transform: uppercase; letter-spacing: 0.04em; text-decoration: underline; text-underline-offset: 4px; text-decoration-thickness: 1px; margin: 0 0 6px; }
+.page-styled.page-dossie .pg-deck { grid-area: d; margin: 0 0 8px; color: var(--pg-ink-2); }
+.page-styled.page-dossie .pg-meta { grid-area: m; display: block; margin: 6px 0 14px; }
+.page-styled.page-dossie .pg-meta > span { display: flex; gap: 8px; }
+.page-styled.page-dossie .pg-meta > span::before { content: attr(data-label) ' ....'; width: 120px; flex: none; opacity: 0.7; }
+.page-styled.page-dossie .pg-importance { display: flex; }
+.page-styled.page-dossie .pg-meta > .pg-coords { display: none; }
+/* Categoria vira o carimbo do canto */
+.page-styled.page-dossie .pg-head .pg-category { display: block; position: absolute; right: 26px; bottom: 16px; transform: rotate(-9deg); border: 3px double var(--pg-accent); color: var(--pg-accent); padding: 3px 10px; font-size: 15px; letter-spacing: 0.2em; text-transform: uppercase; font-weight: bold; opacity: 0.85; }
+.page-styled.page-dossie .pg-head .pg-category::before { content: none; }
+
+/* Foto presa com clipe */
+.page-styled.page-dossie .pg-cover { grid-area: c; justify-self: end; width: 150px; margin: 6px 0 0; background: var(--pg-photo); padding: 6px 6px 6px; transform: rotate(2deg); position: relative; box-shadow: 1px 2px 5px rgba(0, 0, 0, 0.3); }
+.page-styled.page-dossie .pg-cover::before { content: ''; position: absolute; top: -14px; left: 14px; width: 14px; height: 36px; border: 2.5px solid #8a8f96; border-radius: 7px; border-bottom-color: transparent; }
+.page-styled.page-dossie .pg-cover img, .page-styled.page-dossie .pg-figure img { filter: grayscale(1) contrast(1.1); }
+.page-styled.page-dossie .pg-cover .pg-caption { text-align: center; font-size: 9.5px; letter-spacing: 0.08em; text-transform: uppercase; color: #333; margin: 5px 0 0; line-height: 1.25; }
+.dark .page-styled.page-dossie:not([data-tone="light"]) .pg-cover .pg-caption, .page-styled.page-dossie[data-tone="dark"] .pg-cover .pg-caption { color: var(--pg-ink-2); }
+.page-styled.page-dossie .pg-caption::before { content: 'Foto ' counter(fig) ' — '; }
+.page-styled.page-dossie .pg-figure { display: inline-block; max-width: 62%; background: var(--pg-photo); padding: 6px 6px 8px; transform: rotate(-1deg); box-shadow: 1px 2px 5px rgba(0, 0, 0, 0.3); margin: 8px 0 12px; }
+.page-styled.page-dossie .pg-figure .pg-caption { text-align: center; font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: #333; margin-top: 6px; }
+.dark .page-styled.page-dossie:not([data-tone="light"]) .pg-figure .pg-caption, .page-styled.page-dossie[data-tone="dark"] .pg-figure .pg-caption { color: var(--pg-ink-2); }
+
+/* Texto */
+.page-styled.page-dossie .markdown-content h1, .page-styled.page-dossie .markdown-content h2 { font-family: var(--pg-serif); font-weight: normal; font-size: 13px; text-transform: uppercase; letter-spacing: 0.14em; margin: 12px 0 4px; }
+.page-styled.page-dossie .markdown-content h2::before { content: '— '; }
+.page-styled.page-dossie .markdown-content h3 { font-family: var(--pg-serif); font-weight: normal; font-size: 1em; text-decoration: underline; text-underline-offset: 3px; margin: 10px 0 4px; }
+.page-styled.page-dossie .markdown-content blockquote { margin: 8px 0 8px 18px; padding-left: 10px; border-left: 2px solid var(--pg-ink); }
+.page-styled.page-dossie .markdown-content blockquote p { margin: 0 0 0.4em; }
+.page-styled.page-dossie .markdown-content strong { color: var(--pg-accent); font-weight: normal; }
+.page-styled.page-dossie .markdown-content hr { border-top: 1px dashed var(--pg-ink); }
+.page-styled.page-dossie .markdown-content th { border-bottom: 1px solid var(--pg-ink); }
+
+/* Rodapé: "ref.:" com as tags, sem cerquilha */
+.page-styled.page-dossie .pg-foot { font-size: 11.5px; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.8; border-top: 1px dashed var(--pg-ink); color: var(--pg-ink); }
+.page-styled.page-dossie .pg-foot .pg-stars { color: var(--pg-ink); }
+.page-styled.page-dossie .pg-tags::before { content: 'ref.: '; }
+.page-styled.page-dossie .pg-tag::before { content: none; }
+.page-styled.page-dossie .pg-tag + .pg-tag::before { content: ', '; margin-left: -8px; }
+.page-styled.page-dossie .pg-actions { border-top: 1px dashed var(--pg-ink); }
+.page-styled.page-dossie .pg-actions > button, .page-styled.page-dossie .pg-actions > div > button { border: 1px solid var(--pg-ink); }
+

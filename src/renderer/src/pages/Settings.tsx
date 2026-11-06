@@ -5,7 +5,7 @@
 import React, { useState } from 'react'
 import { RefreshCw, SlidersHorizontal } from 'lucide-react'
 import { useTheme } from '@/hooks/useTheme'
-import { useAppStore, type TextSize } from '@/stores/useAppStore'
+import { useAppStore } from '@/stores/useAppStore'
 import { useI18n } from '@/hooks/useI18n'
 import { cn } from '@/utils/cn'
 import type { Theme } from '@/types'
@@ -157,6 +157,8 @@ export function SettingsPage(): React.ReactElement {
   const setDateFormatPref = useAppStore((s) => s.setDateFormatPref)
   const textSize = useAppStore((s) => s.textSize)
   const setTextSize = useAppStore((s) => s.setTextSize)
+  const readingWidth = useAppStore((s) => s.readingWidth)
+  const setReadingWidth = useAppStore((s) => s.setReadingWidth)
   const { t } = useI18n()
   const importanceLabels = ['', t('importance_min'), t('importance_low'), t('importance_mid'), t('importance_high'), t('importance_max')]
 
@@ -227,15 +229,17 @@ export function SettingsPage(): React.ReactElement {
 
           {/* Tamanho do texto */}
           <SectionCard title={t('text_size_section')} description={t('text_size_desc')}>
-            <div className="flex items-center gap-1" data-testid="text-size">
-              {(['small', 'normal', 'large'] as TextSize[]).map((s) => (
-                <button key={s} type="button" onClick={() => setTextSize(s)} aria-pressed={textSize === s}
-                  className={cn('flex-1 px-3 py-2 rounded-sm border font-serif transition-colors',
-                    s === 'small' ? 'text-xs' : s === 'large' ? 'text-base' : 'text-sm',
-                    textSize === s ? 'border-chr-strong bg-active text-chr-primary' : 'border-chr-subtle text-chr-secondary hover:border-chr hover:bg-hover')}>
-                  {t(s === 'small' ? 'text_small' : s === 'large' ? 'text_large' : 'text_normal')}
-                </button>
-              ))}
+            <div className="space-y-3" data-testid="text-size">
+              <label className="flex items-center gap-3">
+                <span className="font-mono text-2xs uppercase tracking-wider text-chr-muted w-28 shrink-0">{t('text_size_section')}</span>
+                <input type="range" min={12} max={22} step={1} value={textSize} onChange={(e) => setTextSize(Number(e.target.value))} className="flex-1 accent-chr-primary cursor-pointer" />
+                <span className="font-mono text-xs text-chr-secondary tabular-nums w-12 text-right">{textSize}px</span>
+              </label>
+              <label className="flex items-center gap-3">
+                <span className="font-mono text-2xs uppercase tracking-wider text-chr-muted w-28 shrink-0">{t('reading_width')}</span>
+                <input type="range" min={30} max={100} step={5} value={readingWidth} onChange={(e) => setReadingWidth(Number(e.target.value))} className="flex-1 accent-chr-primary cursor-pointer" />
+                <span className="font-mono text-xs text-chr-secondary tabular-nums w-12 text-right">{readingWidth}%</span>
+              </label>
             </div>
           </SectionCard>
 

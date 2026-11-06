@@ -22,6 +22,7 @@ function toVaultInfo(raw: RawVault, vaultPath: string): VaultInfo {
     timelines,
     totalEvents: raw.totalEvents,
     trashCount: raw.trashCount ?? 0,
+    style: raw.style,
   }
 }
 

@@ -76,6 +76,20 @@ export interface EventFrontmatter {
   links?: Array<{ path: string; label: string }>
   references?: Array<{ url: string; label: string }>
   'cover-image'?: string
+  /** Estilo de página deste evento (sobrepõe o da timeline/vault) */
+  style?: string
+  /** Subtítulo em itálico sob a manchete (estilo jornal) */
+  deck?: string
+  /** "Nº 12", "Edição especial"… na linha de data (estilo jornal) */
+  edition?: string
+  /** Linha de abertura (estilo álbum); sem ela, o chronicle ou a timeline */
+  kicker?: string
+  /** Legenda da imagem de capa (estilo álbum) */
+  'cover-caption'?: string
+  /** Brasão ou marca: caminho de imagem (presets decreto, rosto…) */
+  emblem?: string
+  /** Papel do estilo de página deste arquivo: light | dark (sem ele, segue o tema do app) */
+  paper?: string
 }
 
 // ── Local de um evento ───────────────────────────────────────
@@ -145,6 +159,13 @@ export interface TimelineMeta {
   tags?: string[]
   /** Corpo do _timeline.md (descricao longa, opcional) */
   body?: string
+  /** Estilo de página padrão dos eventos desta timeline */
+  style?: string
+  /** Estilo jornal: nome do jornal (em gótica) e linha de apoio */
+  masthead?: string
+  mastheadSub?: string
+  /** Estilo jornal: colunas do texto (1–3) */
+  columns?: number
 }
 
 // ── Timeline carregada ────────────────────────────────────────
@@ -190,6 +211,8 @@ export interface VaultInfo {
   totalEvents: number
   /** Número de itens na lixeira interna do vault */
   trashCount: number
+  /** Estilo de página padrão do vault (`style:` em _vault.md) */
+  style?: string
 }
 
 // ── Lixeira interna do vault ──────────────────────────────────

@@ -504,8 +504,8 @@ export default function TimelineView({ initialPath, initialTitle }: TimelineView
           suggestedName: `${currentTimeline.meta.title} - ${viewMode}`,
         })
       } else {
-        const bodyHtml = await buildTimelineExportHtml(currentTimeline, { events: nEvents, noContent: t('no_content') })
-        r = await window.electronAPI.invoke('app:export-timeline', { format, suggestedName: currentTimeline.meta.title, title: currentTimeline.meta.title, bodyHtml })
+        const { bodyHtml, styles } = await buildTimelineExportHtml(currentTimeline, { events: nEvents, noContent: t('no_content'), importance: t('importance'), period: t('page_period'), place: t('page_place'), category: t('page_category') }, vaultStyle)
+        r = await window.electronAPI.invoke('app:export-timeline', { format, suggestedName: currentTimeline.meta.title, title: currentTimeline.meta.title, bodyHtml, styles })
       }
       if (r.success) notify.success(t('export_done_title'), r.filePath ?? '')
       else if (!r.canceled) notify.error(t('export_error'), r.error ?? '')
@@ -549,6 +549,9 @@ export default function TimelineView({ initialPath, initialTitle }: TimelineView
     const ev = useTimelineStore.getState().currentTimeline?.events.find((e) => e.filePath === created.filePath)
     if (ev) handleEventClick(ev)
   }
+
+  // ── Estilo de página da timeline (timeline → vault) ───────────────────────
+  const vaultStyle = useVaultStore((s) => s.vaultInfo?.style)
 
   // ── Comparar com outra timeline (faixa extra na visão horizontal) ─────────
   const vaultTimelines = useVaultStore((s) => s.vaultInfo?.timelines ?? [])

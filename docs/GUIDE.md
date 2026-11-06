@@ -142,6 +142,7 @@ the most remarkable buildings in South America.
 | `importance` | 1–5 | No | Visual weight on the canvas (default: 3) |
 | `tags` | string[] | No | Free-form tags |
 | `cover-image` | string | No | Relative path to an image shown at the top of the event page |
+| `emblem` | string | No | Relative path to a coat of arms or mark used by some page styles (`decreto`, `rosto`…) |
 | `links` | array | No | Internal links to other events, shown at the bottom of the event page (click to open) |
 | `references` | array | No | External reference URLs, shown at the bottom of the event page (open in the browser) |
 
@@ -495,6 +496,84 @@ The **Tags** page (sidebar) lists every category and tag of the vault with count
 The vault menu on the home page and the welcome screen list the vaults you opened before; one click switches to them.
 
 ---
+## 11c. Page styles
+
+How an event page (and the timeline header) is drawn is a property of the file, inherited from the vault to the timeline to the event. The Markdown stays the same; only the rendering changes.
+
+The quickest way to set it is the **Style** button of the event, in the edit form and in the bottom actions of the page: it writes `style:` into that file only, so every file can have its own style. "Inherited" removes the line so the file follows the level above. Your own `_styles/*.css` files show up in the same menu. A default for a whole timeline or vault is still possible by writing `style:` by hand in `_timeline.md` or `_vault.md`; the timeline page itself never changes its look, only the files do, and a timeline export draws each event in its own style. The front matter below is what the button writes.
+
+```yaml
+# _vault.md — default for the whole vault
+style: jornal            # classico (default) | jornal | album | campo | dossie | iluminura | cartaz | correio | rosto | verbete | gazeta | diario | decreto | revista | a name from _styles/
+
+# _timeline.md — the timeline is "the newspaper"; each event is one of its pages
+style: jornal
+masthead: O Correio dos Descobrimentos   # newspaper name, in blackletter
+masthead-sub: Crônica das navegações     # line under the masthead
+columns: 2                               # body text columns (1–3)
+
+# event — override anything, or nothing
+deck: A armada avista o Monte Pascoal    # italic subtitle under the headline
+edition: Nº 12                            # shown on the dateline
+style: jornal                             # only to depart from the timeline default
+```
+
+### `jornal` (Victorian newspaper)
+
+Cream paper with sepia ink in the light theme; a "night edition" (warm charcoal, ivory ink, gold rules) in the dark theme. The front matter becomes the page furniture: the masthead in blackletter, a dateline with edition, category, date (or date range) and place, the title as a headline, `deck` as the italic subtitle, and the importance (stars), category and tags as stamps in the footer. Inside the text: the first paragraph gets a drop cap, `##` headings become small-caps section titles between rules, `---` becomes a fleuron, `>` quotes get double rules (a last line starting with "—" is the signature), images become engravings with the alt text as caption, and the text flows in the configured columns. PDF and HTML exports use the same style (with system serif fallbacks for the fonts).
+
+### `album` (scrapbook)
+
+Thick kraft-like paper with warm ink; in the dark theme the same album under lamplight. Each event is a page: a small opening line (`kicker`, or the chronicle / timeline name), the title in a large italic, the date and place in a handwritten-looking italic, and the `cover-image` pasted in as a photo with tape and corners, with `cover-caption` under it. Images in the text are pasted the same way (the alt text is the caption), `>` quotes become notes with a signature, and the footer lists importance, category and tags with a `#`.
+
+```yaml
+kicker: Um dia na capital       # opening line (album)
+cover-image: _assets/foto.jpg
+cover-caption: Rio de Janeiro, 1951
+```
+
+The edit form writes these for you: the **Cover** block under the title has the image (click the thumbnail to pick a file, which is copied to `_assets/`), its caption and, when the page style is not classic, the opening line and the subtitle.
+
+### `campo`, `dossie`, `iluminura`, `cartaz`, `correio`
+
+Five more presets built on one common page structure, so every front matter field lands in the same place and each style decides how to draw it:
+
+| Preset | Look | `kicker` | `edition` | `deck` | Date and place | Cover |
+|---|---|---|---|---|---|---|
+| `campo` | Naturalist's field notebook: squared paper, red margin, rings, blue handwriting | Italic note under the title | Handwritten note in the corner | Italic line | Handwritten line with the coordinates | "Fig. n" with the caption as a key |
+| `dossie` | Typewritten sheet in a kraft folder; carbon copy in the dark theme | Tab on the folder (defaults to the timeline name) | "File no." line | Line under the title | "Period / Place / Importance" rows; the category becomes the stamp | Photo held by a paper clip |
+| `iluminura` | Rubricated manuscript: vellum, blackletter title, lapis-and-gold initial, vine in the margin | Incipit in red capitals | Gloss in the right margin | Red italic rubric | Red italic line | Gold frame |
+| `cartaz` | Wood-type broadside: everything centred, mixed faces, thick-thin rules | Black band at the top | "Grand festival of" line | Fat red subtitle | The date is the biggest thing after the title; two text columns | Framed engraving |
+| `correio` | Airmail letter: striped border, address lines in handwriting | Boxed "par avion" label | hidden | Italic line | The date is the round postmark; place, category and stars are the address lines | Perforated stamp |
+
+In all five, `##` headings, quotes (`>`), lists, `---` and images in the text take the style's own look; images use the alt text as caption. Quotes become hand notes in `campo`, a note in `iluminura`, a centred motto in `cartaz` and a P.S. in `correio`.
+
+### `rosto`, `verbete`, `gazeta`, `diario`, `decreto`, `revista`
+
+Six more on the same structure, for books, reference works, papers and documents of other centuries:
+
+| Preset | Look | `kicker` | `edition` | `deck` | Date and place | Cover | `##` and `>` |
+|---|---|---|---|---|---|---|---|
+| `rosto` | Title page of an 18th-century book: double frame, spaced capitals, printer's imprint; the text follows as chapter one with a drop cap | Line at the top (the timeline) | The imprint ("Na Officina de… · M.DCCCC.XXII") | Italic subtitle ("em que se dá notícia de…") | Place in capitals, date in italic, between the rules | Framed engraving under the imprint | Centred chapter heads; centred italic quote |
+| `verbete` | Encyclopedia page: running head, small-caps title, framed plate, two justified columns, cross-references in red (the bold) | Running head, left | Running head, right ("vol. IV · 307") | Italic line under the title | Italic line, centred | The plate ("Est.") above the columns | Small-caps section heads; numbered "Fig. n" |
+| `gazeta` | 18th-century gazette: Fell types, the paper's name in spaced capitals, small-caps date line, one column | The gazette's name (the timeline) | The issue line ("Num. 14") | Italic subtitle | Small-caps line under the masthead | Framed engraving | Ruled heads; the quote becomes the "Avisos" box |
+| `diario` | Ruled diary page: blue lines, red margin, ribbon, date in copperplate, handwriting on the lines, pressed flower | hidden | hidden | Line in blue ink | Date in copperplate; the place under it | Photo taped on, top right | Headings in the same hand; quote in blue; bold is underlined in red |
+| `decreto` | Official document: coat of arms, title in Roman capitals, numbered articles, signature, wax seal | Line above the title (the timeline) | "Decreto n.º 619", next to the date | The preamble in italic ("Faço saber…") | Capitals under the title | Framed, centred | `##` becomes "Art. n.º —"; the quote is the signature (second line: the office) |
+| `revista` | 1950s illustrated magazine: the photo across the top with the headline on a red band, script call-out, three columns, pull quote | Label on the corner of the photo | Right end of the byline rule | Script call-out over the photo | Byline rule under the photo | The photo at the top (without one, a teal block) | Condensed green heads; the quote is the pull quote |
+
+`diario` keeps a fixed 20 px hand on 30 px lines so the writing always sits on the rules; the text-size preference does not apply to it.
+
+**Emblem.** `emblem: ../_assets/brasao.svg` points to an image of the vault that `decreto` puts at the top as the coat of arms and the other presets place discreetly (printer's mark on the title page, corner mark on the magazine, and so on). The edit form shows it next to the cover, with the path written out, a button to pick the image and an × to remove it; a chronicle sets it once in its own front matter.
+
+**Paper of a file.** Any event can fix its own paper regardless of the app theme: `paper: light` or `paper: dark` in the front matter (the **Style** menu writes it under *Paper of this file*). Without it, the page follows the theme. A light page in a dark app reads like a document on a desk.
+
+**Choosing while you write.** The edit form has the same **Style** menu in its first row, next to the category: the choice (and the paper) is saved with the file when you save. With **Preview** on in the header, the right half of the editor shows the page as it will look in reading mode, drawn from what you are typing: title, cover, opening line, text, tags, in the chosen style and paper.
+
+### Your own styles
+
+Put a CSS file at `_styles/<name>.css` in the vault and use `style: <name>` at any level. The file is loaded into the app while a page uses it; target the `.markdown-content` of the event page (`[data-page-style="<name>"]`) and reuse your own engravings from `_assets/` as frames or watermarks. Preset fonts ship with the app and work offline.
+
+---
 ## 12. Search
 
 Press `Ctrl` + `K` (`⌘K` on macOS) or click **Search** in the sidebar to search the whole vault — every timeline and sub-timeline. It matches titles, text, tags, categories and timeline names, ignores accents and finds words by their beginning as you type. Titles that match come first; each result shows the date, the timeline and a snippet of the text. Use ↑ ↓ and Enter to open an event.
@@ -504,7 +583,7 @@ Press `Ctrl` + `K` (`⌘K` on macOS) or click **Search** in the sidebar to searc
 ## 13. Settings
 
 
-Besides theme, language and the online services, Settings holds: **New events** (default importance and category), **Date format** (automatic by language, day/month/year, month/day/year or ISO — for short dates and the date field), **Text size** (event text when reading and editing) and **Updates** (check now).
+Besides theme, language and the online services, Settings holds: **New events** (default importance and category), **Date format** (automatic by language, day/month/year, month/day/year or ISO — for short dates and the date field), **Text size and page width** (event text in px and page width as a share of the pane, when reading and editing; the same two sliders sit behind the **Layout** button in the event page header) and **Updates** (check now).
 Accessible via the sidebar. Every option applies immediately and is saved automatically.
 
 | Setting | Description |
@@ -580,6 +659,7 @@ category: string       # Optional — see Categories
 importance: 1|2|3|4|5  # Optional — default 3
 tags: string[]         # Optional
 cover-image: string    # Optional — relative path to image
+emblem: string         # Optional — relative path to a coat of arms / mark (page styles)
 links:
   - path: string
     label: string

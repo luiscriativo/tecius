@@ -1,0 +1,81 @@
+/*
+ * Estilo "verbete" — página de enciclopédia do início do século XX: cabeço
+ * corrido, título em versaletes, estampa emoldurada, duas colunas justificadas
+ * com remissões em vermelho (o negrito do texto) e figuras numeradas.
+ *   kicker  → o cabeço à esquerda (intervalo de verbetes, ou a timeline)
+ *   edition → o cabeço à direita ("vol. IV · 307")
+ *   deck    → a linha em itálico sob o título
+ *   cover   → a estampa ("Est.") acima das colunas
+ */
+
+.page-verbete {
+  --pg-paper: #f7f3ea;
+  --pg-paper-2: #efe9dc;
+  --pg-ink: #1f1b16;
+  --pg-ink-2: #5c5245;
+  --pg-rule: #1f1b16;
+  --pg-accent: #7a1f1a;
+  --pg-plate: #ffffff;
+  --pg-plate-2: #e9e3d6;
+  --pg-serif: 'EB Garamond', Georgia, serif;
+  --pg-caps: 'EB Garamond', Georgia, serif;
+  --pg-display: 'EB Garamond', Georgia, serif;
+}
+.dark .page-verbete:not([data-tone="light"]), [data-theme="dark"] .page-verbete:not([data-tone="light"]), .page-verbete[data-tone="dark"] {
+  --pg-paper: #16161a;
+  --pg-paper-2: #1e1e23;
+  --pg-ink: #e4ded2;
+  --pg-ink-2: #a39b8c;
+  --pg-rule: #e4ded2;
+  --pg-accent: #e38a7a;
+  --pg-plate: #0f0f12;
+  --pg-plate-2: #26262c;
+}
+
+.page-styled.page-verbete {
+  padding: 20px 28px 18px;
+  font-size: calc(var(--chr-text, 15px) - 1px);
+  line-height: 1.42;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.25);
+}
+
+/* Cabeço corrido, título, estampa */
+.page-styled.page-verbete .pg-head { display: grid; grid-template-columns: 1fr auto; grid-template-areas: 'k e' 'r r' 't t' 'd d' 'm m' 'c c'; text-align: center; margin-bottom: 14px; }
+.page-styled.page-verbete .pg-coords, .page-styled.page-verbete .pg-importance { display: none; }
+.page-styled.page-verbete .pg-ornament { grid-area: r; border-bottom: 2px solid var(--pg-rule); margin: 0 0 12px; }
+.page-styled.page-verbete .pg-kicker { grid-area: k; text-align: left; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 600; padding-bottom: 3px; }
+.page-styled.page-verbete .pg-edition { grid-area: e; text-align: right; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; padding-bottom: 3px; }
+.page-styled.page-verbete .pg-emblem { grid-area: r; width: 40px; margin: 0 auto 10px; }
+.page-styled.page-verbete .pg-title { grid-area: t; font-weight: 600; font-variant: small-caps; letter-spacing: 0.1em; font-size: 30px; line-height: 1.1; margin: 4px 0 0; }
+.page-styled.page-verbete .pg-title::after { content: ''; display: block; width: 90px; height: 1px; background: var(--pg-rule); margin: 8px auto 0; }
+.page-styled.page-verbete .pg-deck { grid-area: d; font-style: italic; color: var(--pg-ink-2); margin: 6px 0 0; }
+.page-styled.page-verbete .pg-meta { grid-area: m; justify-content: center; font-style: italic; color: var(--pg-ink-2); font-size: 13.5px; gap: 0; margin: 6px 0 12px; }
+.page-styled.page-verbete .pg-meta > span + span::before { content: ' · '; white-space: pre; }
+.page-styled.page-verbete .pg-cover { grid-area: c; width: 100%; margin: 0 0 4px; border: 1px solid var(--pg-ink); padding: 4px; background: var(--pg-plate); box-shadow: inset 0 0 0 3px var(--pg-paper), inset 0 0 0 4px var(--pg-ink); counter-increment: none; }
+.page-styled.page-verbete .pg-cover img { border: 3px solid transparent; max-height: 280px; object-fit: contain; background: var(--pg-plate-2); filter: grayscale(1) contrast(1.15) sepia(0.18); }
+.page-styled.page-verbete .pg-cover .pg-caption { text-align: center; font-size: 11.5px; color: var(--pg-ink); letter-spacing: 0.04em; padding: 5px 0 2px; margin: 0; }
+.page-styled.page-verbete .pg-cover .pg-caption::before { content: 'Est. — '; font-weight: 600; }
+
+/* Duas colunas justificadas; o negrito é remissão */
+.page-styled.page-verbete .pg-body { text-align: justify; hyphens: auto; }
+.page-styled.page-verbete .pg-body[data-cols="2"] { column-gap: 22px; column-rule: 1px solid var(--pg-rule); }
+.page-styled.page-verbete .pg-body[data-cols="3"] { column-gap: 18px; column-rule: 1px solid var(--pg-rule); }
+.page-styled.page-verbete .markdown-content p { margin: 0 0 6px; }
+.page-styled.page-verbete .markdown-content p + p { text-indent: 1.2em; }
+.page-styled.page-verbete .markdown-content h1, .page-styled.page-verbete .markdown-content h2 { font-family: var(--pg-serif); font-weight: 600; font-variant: small-caps; font-size: 1.05em; letter-spacing: 0.04em; margin: 8px 0 2px; }
+.page-styled.page-verbete .markdown-content h3 { font-family: var(--pg-serif); font-weight: 600; font-style: italic; font-size: 1em; margin: 6px 0 2px; }
+.page-styled.page-verbete .markdown-content strong { font-weight: 500; font-variant: small-caps; letter-spacing: 0.04em; color: var(--pg-accent); }
+.page-styled.page-verbete .markdown-content blockquote { margin: 6px 0 8px; padding: 0 0 0 10px; border-left: 1px solid var(--pg-rule); font-style: italic; }
+.page-styled.page-verbete .markdown-content blockquote p { margin: 0 0 0.3em; text-indent: 0; }
+.page-styled.page-verbete .pg-figure { border: 1px solid var(--pg-ink); padding: 3px; margin: 4px 0 8px; break-inside: avoid; }
+.page-styled.page-verbete .pg-figure img { filter: grayscale(1) contrast(1.2); }
+.page-styled.page-verbete .pg-figure .pg-caption { text-align: center; font-size: 11.5px; color: var(--pg-ink); margin-top: 3px; }
+.page-styled.page-verbete .pg-figure .pg-caption::before { content: 'Fig. ' counter(fig) '. '; font-weight: 600; }
+
+/* Rodapé */
+.page-styled.page-verbete .pg-foot { font-size: 11px; letter-spacing: 0.08em; color: var(--pg-ink); border-top: 1px solid var(--pg-rule); margin-top: 10px; padding-top: 4px; }
+.page-styled.page-verbete .pg-foot .pg-stars { color: var(--pg-ink); }
+.page-styled.page-verbete .pg-tags { gap: 0; }
+.page-styled.page-verbete .pg-tag::before { content: none; }
+.page-styled.page-verbete .pg-tag + .pg-tag::before { content: ', '; white-space: pre; }
+.page-styled.page-verbete .pg-actions > button, .page-styled.page-verbete .pg-actions > div > button { border: 1px solid var(--pg-ink); }

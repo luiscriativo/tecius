@@ -8,7 +8,7 @@
 import { ipcMain, dialog, shell } from 'electron'
 import { promises as fsp } from 'fs'
 import { extname } from 'path'
-import { fileSystemService, type EventDefaults } from '../services/FileSystemService'
+import { fileSystemService, type EventDefaults, type PageStyleTarget } from '../services/FileSystemService'
 import { parseImport } from '../services/importEvents'
 import { tm } from '../i18n'
 
@@ -283,6 +283,37 @@ export function registerFsHandlers(): void {
       fileSystemService.assertWithinVault(timelineDirPath)
       const result = fileSystemService.createEvent(timelineDirPath, title, filename, date, defaults ?? {})
       return { success: true, data: result }
+    } catch (e) {
+      return { success: false, error: String(e) }
+    }
+  })
+
+  // ── fs:read-style ─────────────────────────────────────────────────────────
+  // CSS de um estilo próprio do vault (_styles/<nome>.css); null se não existir
+  ipcMain.handle('fs:read-style', async (_event, name: string) => {
+    try {
+      return { success: true, data: fileSystemService.readStyle(name) }
+    } catch (e) {
+      return { success: false, error: String(e) }
+    }
+  })
+
+  // ── fs:set-page-style ─────────────────────────────────────────────────────
+  // Grava (ou remove, com null) o `style:` do vault, de uma timeline ou de um evento
+  ipcMain.handle('fs:set-page-style', async (_event, target: PageStyleTarget, style: string | null, key: 'style' | 'paper' = 'style') => {
+    try {
+      fileSystemService.setPageStyle(target, style, key === 'paper' ? 'paper' : 'style')
+      return { success: true }
+    } catch (e) {
+      return { success: false, error: String(e) }
+    }
+  })
+
+  // ── fs:list-styles ────────────────────────────────────────────────────────
+  // Nomes dos estilos próprios do vault (_styles/*.css)
+  ipcMain.handle('fs:list-styles', async () => {
+    try {
+      return { success: true, data: fileSystemService.listStyles() }
     } catch (e) {
       return { success: false, error: String(e) }
     }

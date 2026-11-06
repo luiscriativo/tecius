@@ -1,0 +1,95 @@
+/*
+ * Estilo "diario" — página de diário pautado: linhas azuis, margem vermelha,
+ * fita marcadora, data em caligrafia de pena, texto à mão sobre as pautas,
+ * foto colada com fita, flor prensada no canto. O corpo é fixo (20 px sobre
+ * pautas de 30 px) para o texto cair sempre nas linhas.
+ *   deck    → uma linha de abertura em azul
+ *   >       → trecho em azul (outra tinta)
+ *   negrito → sublinhado a lápis vermelho
+ */
+
+.page-diario {
+  --pg-paper: #fbf6ea;
+  --pg-paper-2: #f3ecdc;
+  --pg-line: rgba(80, 120, 170, 0.28);
+  --pg-margin: #d9736e;
+  --pg-ink: #2c3340;
+  --pg-ink-2: #5f6a7a;
+  --pg-rule: rgba(80, 120, 170, 0.5);
+  --pg-accent: #2f4f7f;
+  --pg-photo: #ffffff;
+  --pg-ribbon: #8a2a2a;
+  --pg-serif: 'Caveat', 'Segoe Print', cursive;
+  --pg-caps: 'Caveat', 'Segoe Print', cursive;
+  --pg-display: 'Pinyon Script', 'Segoe Script', cursive;
+  --pg-lh: 30px;
+}
+.dark .page-diario:not([data-tone="light"]), [data-theme="dark"] .page-diario:not([data-tone="light"]), .page-diario[data-tone="dark"] {
+  --pg-paper: #1f2128;
+  --pg-paper-2: #262932;
+  --pg-line: rgba(150, 180, 220, 0.16);
+  --pg-margin: #b85d5d;
+  --pg-ink: #e6e1d4;
+  --pg-ink-2: #aeb6c4;
+  --pg-rule: rgba(150, 180, 220, 0.4);
+  --pg-accent: #9fb8e8;
+  --pg-photo: #d9d2c3;
+}
+
+.page-styled.page-diario {
+  font-size: 20px;
+  line-height: var(--pg-lh);
+  padding: 30px 30px 30px 64px;
+  border-radius: 2px 10px 10px 2px;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.25);
+  background-image: repeating-linear-gradient(transparent 0 25px, var(--pg-line) 25px 26px, transparent 26px 30px);
+  background-attachment: local;
+}
+/* Margem vermelha e fita marcadora */
+.page-styled.page-diario::before { content: ''; position: absolute; left: 48px; top: 0; bottom: 0; border-left: 1.5px solid var(--pg-margin); opacity: 0.8; pointer-events: none; }
+.page-styled.page-diario::after { content: ''; position: absolute; right: 30px; top: -6px; width: 16px; height: 110px; background: var(--pg-ribbon); clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 85%, 0 100%); opacity: 0.9; pointer-events: none; }
+
+/* Cabeçalho: tudo sobre as pautas */
+.page-styled.page-diario .pg-head { margin: 0; }
+.page-styled.page-diario .pg-ornament, .page-styled.page-diario .pg-kicker, .page-styled.page-diario .pg-edition, .page-styled.page-diario .pg-coords, .page-styled.page-diario .pg-importance, .page-styled.page-diario .pg-head .pg-category { display: none; }
+.page-styled.page-diario .pg-meta { display: contents; }
+.page-styled.page-diario .pg-date { order: 1; font-family: var(--pg-display); font-size: 30px; line-height: var(--pg-lh); color: var(--pg-accent); }
+.page-styled.page-diario .pg-place { order: 2; font-size: 16px; line-height: var(--pg-lh); opacity: 0.8; }
+.page-styled.page-diario .pg-emblem { order: 3; width: 60px; margin: 0 0 30px; }
+.page-styled.page-diario .pg-title { order: 4; font-family: var(--pg-serif); font-weight: 600; font-size: 26px; line-height: var(--pg-lh); margin: 0; }
+.page-styled.page-diario .pg-deck { order: 5; color: var(--pg-accent); line-height: var(--pg-lh); }
+.page-styled.page-diario .pg-body { padding-top: var(--pg-lh); }
+/* Foto colada com fita: altura fixa (6 pautas) para o texto seguir nas linhas */
+.page-styled.page-diario .pg-cover, .page-styled.page-diario .pg-figure { position: relative; box-sizing: border-box; width: 150px; height: 180px; overflow: hidden; background: var(--pg-photo); padding: 6px 6px 8px; transform: rotate(-3deg); box-shadow: 1px 2px 6px rgba(0, 0, 0, 0.3); counter-increment: none; }
+.page-styled.page-diario .pg-cover { order: 6; align-self: flex-end; margin: 0 8px 0 0; }
+.page-styled.page-diario .pg-figure { float: right; margin: 0 0 30px 16px; }
+.page-styled.page-diario .pg-cover::before, .page-styled.page-diario .pg-figure::before { content: ''; position: absolute; top: -8px; left: 50%; width: 46px; height: 16px; margin-left: -23px; background: rgba(214, 196, 150, 0.8); transform: rotate(-4deg); }
+.page-styled.page-diario .pg-cover img, .page-styled.page-diario .pg-figure img { height: 126px; object-fit: cover; filter: sepia(0.6) contrast(1.05); }
+.page-styled.page-diario .pg-cover .pg-caption, .page-styled.page-diario .pg-figure .pg-caption { height: 36px; overflow: hidden; text-align: center; font-size: 15px; line-height: 18px; color: #333; margin-top: 4px; }
+
+/* Texto à mão: cada bloco ocupa pautas inteiras */
+.page-styled.page-diario .markdown-content p { margin: 0 0 var(--pg-lh); }
+.page-styled.page-diario .markdown-content h1, .page-styled.page-diario .markdown-content h2, .page-styled.page-diario .markdown-content h3 { font-family: var(--pg-serif); font-weight: 600; font-size: 22px; line-height: var(--pg-lh); margin: 0; }
+.page-styled.page-diario .markdown-content strong { font-weight: 400; text-decoration: underline; text-decoration-color: var(--pg-margin); text-decoration-thickness: 2px; text-underline-offset: 4px; }
+.page-styled.page-diario .markdown-content em { color: var(--pg-accent); }
+.page-styled.page-diario .markdown-content blockquote { margin: 0 0 var(--pg-lh); padding: 0; border: 0; color: var(--pg-accent); font-style: normal; font-family: var(--pg-serif); font-size: 20px; line-height: var(--pg-lh); }
+.page-styled.page-diario .markdown-content blockquote p { margin: 0; }
+.page-styled.page-diario .markdown-content ul, .page-styled.page-diario .markdown-content ol { margin: 0 0 var(--pg-lh); }
+.page-styled.page-diario .markdown-content li { margin: 0; }
+.page-styled.page-diario .markdown-content hr { height: var(--pg-lh); margin: 0; border: 0; background: linear-gradient(var(--pg-margin), var(--pg-margin)) center / 40% 1.5px no-repeat; }
+.page-styled.page-diario .markdown-content table { line-height: var(--pg-lh); font-size: 18px; }
+.page-styled.page-diario .markdown-content th, .page-styled.page-diario .markdown-content td { padding: 0 6px; border-color: var(--pg-rule); }
+.page-styled.page-diario .markdown-content code, .page-styled.page-diario .markdown-content pre { font-family: var(--pg-serif); background: transparent; font-size: 18px; }
+
+/* "P.S. — tags · importância", com a flor prensada ao lado */
+.page-styled.page-diario .pg-foot { clear: both; position: relative; display: flex; flex-direction: row-reverse; justify-content: flex-end; gap: 0 10px; border-top: 0; margin: 0; padding: 0 96px 0 0; font-size: 20px; line-height: var(--pg-lh); color: var(--pg-accent); min-height: 90px; }
+.page-styled.page-diario .pg-foot .pg-stars, .page-styled.page-diario .pg-foot .pg-category { color: var(--pg-accent); }
+.page-styled.page-diario .pg-tags { gap: 0; }
+.page-styled.page-diario .pg-tags::before { content: 'P.S. — '; white-space: pre; }
+.page-styled.page-diario .pg-tag::before { content: none; }
+.page-styled.page-diario .pg-tag + .pg-tag::before { content: ', '; white-space: pre; }
+.page-styled.page-diario .pg-foot::after { content: ''; position: absolute; right: 0; bottom: 0; width: 70px; height: 90px; opacity: 0.85; pointer-events: none; background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 70 90' fill='none'><path d='M35 88 C 33 60, 36 40, 35 22' stroke='%236b7a4a' stroke-width='1.5'/><path d='M35 50 c -10 -2 -16 4 -18 10 c 8 2 14 -2 18 -10 z M35 62 c 10 -2 16 4 18 10 c -8 2 -14 -2 -18 -10 z' fill='%238a9a5a' opacity='.8'/><g fill='%23c98aa0' opacity='.85'><ellipse cx='35' cy='12' rx='6' ry='11'/><ellipse cx='35' cy='12' rx='6' ry='11' transform='rotate(60 35 20)'/><ellipse cx='35' cy='12' rx='6' ry='11' transform='rotate(120 35 20)'/><ellipse cx='35' cy='12' rx='6' ry='11' transform='rotate(180 35 20)'/><ellipse cx='35' cy='12' rx='6' ry='11' transform='rotate(240 35 20)'/><ellipse cx='35' cy='12' rx='6' ry='11' transform='rotate(300 35 20)'/></g><circle cx='35' cy='20' r='4' fill='%23d9b24a'/></svg>") center / contain no-repeat; }
+
+.page-styled.page-diario .pg-aux { border-top: 1px dashed var(--pg-rule); font-size: 17px; }
+.page-styled.page-diario .pg-actions { border-top: 1px dashed var(--pg-rule); }
+.page-styled.page-diario .pg-actions > button, .page-styled.page-diario .pg-actions > div > button { font-size: 15px; letter-spacing: 0; text-transform: none; border: 1px solid var(--pg-accent); color: var(--pg-accent); }

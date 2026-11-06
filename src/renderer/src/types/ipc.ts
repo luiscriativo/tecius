@@ -43,6 +43,8 @@ export interface RawVault {
   timelines: RawTimelineRef[]
   totalEvents: number
   trashCount: number
+  /** `style:` do _vault.md */
+  style?: string
 }
 
 export interface RawTrashItem {
