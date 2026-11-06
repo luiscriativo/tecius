@@ -45,7 +45,7 @@ const typeStyles: Record<NotificationType, string> = {
   info: 'text-blue-500',
   success: 'text-green-500',
   warning: 'text-yellow-500',
-  error: 'text-destructive'
+  error: 'text-red-500'
 }
 
 // ── Single Notification Toast ─────────────────────────────────────────────────
@@ -62,9 +62,10 @@ function NotificationToast({
     <div
       role="alert"
       aria-live="polite"
+      // Tokens do projeto (bg-surface, text-chr-*): as classes antigas (bg-background,
+      // text-foreground…) não existiam no Tailwind e o aviso aparecia transparente
       className={cn(
-        'flex items-start gap-3 w-80 rounded-lg border border-border',
-        'bg-background shadow-lg p-4',
+        'flex items-start gap-3 w-80 chr-card shadow-card-hover p-4',
         'animate-in slide-in-from-right-full duration-300'
       )}
     >
@@ -75,9 +76,9 @@ function NotificationToast({
 
       {/* Content */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-foreground">{notification.title}</p>
+        <p className="text-sm font-medium text-chr-primary">{notification.title}</p>
         {notification.message && (
-          <p className="text-xs text-muted-foreground mt-0.5">{notification.message}</p>
+          <p className="text-xs text-chr-muted mt-0.5 break-words">{notification.message}</p>
         )}
       </div>
 
@@ -85,8 +86,8 @@ function NotificationToast({
       <button
         onClick={() => onDismiss(notification.id)}
         className={cn(
-          'shrink-0 p-1 rounded text-muted-foreground',
-          'hover:text-foreground hover:bg-accent',
+          'shrink-0 p-1 rounded-sm text-chr-muted',
+          'hover:text-chr-primary hover:bg-hover',
           'transition-colors duration-150'
         )}
         aria-label={t('dismiss_notification')}

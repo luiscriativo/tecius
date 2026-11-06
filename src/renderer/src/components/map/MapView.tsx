@@ -304,7 +304,7 @@ export function MapView({ timeline, onEventClick }: MapViewProps) {
       else setCursor(n)
     }, (presenting ? PRESENT_STEP_MS : PLAY_STEP_MS) / speed)
     return () => clearTimeout(h)
-  }, [playing, now, win, stops, speed, showAll, paleoLoadingNow, presenting])
+  }, [playing, now, win, stops, speed, showAll, relOn, paleoLoadingNow, presenting])
 
   const togglePlay = () => {
     if (playing) { setPlaying(false); return }

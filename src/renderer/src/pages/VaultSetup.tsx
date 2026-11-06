@@ -12,7 +12,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react'
-import { cn } from '../lib/utils'
+import { cn } from '../utils/cn'
 import { useVault } from '../hooks/useVault'
 import { useI18n } from '../hooks/useI18n'
 import type { TranslationKey } from '../i18n/translations'

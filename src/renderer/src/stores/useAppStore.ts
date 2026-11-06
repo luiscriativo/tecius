@@ -193,6 +193,7 @@ export const useAppStore = create<AppStore>()(
         setDateLanguage(language)
         // O processo principal também usa o idioma (títulos de diálogos, mensagens de erro)
         window.electronAPI?.invoke('app:set-language', language).catch(() => {})
+        document.documentElement.lang = language
         set({ language })
       },
       setOnlineGeocoding: (onlineGeocoding) => set({ onlineGeocoding }),
@@ -207,6 +208,7 @@ export const useAppStore = create<AppStore>()(
         const language = state?.language ?? 'pt'
         setDateLanguage(language)
         window.electronAPI?.invoke('app:set-language', language).catch(() => {})
+        document.documentElement.lang = language
       },
       // Only persist user preferences — not transient state
       partialize: (state) => ({

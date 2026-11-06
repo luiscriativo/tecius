@@ -165,7 +165,7 @@ export function LocationPicker({ value, dateText, onSave, onCancel }: LocationPi
                 </button>
               ))}
               {results.some((r) => r.kind === 'online') && (
-                <p className="px-3 py-2 font-mono text-2xs text-chr-muted">© colaboradores do OpenStreetMap (ODbL)</p>
+                <p className="px-3 py-2 font-mono text-2xs text-chr-muted">{t('location_osm_credit')}</p>
               )}
               {query.trim().length >= 2 && results.length === 0 && (
                 <p className="px-3 py-3 font-mono text-2xs text-chr-muted">{t('location_no_results')}</p>

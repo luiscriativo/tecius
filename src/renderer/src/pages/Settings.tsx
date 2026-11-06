@@ -2,8 +2,8 @@
  * Settings Page — Appearance (theme) and Language
  */
 
-import React from 'react'
-import { SlidersHorizontal } from 'lucide-react'
+import React, { useState } from 'react'
+import { RefreshCw, SlidersHorizontal } from 'lucide-react'
 import { useTheme } from '@/hooks/useTheme'
 import { useAppStore } from '@/stores/useAppStore'
 import { useI18n } from '@/hooks/useI18n'
@@ -92,6 +92,52 @@ function SectionCard({
   )
 }
 
+// ── UpdateCheck ───────────────────────────────────────────────────────────────
+
+type CheckResult = { ok: boolean; current: string; available?: boolean; version?: string | null }
+
+/** "Verificar atualizações": o processo principal consulta o GitHub Releases na hora */
+function UpdateCheck(): React.ReactElement {
+  const { t } = useI18n()
+  const appVersion = useAppStore((s) => s.appVersion)
+  const [state, setState] = useState<'idle' | 'checking' | 'none' | 'found' | 'failed'>('idle')
+  const [found, setFound] = useState<string | null>(null)
+
+  const check = async () => {
+    setState('checking')
+    try {
+      const r = await window.electronAPI.invoke<CheckResult | null>('update:check')
+      if (!r || !r.ok) setState('failed')
+      else if (r.available && r.version) { setFound(r.version); setState('found') }
+      else setState('none')
+    } catch {
+      setState('failed')
+    }
+  }
+
+  const message = state === 'checking' ? t('update_checking')
+    : state === 'none' ? t('update_none', { version: appVersion })
+    : state === 'found' ? t('update_found', { version: found ?? '' })
+    : state === 'failed' ? t('update_check_failed')
+    : ''
+
+  return (
+    <div className="flex items-start justify-between gap-4 px-4 py-3 rounded-sm border border-chr-subtle">
+      <div className="min-w-0">
+        <p className="font-serif text-sm leading-none text-chr-primary">{t('update_check')}</p>
+        <p className="font-mono text-2xs text-chr-muted mt-1 leading-relaxed">
+          {appVersion ? `v${appVersion}` : ''}{message ? ` · ${message}` : ''}
+        </p>
+      </div>
+      <button type="button" onClick={check} disabled={state === 'checking'} data-testid="check-updates"
+        className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-sm text-xs font-mono border border-chr-subtle text-chr-secondary hover:border-chr hover:text-chr-primary transition-colors disabled:opacity-50">
+        <RefreshCw size={11} strokeWidth={1.5} className={state === 'checking' ? 'animate-spin' : ''} />
+        {t('update_check')}
+      </button>
+    </div>
+  )
+}
+
 // ── SettingsPage ──────────────────────────────────────────────────────────────
 
 export function SettingsPage(): React.ReactElement {
@@ -144,6 +190,11 @@ export function SettingsPage(): React.ReactElement {
           <SectionCard title={t('online_section')} description={t('online_section_desc')}>
             <ToggleRow label={t('online_geocoding')} description={t('online_geocoding_desc')} checked={onlineGeocoding} onChange={setOnlineGeocoding} />
             <ToggleRow label={t('paleo_maps')} description={t('paleo_maps_desc')} checked={paleoMaps} onChange={setPaleoMaps} />
+          </SectionCard>
+
+          {/* Atualizações */}
+          <SectionCard title={t('update_section')} description={t('update_section_desc')}>
+            <UpdateCheck />
           </SectionCard>
 
         </div>

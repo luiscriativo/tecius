@@ -10,11 +10,12 @@
  */
 
 import { app, BrowserWindow, shell, nativeTheme, protocol, net, ipcMain, Menu } from 'electron'
-import { join, resolve } from 'path'
-import { spawnSync } from 'child_process'
+import { join, resolve, sep } from 'path'
+import { execFile } from 'child_process'
 import { pathToFileURL } from 'url'
 import { autoUpdater } from 'electron-updater'
 import { registerIpcHandlers } from './ipc'
+import { fileSystemService } from './services/FileSystemService'
 
 // ── Custom asset:// protocol ──────────────────────────────────────────────────
 // Registrar ANTES do app.whenReady() é obrigatório.
@@ -98,21 +99,27 @@ function createWindow(): void {
   })
 
   // ── Security: Prevent navigation to external URLs ─────────────────────────
-  // Any navigation attempt is blocked — use shell.openExternal() for links.
+  // Só o próprio app pode ser carregado na janela. Links http(s) abrem no
+  // navegador; qualquer outro (file://, etc.) é só bloqueado — antes, um link
+  // `file:///...` num .md navegava a janela para fora do app.
+  const appIndexUrl = isDev
+    ? process.env['ELECTRON_RENDERER_URL']
+    : pathToFileURL(join(__dirname, '../renderer/index.html')).toString()
+  const openIfWeb = (url: string): void => {
+    if (/^https?:\/\//i.test(url)) void shell.openExternal(url)
+  }
   mainWindow.webContents.on('will-navigate', (event, url) => {
-    const appUrl = isDev ? process.env['ELECTRON_RENDERER_URL'] : undefined
-    const isInternalUrl = appUrl ? url.startsWith(appUrl) : url.startsWith('file://')
-
+    const isInternalUrl = !!appIndexUrl && url.startsWith(appIndexUrl)
     if (!isInternalUrl) {
       event.preventDefault()
-      shell.openExternal(url)
+      openIfWeb(url)
     }
   })
 
   // ── Security: Block new window creation ───────────────────────────────────
   // Instead of opening a new BrowserWindow, open the URL in the system browser.
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url)
+    openIfWeb(url)
     return { action: 'deny' }
   })
 
@@ -166,6 +173,9 @@ app.on('second-instance', () => {
   if (mainWindow) {
     if (mainWindow.isMinimized()) mainWindow.restore()
     mainWindow.focus()
+  } else if (app.isReady()) {
+    // macOS: o app continua rodando sem janela depois de fechá-la
+    createWindow()
   }
 })
 
@@ -206,10 +216,18 @@ app.whenReady().then(() => {
       }
     }
 
+    // Só arquivos do vault aberto: um .md recebido de terceiros não pode fazer o
+    // app ler (e, na exportação HTML, embutir) qualquer arquivo do disco
+    const vault = fileSystemService.getVaultPath()
+    const abs = resolve(filePath)
+    const root = vault ? resolve(vault) : null
+    const inside = !!root && (abs === root || abs.startsWith(root.endsWith(sep) ? root : root + sep))
+    if (!inside) return new Response(null, { status: 403 })
+
     // Monta URL file:// (pathToFileURL codifica '#', '?', '%' e espaços do nome):
     //   Windows: "C:/..."    → "file:///C:/..."
     //   Unix:    "/home/..." → "file:///home/..."
-    return net.fetch(pathToFileURL(filePath).toString())
+    return net.fetch(pathToFileURL(abs).toString())
   })
 
   // Register all IPC handlers before creating the window
@@ -218,7 +236,7 @@ app.whenReady().then(() => {
   createWindow()
 
   // Configura o auto-updater depois da janela criada (só em produção)
-  setupAutoUpdater()
+  void setupAutoUpdater()
 
   // macOS: Re-create the window when the dock icon is clicked and no windows exist
   app.on('activate', () => {
@@ -253,15 +271,19 @@ const RELEASES_URL = 'https://github.com/luiscriativo/tecius/releases'
  * com assinatura ad-hoc), a atualização é manual: o aviso abre a página da
  * release para baixar o .dmg. Com certificado, volta sozinha ao fluxo automático.
  */
-function canInstallUpdates(): boolean {
-  if (process.platform !== 'darwin') return true
+function canInstallUpdates(): Promise<boolean> {
+  if (process.platform !== 'darwin') return Promise.resolve(true)
   const bundle = resolve(process.execPath, '..', '..', '..')   // .../Tecius.app
-  const r = spawnSync('codesign', ['-dv', bundle], { encoding: 'utf8' })
-  return /TeamIdentifier=(?!not set)/.test(`${r.stdout ?? ''}${r.stderr ?? ''}`)
+  // Assíncrono: o codesign levava alguns segundos e travava a abertura do app
+  return new Promise((done) => {
+    execFile('codesign', ['-dv', bundle], { encoding: 'utf8' }, (_err, stdout, stderr) => {
+      done(/TeamIdentifier=(?!not set)/.test(`${stdout ?? ''}${stderr ?? ''}`))
+    })
+  })
 }
 
-function setupAutoUpdater(): void {
-  const manual = !canInstallUpdates()
+async function setupAutoUpdater(): Promise<void> {
+  const manual = !(await canInstallUpdates())
   let availableVersion: string | null = null
 
   // Não baixa automaticamente — o usuário decide quando instalar
@@ -324,12 +346,16 @@ function setupAutoUpdater(): void {
     }
   })
 
-  // Verificação manual disparada pelo renderer (Settings → "Verificar atualizações")
+  // Verificação manual disparada pelo renderer (Configurações → "Verificar atualizações").
+  // Devolve só dados simples: o resultado do electron-updater tem objetos que não
+  // atravessam o IPC. Se houver versão nova, o banner aparece pelo 'update:available'.
   ipcMain.handle('update:check', async () => {
+    if (isDev) return { ok: false, current: app.getVersion() }
     try {
-      return await autoUpdater.checkForUpdates()
+      const r = await autoUpdater.checkForUpdates()
+      return { ok: true, current: app.getVersion(), available: r?.isUpdateAvailable ?? false, version: r?.updateInfo?.version ?? null }
     } catch {
-      return null
+      return { ok: false, current: app.getVersion() }
     }
   })
 

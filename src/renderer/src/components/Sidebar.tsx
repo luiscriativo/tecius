@@ -7,7 +7,6 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react'
-import pkg from '../../../../package.json'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { BookOpen, Plus, Pencil, Trash2, Trash, Images, Search } from 'lucide-react'
 import { useAppStore } from '@/stores/useAppStore'
@@ -336,6 +335,8 @@ function TimelinesSection({ timelines, collapsed }: TimelinesSectionProps) {
 
 export function Sidebar(): React.ReactElement {
   const { isSidebarCollapsed, toggleSidebar } = useAppStore()
+  // Versão vinda do processo principal (antes o package.json inteiro era embutido no bundle)
+  const appVersion = useAppStore((s) => s.appVersion)
   const vaultInfo = useVaultStore((s) => s.vaultInfo)
   const { t } = useI18n()
 
@@ -528,7 +529,7 @@ export function Sidebar(): React.ReactElement {
           <div className="w-5 h-5 border border-chr-subtle flex items-center justify-center shrink-0">
             <span className="font-serif text-xs text-chr-secondary font-medium">C</span>
           </div>
-          {!isSidebarCollapsed && <span>v{pkg.version}</span>}
+          {!isSidebarCollapsed && appVersion && <span>v{appVersion}</span>}
         </div>
       </div>
     </aside>

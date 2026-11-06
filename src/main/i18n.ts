@@ -19,6 +19,9 @@ const messages = {
     err_invalid_name: 'Nome inválido',
     err_event_exists: 'Já existe um evento com o nome "{name}"',
     err_original_folder_missing: 'A pasta original deste evento não existe mais. Restaure primeiro a timeline de origem.',
+    err_vault_missing: 'A pasta do vault não foi encontrada: {path}',
+    err_parent_missing: 'A pasta de destino não existe mais: {path}',
+    err_trash_item_broken: 'O item da lixeira não contém um arquivo de evento (.md) para restaurar.',
     default_entry_title: 'Evento {n}',
   },
   en: {
@@ -33,6 +36,9 @@ const messages = {
     err_invalid_name: 'Invalid name',
     err_event_exists: 'An event named "{name}" already exists',
     err_original_folder_missing: "This event's original folder no longer exists. Restore its timeline first.",
+    err_vault_missing: 'The vault folder was not found: {path}',
+    err_parent_missing: 'The destination folder no longer exists: {path}',
+    err_trash_item_broken: 'This trash item has no event file (.md) to restore.',
     default_entry_title: 'Event {n}',
   },
 } as const

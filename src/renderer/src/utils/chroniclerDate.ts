@@ -30,7 +30,17 @@ const MONTHS: Record<DateLanguage, { short: string[]; long: string[] }> = {
 
 const DEEP_TIME_RE = /^(\d+(?:[.,]\d+)?)\s*(ka|ma|ga|mya)$/i
 const BCE_RE = /^(.+?)\s*(a\.?\s*c\.?|bce?)$/i
-const NUMERIC_RE = /^(-?\d{1,9})(?:-(\d{1,2})(?:-(\d{1,2}))?)?/
+// Ancorado no fim: "1789abc" não é 1789 (nem, pelo sufixo "bc", 1789 a.C.)
+const NUMERIC_RE = /^(-?\d{1,9})(?:-(\d{1,2})(?:-(\d{1,2}))?)?$/
+
+type DateParts = { year: number; month?: number; day?: number }
+
+/** Mês 1–12 e dia dentro do mês; fora disso a data não vale (o evento fica "sem data") */
+function validParts(p: DateParts): DateParts | null {
+  if (p.month !== undefined && (p.month < 1 || p.month > 12)) return null
+  if (p.day !== undefined && (p.month === undefined || p.day < 1 || p.day > daysInMonth(p.year, p.month))) return null
+  return p
+}
 
 // Linguagem natural: "12 mil anos", "há 66 milhões de anos", "66 million years ago"
 const NATURAL_RE = /^(há\s+|ha\s+)?(\d+(?:[.,]\d+)?)\s*(mil|thousand|milhões|milhoes|milhão|milhao|millions?|bilhões|bilhoes|bilhão|bilhao|billions?)?\s*(?:de\s+)?(anos?|years?)?\s*(atrás|atras|ago)?$/i
@@ -75,18 +85,18 @@ export function parseDateParts(input: string): { year: number; month?: number; d
     // "15/03/44 a.C." ou "44-03-15 a.C." ou "500 a.C."
     const body = bce[1].trim()
     const dmy = body.match(/^(\d{1,2})\/(\d{1,2})\/(\d{1,9})$/)
-    if (dmy) return { year: -Number(dmy[3]), month: Number(dmy[2]), day: Number(dmy[1]) }
+    if (dmy) return validParts({ year: -Number(dmy[3]), month: Number(dmy[2]), day: Number(dmy[1]) })
     const my = body.match(/^(\d{1,2})\/(\d{1,9})$/)
-    if (my) return { year: -Number(my[2]), month: Number(my[1]) }
+    if (my) return validParts({ year: -Number(my[2]), month: Number(my[1]) })
     const n = body.match(NUMERIC_RE)
     if (n && !n[1].startsWith('-')) {
-      return { year: -Number(n[1]), month: n[2] ? Number(n[2]) : undefined, day: n[3] ? Number(n[3]) : undefined }
+      return validParts({ year: -Number(n[1]), month: n[2] ? Number(n[2]) : undefined, day: n[3] ? Number(n[3]) : undefined })
     }
     return null
   }
   const n = str.match(NUMERIC_RE)
   if (!n) return null
-  return { year: Number(n[1]), month: n[2] ? Number(n[2]) : undefined, day: n[3] ? Number(n[3]) : undefined }
+  return validParts({ year: Number(n[1]), month: n[2] ? Number(n[2]) : undefined, day: n[3] ? Number(n[3]) : undefined })
 }
 
 const nf1 = (v: number) =>

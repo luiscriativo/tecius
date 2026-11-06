@@ -158,6 +158,8 @@ export function HomePage(): React.ReactElement {
   const navigate = useNavigate()
   const vaultInfo = useVaultStore((s) => s.vaultInfo)
   const isLoading = useVaultStore((s) => s.isLoading)
+  const vaultError = useVaultStore((s) => s.error)
+  const vaultPath = useVaultStore((s) => s.vaultPath)
   const { pickAndLoadVault, reloadVault, clearVault, renameVault } = useVault()
   const { openTimeline } = useTimeline()
   const setCurrentTimeline = useTimelineStore((s) => s.setCurrentTimeline)
@@ -221,19 +223,38 @@ export function HomePage(): React.ReactElement {
     navigate('/timeline')
   }
 
-  // ── Vault não carregado ──
+  // ── Vault não carregado (ou a pasta sumiu: drive desconectado, pasta renomeada) ──
   if (!vaultInfo) {
+    const missing = !!vaultPath && !!vaultError && !isLoading
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-6 px-8">
-        <h1 className="font-serif text-2xl text-chr-primary">{t('no_vault')}</h1>
-        <button
-          onClick={pickAndLoadVault}
-          disabled={isLoading}
-          className="inline-flex items-center gap-2 px-5 py-2 border border-chr-strong text-chr-primary text-sm rounded-sm hover:bg-active transition-colors"
-        >
-          <FolderOpen size={14} strokeWidth={1.5} />
-          {isLoading ? t('loading') : t('choose_vault')}
-        </button>
+      <div className="flex flex-col items-center justify-center h-full gap-6 px-8" data-testid="vault-unavailable">
+        <h1 className="font-serif text-2xl text-chr-primary">{missing ? t('vault_missing_title') : t('no_vault')}</h1>
+        {missing && (
+          <div className="chr-card px-5 py-4 max-w-lg text-center space-y-2">
+            <p className="font-mono text-xs text-red-400 break-all">{vaultError.replace(/^Error:\s*/, '')}</p>
+            <p className="font-mono text-2xs text-chr-muted leading-relaxed">{t('vault_missing_hint')}</p>
+          </div>
+        )}
+        <div className="flex items-center gap-2">
+          {missing && (
+            <button
+              onClick={reloadVault}
+              disabled={isLoading}
+              className="inline-flex items-center gap-2 px-5 py-2 border border-chr-subtle text-chr-secondary text-sm rounded-sm hover:bg-hover hover:text-chr-primary transition-colors"
+            >
+              <RefreshCw size={14} strokeWidth={1.5} className={isLoading ? 'animate-spin' : ''} />
+              {t('retry')}
+            </button>
+          )}
+          <button
+            onClick={pickAndLoadVault}
+            disabled={isLoading}
+            className="inline-flex items-center gap-2 px-5 py-2 border border-chr-strong text-chr-primary text-sm rounded-sm hover:bg-active transition-colors"
+          >
+            <FolderOpen size={14} strokeWidth={1.5} />
+            {isLoading ? t('loading') : t('choose_vault')}
+          </button>
+        </div>
       </div>
     )
   }

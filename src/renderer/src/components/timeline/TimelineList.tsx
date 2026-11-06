@@ -27,6 +27,7 @@ import { eventSpan } from '../../utils/mapTime'
 import { ChevronDown, ChevronRight, Search, X, Pencil, Trash2, AlertTriangle, Filter } from 'lucide-react'
 import { cn } from '../../utils/cn'
 import { formatYear, undatedLabel } from '../../utils/chroniclerDate'
+import { isMultiPart } from '../../utils/events'
 import { useI18n } from '../../hooks/useI18n'
 import type { TimelineData, ChroniclerEvent } from '../../types/chronicler'
 import { usePref } from '../../hooks/usePref'
@@ -167,7 +168,9 @@ function ConfirmDeleteModal({ event, isLoading, onConfirm, onCancel }: ConfirmDe
           <h3 className="font-serif text-base text-chr-primary">{t('send_to_trash_title')}</h3>
         </div>
         <p className="font-mono text-xs text-chr-muted mb-5 leading-relaxed pl-7">
-          {t('send_to_trash_desc', { title: event.frontmatter.title })}
+          {isMultiPart(event) && event.chronicle
+            ? t('send_to_trash_desc_multi', { title: event.chronicle.title, count: event.chronicle.totalEntries })
+            : t('send_to_trash_desc', { title: event.frontmatter.title })}
         </p>
         <div className="flex items-center gap-2 justify-end">
           <button

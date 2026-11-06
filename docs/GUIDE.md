@@ -87,7 +87,6 @@ type: timeline
 title: "Amazon History"
 description: "The history of the Amazon region, from indigenous civilizations to the modern state"
 icon: "map"
-sort: chronological
 tags: [amazon, brazil, history, manaus]
 ---
 
@@ -102,7 +101,6 @@ Optional long description rendered below the timeline header.
 | `title` | string | **Yes** | Display name of the timeline |
 | `description` | string | No | Short subtitle shown in the header |
 | `icon` | string | No | Icon name (Lucide icon key) or emoji |
-| `sort` | `"chronological"` \| `"reverse"` \| `"manual"` | No | Default event ordering (default: `chronological`) |
 | `tags` | string[] | No | Tags for filtering |
 
 ---
@@ -144,8 +142,6 @@ the most remarkable buildings in South America.
 | `importance` | 1–5 | No | Visual weight on the canvas (default: 3) |
 | `tags` | string[] | No | Free-form tags |
 | `cover-image` | string | No | Relative path to an image shown at the top of the event page |
-| `has-subtimeline` | boolean | No | Reserved — sub-timelines are detected automatically (see [Sub-timelines](#6-sub-timelines)) |
-| `subtimeline-path` | string | No | Reserved — see above |
 | `links` | array | No | Internal links to other events, shown at the bottom of the event page (click to open) |
 | `references` | array | No | External reference URLs, shown at the bottom of the event page (open in the browser) |
 
@@ -328,6 +324,9 @@ Each entry in `events` can have an `anchor` key. The corresponding paragraph in 
 | `category` | string | No | Category of this entry |
 | `tags` | string[] | No | Tags for this entry |
 | `anchor` | string | No | ID linking this entry to a paragraph in the body |
+| `time`, `date-end`, `circa`, `date-precision` | — | No | Same meaning as in an event; apply to this entry only |
+| `location` | object | No | Place of this entry (without it, the entry inherits the chronicle's) |
+| `ref` | string | No | Linked section: title, date and place come from the event named here (`[[…]]` target) |
 
 ---
 
@@ -373,9 +372,9 @@ The canvas renders events on a horizontal temporal axis. Features:
 
 Displays events in a compact vertical list grouped by year. Features:
 
-- Right-click on an event for context menu (rename, delete)
-- Filter by category using the filter bar
-- Sort by chronological or reverse order
+- Right-click on an event for a context menu (rename the file, filter by this file, send to trash)
+- The search box filters by title, category and year
+- Group by year, decade, century, category or importance (Auto picks the level from the span)
 
 ### Switching views
 
@@ -523,7 +522,6 @@ type: timeline
 title: string          # Required
 description: string    # Optional — short subtitle
 icon: string           # Optional — Lucide icon key or emoji
-sort: chronological | reverse | manual   # Default: chronological
 tags: string[]         # Optional
 ---
 ```
@@ -543,8 +541,6 @@ category: string       # Optional — see Categories
 importance: 1|2|3|4|5  # Optional — default 3
 tags: string[]         # Optional
 cover-image: string    # Optional — relative path to image
-has-subtimeline: boolean       # Optional
-subtimeline-path: string       # Optional — relative path to sub-timeline folder
 links:
   - path: string
     label: string

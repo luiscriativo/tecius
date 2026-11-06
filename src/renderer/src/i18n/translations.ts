@@ -7,7 +7,6 @@ export type Language = 'pt' | 'en'
 const pt = {
   // ── Comum ──────────────────────────────────────────────────────────────
   cancel:                'Cancelar',
-  revert:                'Reverter',
   save:                  'Salvar',
   saving:                'Salvando',
   saved:                 'Salvo',
@@ -23,7 +22,6 @@ const pt = {
   next:                  'Próximo',
   back:                  'Voltar',
   refresh:               'Atualizar',
-  open_in_editor:        'Abrir no editor',
   export_pdf:            'Exportar PDF',
   exporting_pdf:         'Gerando PDF...',
   pdf_export_title:      'Exportar PDF',
@@ -37,15 +35,9 @@ const pt = {
   pdf_include_tags:      'Incluir tags de categoria',
   pdf_scale:             'Escala',
   pdf_error:             'Erro ao exportar PDF',
-  event_title:           'Título',
   event_date:            'Data',
-  event_date_end:        'Data fim',
-  event_circa:           '~ Circa',
-  event_category:        'Categoria',
   importance:            'Importância',
   tags:                  'Tags',
-  tags_hint:             '(Enter ou vírgula para adicionar)',
-  add_tag:               'Adicionar tag...',
   description:           'Descrição',
 
   // ── Importância ────────────────────────────────────────────────────────
@@ -58,7 +50,6 @@ const pt = {
   // ── Plurais de evento ──────────────────────────────────────────────────
   events_one:            '1 evento',
   events_other:          '{count} eventos',
-  sections_none:         'Nenhuma',
   sections_one:          '1 trecho',
   sections_other:        '{count} trechos',
   results_one:           '1 resultado',
@@ -67,29 +58,19 @@ const pt = {
   items_other:           '{count} itens',
 
   // ── Metadata panel ─────────────────────────────────────────────────────
-  metadata:              'Metadados',
-  dates_in_sections:     'As datas ficam em cada trecho abaixo',
   chronicle_desc_placeholder: 'Descrição opcional do chronicle...',
   event_title_placeholder: 'Título do evento...',
 
   // ── Sections panel ─────────────────────────────────────────────────────
-  sections:              'Trechos',
   add_section:           'Adicionar trecho',
   section_title_ph:      'Título do trecho...',
-  section_anchor:        'Âncora ^id',
-  section_anchor_hint:   'ID da âncora — deve corresponder ao ^id no corpo do texto',
   remove_section:        'Remover trecho',
   remove_part_confirm:   'Remover o trecho "{title}"?',
-  sections_empty_hint:   'Adicione trechos para dividir este conteúdo em múltiplos eventos na timeline.',
   section_body_ph:       'Escreva o conteúdo deste trecho em Markdown...',
-  add_first_section:     'Adicionar trecho',
 
   // ── Toolbar ────────────────────────────────────────────────────────────
   raw_mode_label:        'Raw',
   form_mode_label:       'Formulário',
-  insert_anchor_title:   'Inserir âncora de bloco — escolha um trecho',
-  insert_anchor_header:  'Inserir âncora',
-  raw_mode_banner:       'Modo raw — Use o botão {button} para voltar à edição estruturada.',
 
   // ── EventView ──────────────────────────────────────────────────────────
   excerpt:               'Trecho',
@@ -101,7 +82,6 @@ const pt = {
   save_error_unexpected: 'Erro inesperado ao salvar.',
   importance_badge:      'importância {n}',
   textarea_ph:           'Escreva aqui o conteúdo do evento em Markdown...',
-  textarea_chronicle_ph: 'Corpo do chronicle — escreva o texto e marque cada trecho com ^ancora-id...',
   textarea_raw_ph:       'Arquivo .md completo (YAML + corpo)...',
 
   // ── TimelineView / NewEventModal ───────────────────────────────────────
@@ -116,15 +96,8 @@ const pt = {
   create_event_hint:     'Criar novo evento nesta timeline',
 
   // ── FilesView ──────────────────────────────────────────────────────────
-  files_view_toggle:     'Selecionar arquivos',
-  files_view_hint:       'Marque os arquivos .md que deseja visualizar',
-  files_select_all:      'Selecionar todos',
-  files_clear_sel:       'Limpar seleção',
-  files_view_sel:        'Visualizar selecionados',
-  files_selected_count:  '{count} selecionado{s}',
   files_filter_on:       'Filtrando {count} arquivo{s}',
   files_clear_filter:    'Limpar filtro',
-  files_edit_sel:        'Editar seleção',
 
   // ── TimelineList ───────────────────────────────────────────────────────
   groupby:               'Agrupar:',
@@ -218,7 +191,6 @@ const pt = {
   map_paleo_loading:     'reconstruindo continentes… a primeira vez pode levar até 3 minutos por era (depois fica salvo).',
   map_paleo_error:       'Não foi possível obter o mapa da época.',
   map_paleo_badge:       'Mapa de {age} Ma · {model} (GPlates) · posições reconstruídas',
-  map_open_event:        'Abrir evento',
   map_group_title:       '{count} eventos neste grupo',
   map_group_filter_ph:   'Filtrar por título, data ou local…',
   map_group_no_match:    'Nenhum evento corresponde ao filtro.',
@@ -243,7 +215,6 @@ const pt = {
   send_to_trash_desc:    '"{title}" será movido para a lixeira. Você pode restaurá-lo depois.',
   file_title_in:         'Título no arquivo:',
   rename_file_modal_title: 'Renomear arquivo',
-  footer_events:         '{count} evento{s}',
 
   // ── Trash ──────────────────────────────────────────────────────────────
   trash:                 'Lixeira',
@@ -282,7 +253,6 @@ const pt = {
   // ── Home ───────────────────────────────────────────────────────────────
   no_vault:              'Nenhum vault aberto',
   choose_vault:          'Escolher vault',
-  total_label:           'Total',
   events_label:          'eventos',
   timelines_label:       'timelines',
   timeline_label:        'timeline',
@@ -292,22 +262,14 @@ const pt = {
   vault_actions:         'Ações do vault',
   vault_reveal:          'Mostrar na pasta',
   available_timelines:   'Timelines disponíveis',
-  no_timelines:          'Nenhuma timeline encontrada nesta pasta.',
   first_timeline_title:  'Crie sua primeira timeline',
   first_timeline_desc:   'Uma timeline reúne eventos em ordem no tempo — a história de um lugar, uma biografia, um projeto. Depois é só adicionar os eventos.',
   create_timeline_btn:   'Criar timeline',
   create_timeline_hint:  'Também dá para criar à mão: uma subpasta com um arquivo _timeline.md dentro.',
-  example_vault_tip:     'Dica: para testar, use a pasta example-vault/ que está na raiz do projeto.',
   reload_vault:          'Recarregar vault',
 
   // ── VaultSetup ─────────────────────────────────────────────────────────
   vault_desc:            'Escolha uma pasta para ser seu vault. Todos os seus eventos ficam em arquivos .md dentro dela.',
-  feature_timelines:     'Timelines',
-  feature_timelines_desc: 'Visualize eventos em linhas do tempo.',
-  feature_nesting:       'Aninhamento',
-  feature_nesting_desc:  'Sub-timelines dentro de timelines.',
-  feature_markdown:      'Markdown puro',
-  feature_markdown_desc: 'Compatível com Obsidian e qualquer editor.',
   choose_vault_folder:   'Escolher pasta do vault',
 
   // ── Settings ───────────────────────────────────────────────────────────
@@ -327,26 +289,10 @@ const pt = {
   language_pt_desc:      'Interface em português',
   language_en:           'English',
   language_en_desc:      'Interface in English',
-  save_settings:         'Salvar',
-  settings_saved_title:  'Configurações salvas',
-  settings_saved_msg:    'Suas preferências foram aplicadas.',
 
   // ── About ──────────────────────────────────────────────────────────────
-  about_title:           'Sobre',
-  about_desc:            'Informações e tecnologias da aplicação.',
-  app_card_title:        'Tecius',
   app_card_desc:         'Sistema pessoal de timelines visuais.',
-  app_version_label:     'Versão',
-  platform_label:        'Plataforma',
-  tech_stack:            'Tecnologias',
-  tech_stack_desc:       'Construído com ferramentas modernas.',
-  view_on_github:        'Ver no GitHub',
 
-  // ── Header ─────────────────────────────────────────────────────────────
-  page_home:             'Início',
-  page_settings:         'Configurações',
-  page_about:            'Sobre',
-  page_fallback:         'Página',
 
   // ── Interface geral (textos antes fixos nos componentes) ─────────────────
   confirm:               'Confirmar',
@@ -362,7 +308,6 @@ const pt = {
   canvas_zoom_reset:     'Resetar zoom',
   canvas_zoom_in:        'Aumentar zoom',
   enter_subtimeline:     'Entrar na sub-timeline',
-  close_panel:           'Fechar painel',
   cluster_date_one:      '1 evento nesta data',
   cluster_date_other:    '{count} eventos nesta data',
   cluster_period_one:    '1 evento neste período',
@@ -374,8 +319,6 @@ const pt = {
   update_download_site:  'Baixar no site',
   update_install:        'Reiniciar e instalar',
   dismiss:               'Dispensar',
-  theme_toggle:          'Alternar tema',
-  theme_cycle_hint:      'Tema: {theme} (clique para alternar)',
   notifications:         'Notificações',
   dismiss_notification:  'Dispensar notificação',
   notfound_title:        'Página não encontrada',
@@ -535,12 +478,29 @@ const pt = {
   assets_upload_hint:    'Escolher imagens do computador — ou arraste-as para esta tela',
   assets_drop_here:      'Solte para adicionar em {folder}',
   assets_upload_error:   'Não foi possível salvar a imagem',
+  // ── Adicionados na auditoria (textos antes fixos, vault ausente, verificar atualizações) ──
+  add_end_date:          '+ data fim',
+  event_fallback:        'Evento',
+  timeline_fallback:     'Timeline',
+  assets_rename_hint:    'Enter confirma · Esc cancela',
+  location_osm_credit:   '© colaboradores do OpenStreetMap (ODbL)',
+  send_to_trash_desc_multi:'O arquivo "{title}" inteiro, com seus {count} trechos, será movido para a lixeira. Você pode restaurá-lo depois.',
+  update_section:        'Atualizações',
+  update_section_desc:   'O app avisa ao abrir quando há uma nova versão. Aqui você pode verificar agora.',
+  update_check:          'Verificar atualizações',
+  update_checking:       'Verificando…',
+  update_none:           'Você já está na versão mais recente.',
+  update_found:          'Nova versão {version} disponível — veja o aviso no topo da janela.',
+  update_check_failed:   'Não foi possível verificar agora (sem internet, ou versão de desenvolvimento).',
+  vault_missing_title:   'Vault não encontrado',
+  vault_missing_hint:    'Verifique se a pasta ainda existe (um drive externo está conectado?) e tente de novo, ou escolha outra pasta. Nada foi alterado nos seus arquivos.',
+  retry:                 'Tentar de novo',
+
 } as const
 
 const en = {
   // ── Common ─────────────────────────────────────────────────────────────
   cancel:                'Cancel',
-  revert:                'Revert',
   save:                  'Save',
   saving:                'Saving',
   saved:                 'Saved',
@@ -556,7 +516,6 @@ const en = {
   next:                  'Next',
   back:                  'Back',
   refresh:               'Refresh',
-  open_in_editor:        'Open in editor',
   export_pdf:            'Export PDF',
   exporting_pdf:         'Generating PDF...',
   pdf_export_title:      'Export PDF',
@@ -570,15 +529,9 @@ const en = {
   pdf_include_tags:      'Include category tags',
   pdf_scale:             'Scale',
   pdf_error:             'Error exporting PDF',
-  event_title:           'Title',
   event_date:            'Date',
-  event_date_end:        'End date',
-  event_circa:           '~ Circa',
-  event_category:        'Category',
   importance:            'Importance',
   tags:                  'Tags',
-  tags_hint:             '(Enter or comma to add)',
-  add_tag:               'Add tag...',
   description:           'Description',
 
   // ── Importance ─────────────────────────────────────────────────────────
@@ -591,7 +544,6 @@ const en = {
   // ── Event plurals ──────────────────────────────────────────────────────
   events_one:            '1 event',
   events_other:          '{count} events',
-  sections_none:         'None',
   sections_one:          '1 part',
   sections_other:        '{count} parts',
   results_one:           '1 result',
@@ -600,29 +552,19 @@ const en = {
   items_other:           '{count} items',
 
   // ── Metadata panel ─────────────────────────────────────────────────────
-  metadata:              'Metadata',
-  dates_in_sections:     'Dates are defined in each part below',
   chronicle_desc_placeholder: 'Optional chronicle description...',
   event_title_placeholder: 'Event title...',
 
   // ── Sections panel ─────────────────────────────────────────────────────
-  sections:              'Parts',
   add_section:           'Add part',
   section_title_ph:      'Part title...',
-  section_anchor:        'Anchor ^id',
-  section_anchor_hint:   'Anchor ID — must match the ^id in the text body',
   remove_section:        'Remove part',
   remove_part_confirm:   'Remove the part "{title}"?',
-  sections_empty_hint:   'Add parts to split this content into multiple events in the timeline.',
   section_body_ph:       "Write this part's content in Markdown...",
-  add_first_section:     'Add part',
 
   // ── Toolbar ────────────────────────────────────────────────────────────
   raw_mode_label:        'Raw',
   form_mode_label:       'Form',
-  insert_anchor_title:   'Insert block anchor — choose a part',
-  insert_anchor_header:  'Insert anchor',
-  raw_mode_banner:       'Raw mode — Use the {button} button to return to structured editing.',
 
   // ── EventView ──────────────────────────────────────────────────────────
   excerpt:               'Excerpt',
@@ -634,7 +576,6 @@ const en = {
   save_error_unexpected: 'Unexpected error while saving.',
   importance_badge:      'importance {n}',
   textarea_ph:           'Write the event content in Markdown here...',
-  textarea_chronicle_ph: 'Chronicle body — write text and mark each part with ^anchor-id...',
   textarea_raw_ph:       'Full .md file (YAML + body)...',
 
   // ── TimelineView / NewEventModal ───────────────────────────────────────
@@ -649,15 +590,8 @@ const en = {
   create_event_hint:     'Create new event in this timeline',
 
   // ── FilesView ──────────────────────────────────────────────────────────
-  files_view_toggle:     'Select files',
-  files_view_hint:       'Check the .md files you want to view',
-  files_select_all:      'Select all',
-  files_clear_sel:       'Clear selection',
-  files_view_sel:        'View selected',
-  files_selected_count:  '{count} selected',
   files_filter_on:       'Filtering {count} file{s}',
   files_clear_filter:    'Clear filter',
-  files_edit_sel:        'Edit selection',
 
   // ── TimelineList ───────────────────────────────────────────────────────
   groupby:               'Group by:',
@@ -751,7 +685,6 @@ const en = {
   map_paleo_loading:     'reconstructing continents… the first time may take up to 3 minutes per era (cached afterwards).',
   map_paleo_error:       'Could not load the map of that era.',
   map_paleo_badge:       'Map at {age} Ma · {model} (GPlates) · reconstructed positions',
-  map_open_event:        'Open event',
   map_group_title:       '{count} events in this group',
   map_group_filter_ph:   'Filter by title, date or place…',
   map_group_no_match:    'No event matches the filter.',
@@ -776,7 +709,6 @@ const en = {
   send_to_trash_desc:    '"{title}" will be moved to trash. You can restore it later.',
   file_title_in:         'Title in file:',
   rename_file_modal_title: 'Rename file',
-  footer_events:         '{count} event{s}',
 
   // ── Trash ──────────────────────────────────────────────────────────────
   trash:                 'Trash',
@@ -815,7 +747,6 @@ const en = {
   // ── Home ───────────────────────────────────────────────────────────────
   no_vault:              'No vault open',
   choose_vault:          'Choose vault',
-  total_label:           'Total',
   events_label:          'events',
   timelines_label:       'timelines',
   timeline_label:        'timeline',
@@ -825,22 +756,14 @@ const en = {
   vault_actions:         'Vault actions',
   vault_reveal:          'Show in folder',
   available_timelines:   'Available timelines',
-  no_timelines:          'No timelines found in this folder.',
   first_timeline_title:  'Create your first timeline',
   first_timeline_desc:   'A timeline gathers events in order over time — the history of a place, a biography, a project. Then just add the events.',
   create_timeline_btn:   'Create timeline',
   create_timeline_hint:  'You can also create one by hand: a subfolder with a _timeline.md file inside.',
-  example_vault_tip:     'Tip: for testing, use the example-vault/ folder in the project root.',
   reload_vault:          'Reload vault',
 
   // ── VaultSetup ─────────────────────────────────────────────────────────
   vault_desc:            'Choose a folder to be your vault. All your events are stored as .md files inside it.',
-  feature_timelines:     'Timelines',
-  feature_timelines_desc: 'Visualize events in timelines.',
-  feature_nesting:       'Nesting',
-  feature_nesting_desc:  'Sub-timelines inside timelines.',
-  feature_markdown:      'Pure Markdown',
-  feature_markdown_desc: 'Compatible with Obsidian and any editor.',
   choose_vault_folder:   'Choose vault folder',
 
   // ── Settings ───────────────────────────────────────────────────────────
@@ -860,26 +783,10 @@ const en = {
   language_pt_desc:      'Interface in Portuguese',
   language_en:           'English',
   language_en_desc:      'Interface in English',
-  save_settings:         'Save',
-  settings_saved_title:  'Settings saved',
-  settings_saved_msg:    'Your preferences have been applied.',
 
   // ── About ──────────────────────────────────────────────────────────────
-  about_title:           'About',
-  about_desc:            'Application information and technology stack.',
-  app_card_title:        'Tecius',
   app_card_desc:         'Personal visual timeline system.',
-  app_version_label:     'Version',
-  platform_label:        'Platform',
-  tech_stack:            'Technology Stack',
-  tech_stack_desc:       'Built with industry-standard tools and frameworks.',
-  view_on_github:        'View on GitHub',
 
-  // ── Header ─────────────────────────────────────────────────────────────
-  page_home:             'Home',
-  page_settings:         'Settings',
-  page_about:            'About',
-  page_fallback:         'Page',
 
   // ── Interface geral (textos antes fixos nos componentes) ─────────────────
   confirm:               'Confirm',
@@ -895,7 +802,6 @@ const en = {
   canvas_zoom_reset:     'Reset zoom',
   canvas_zoom_in:        'Zoom in',
   enter_subtimeline:     'Open sub-timeline',
-  close_panel:           'Close panel',
   cluster_date_one:      '1 event on this date',
   cluster_date_other:    '{count} events on this date',
   cluster_period_one:    '1 event in this period',
@@ -907,8 +813,6 @@ const en = {
   update_download_site:  'Download from website',
   update_install:        'Restart and install',
   dismiss:               'Dismiss',
-  theme_toggle:          'Toggle theme',
-  theme_cycle_hint:      'Theme: {theme} (click to cycle)',
   notifications:         'Notifications',
   dismiss_notification:  'Dismiss notification',
   notfound_title:        'Page not found',
@@ -1068,6 +972,24 @@ const en = {
   assets_upload_hint:    'Choose images from your computer — or drag them onto this screen',
   assets_drop_here:      'Drop to add to {folder}',
   assets_upload_error:   'Could not save the image',
+  // ── Adicionados na auditoria (textos antes fixos, vault ausente, verificar atualizações) ──
+  add_end_date:          '+ end date',
+  event_fallback:        'Event',
+  timeline_fallback:     'Timeline',
+  assets_rename_hint:    'Enter confirms · Esc cancels',
+  location_osm_credit:   '© OpenStreetMap contributors (ODbL)',
+  send_to_trash_desc_multi:'The whole file "{title}", with its {count} parts, will be moved to trash. You can restore it later.',
+  update_section:        'Updates',
+  update_section_desc:   'The app tells you on startup when a new version is out. You can also check right now.',
+  update_check:          'Check for updates',
+  update_checking:       'Checking…',
+  update_none:           'You are on the latest version.',
+  update_found:          'New version {version} available — see the banner at the top of the window.',
+  update_check_failed:   'Could not check right now (offline, or development build).',
+  vault_missing_title:   'Vault not found',
+  vault_missing_hint:    'Check that the folder still exists (is an external drive connected?) and try again, or choose another folder. Nothing in your files was changed.',
+  retry:                 'Try again',
+
 } as const
 
 export type TranslationKey = keyof typeof pt

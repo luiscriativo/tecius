@@ -260,7 +260,7 @@ function AssetCard({ asset, onDelete, onRename, deleting, hideFolder }: AssetCar
       {renaming && (
         <div className="flex items-center justify-end gap-1 px-2 py-1 border-t border-chr-subtle">
           <span className="font-mono text-2xs text-chr-muted flex-1">
-            {renameLoading ? 'Renomeando...' : 'Enter confirma · Esc cancela'}
+            {renameLoading ? t('renaming') : t('assets_rename_hint')}
           </span>
           <button
             onClick={handleConfirmRename}

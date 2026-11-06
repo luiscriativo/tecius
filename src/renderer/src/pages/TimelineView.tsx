@@ -326,7 +326,9 @@ function CanvasConfirmDeleteModal({
           <h3 className="font-serif text-base text-chr-primary">{t('send_to_trash_title')}</h3>
         </div>
         <p className="font-mono text-xs text-chr-muted mb-5 leading-relaxed pl-7">
-          {t('send_to_trash_desc', { title: event.frontmatter.title })}
+          {isMultiPart(event) && event.chronicle
+            ? t('send_to_trash_desc_multi', { title: event.chronicle.title, count: event.chronicle.totalEntries })
+            : t('send_to_trash_desc', { title: event.frontmatter.title })}
         </p>
         <div className="flex items-center gap-2 justify-end">
           <button onClick={onCancel} disabled={isLoading}

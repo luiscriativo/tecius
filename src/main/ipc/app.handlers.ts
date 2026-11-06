@@ -101,11 +101,14 @@ export function registerAppHandlers(): void {
       await printWindow.loadFile(tmpFile)
       // Allow asset:// images to finish loading before capturing
       await new Promise<void>((resolve) => setTimeout(resolve, 400))
+      const marginType = (['default', 'none', 'printableArea'] as const).find((m) => m === options.marginType) ?? 'default'
       const data = await printWindow.webContents.printToPDF({
         printBackground: true,
         pageSize: options.pageSize as Electron.PrintToPDFOptions['pageSize'],
         landscape: options.landscape,
         scale: options.scaleFactor / 100,
+        // A opção "Margens" do modal: antes era recebida e ignorada
+        margins: { marginType },
       })
       await fs.writeFile(filePath, data)
       return { success: true, filePath }

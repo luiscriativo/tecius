@@ -2,6 +2,7 @@ import { useCallback } from 'react'
 import { useVaultStore } from '../stores/useVaultStore'
 import { useNavigationStore } from '../stores/useNavigationStore'
 import { useTimelineStore } from '../stores/useTimelineStore'
+import { useAppStore } from '../stores/useAppStore'
 import type { RawVault, RawTrashItem } from '../types/ipc'
 import type { VaultInfo, TimelineRef, TrashItem } from '../types/chronicler'
 
@@ -52,9 +53,10 @@ export function useVault() {
       )
       if (!result.success || !result.data) throw new Error(result.error ?? 'Erro ao ler vault')
 
-      // Seed an empty vault with a Welcome timeline and event
+      // Seed an empty vault with a Welcome timeline and event (no idioma do app)
       if (result.data.timelines.length === 0) {
-        const timelineName = 'Getting Started'
+        const en = useAppStore.getState().language === 'en'
+        const timelineName = en ? 'Getting Started' : 'Primeiros passos'
         await window.electronAPI.invoke('fs:create-timeline', timelineName, pickedPath)
 
         // Read the vault again to get the actual timeline dirPath (slug-based)
@@ -64,31 +66,48 @@ export function useVault() {
         const timelineDirPath = afterTimeline.data?.timelines[0]?.dirPath
         if (timelineDirPath) {
           const today = new Date().toISOString().split('T')[0]
+          const welcomeTitle = en ? 'Welcome to Tecius' : 'Bem-vindo ao Tecius'
           const created = await window.electronAPI.invoke<{ success: boolean; data?: { filePath: string } }>(
-            'fs:create-event', timelineDirPath, 'Welcome to Tecius', `${today}_welcome`
+            'fs:create-event', timelineDirPath, welcomeTitle, `${today}_welcome`
           )
           if (created.success && created.data?.filePath) {
             const welcomeBody = [
               '---',
               'type: event',
-              'title: "Welcome to Tecius"',
+              `title: "${welcomeTitle}"`,
               `date: ${today}`,
               'importance: 4',
               '---',
               '',
-              'Welcome to **Tecius** — your personal visual timeline system.',
-              '',
-              'This is your first event. Every event is a plain Markdown file stored inside your vault folder.',
-              '',
-              '## Getting Started',
-              '',
-              '- **Timelines** are subfolders with a `_timeline.md` file',
-              '- **Events** are `.md` files with a `date:` field in the front matter',
-              '- **Chronicles** are single files that hold multiple events — great for biographies or project logs',
-              '',
-              'Use the canvas to zoom, pan, and explore. Click any dot to open its event panel.',
-              '',
-              '> Your vault is just a folder. Edit, move, or back up your files with any tool.',
+              ...(en ? [
+                'Welcome to **Tecius** — your personal visual timeline system.',
+                '',
+                'This is your first event. Every event is a plain Markdown file stored inside your vault folder.',
+                '',
+                '## Getting Started',
+                '',
+                '- **Timelines** are subfolders with a `_timeline.md` file',
+                '- **Events** are `.md` files with a `date:` field in the front matter',
+                '- **Chronicles** are single files that hold multiple events — great for biographies or project logs',
+                '',
+                'Use the canvas to zoom, pan, and explore. Click any dot to open its event panel.',
+                '',
+                '> Your vault is just a folder. Edit, move, or back up your files with any tool.',
+              ] : [
+                'Bem-vindo ao **Tecius** — seu sistema pessoal de timelines visuais.',
+                '',
+                'Este é o seu primeiro evento. Cada evento é um arquivo Markdown comum guardado na pasta do seu vault.',
+                '',
+                '## Primeiros passos',
+                '',
+                '- **Timelines** são subpastas com um arquivo `_timeline.md`',
+                '- **Eventos** são arquivos `.md` com um campo `date:` no cabeçalho',
+                '- **Chronicles** são arquivos únicos com vários eventos — ótimos para biografias ou diários de projeto',
+                '',
+                'Use o canvas para dar zoom, mover e explorar. Clique em qualquer ponto para abrir o evento.',
+                '',
+                '> Seu vault é só uma pasta. Edite, mova ou faça backup dos arquivos com qualquer ferramenta.',
+              ]),
             ].join('\n')
             await window.electronAPI.invoke('fs:write-event', created.data.filePath, welcomeBody)
           }
@@ -124,11 +143,15 @@ export function useVault() {
       )
       if (result.success && result.data) {
         setVaultInfo(toVaultInfo(result.data, vaultPath))
+        setError(null)
+      } else {
+        // A pasta pode ter sumido (drive desconectado): a tela inicial mostra o motivo
+        setError(result.error ?? 'Erro ao ler vault')
       }
     } finally {
       setLoading(false)
     }
-  }, [vaultPath, setVaultInfo, setLoading])
+  }, [vaultPath, setVaultInfo, setLoading, setError])
 
   // Suprime aviso de resetNav nao utilizado — sera usado em versoes futuras
   void resetNav

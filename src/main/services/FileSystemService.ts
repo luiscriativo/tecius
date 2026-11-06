@@ -159,7 +159,15 @@ export class FileSystemService {
   private vaultPath: string | null = null
   private watcher: fs.FSWatcher | null = null
 
+  /**
+   * Define o vault. A pasta precisa existir: um drive desconectado ou uma pasta
+   * renomeada não pode virar um "vault vazio" (o app criaria a pasta de novo ao
+   * criar a primeira timeline).
+   */
   setVaultPath(vaultPath: string): void {
+    let isDir = false
+    try { isDir = fs.statSync(vaultPath).isDirectory() } catch { /* não existe */ }
+    if (!isDir) throw new Error(tm('err_vault_missing', { path: vaultPath }))
     this.vaultPath = vaultPath
   }
 
@@ -213,31 +221,37 @@ export class FileSystemService {
   }
 
   /**
-   * Conta eventos (.md exceto _timeline.md) recursivamente numa pasta.
-   */
-  /**
    * Conta eventos como a timeline os mostra: um chronicle conta um por trecho.
    * `recursive`: inclui sub-timelines (total do vault, itens da lixeira); sem ele,
    * só os eventos da própria timeline — o mesmo número que aparece ao abri-la.
    */
   countEvents(dirPath: string, recursive = true): number {
-    if (!fs.existsSync(dirPath)) return 0
-    let count = 0
+    const { own, total } = this.countEventsBoth(dirPath)
+    return recursive ? total : own
+  }
+
+  /**
+   * Eventos da própria pasta (`own`) e com as sub-timelines (`total`), lendo
+   * cada arquivo uma vez só (o readVault precisa dos dois números).
+   */
+  countEventsBoth(dirPath: string): { own: number; total: number } {
+    if (!fs.existsSync(dirPath)) return { own: 0, total: 0 }
+    let own = 0, sub = 0
     try {
       const entries = fs.readdirSync(dirPath, { withFileTypes: true })
       for (const entry of entries) {
         const full = path.join(dirPath, entry.name)
         // Mesma regra de readTimeline: .md da própria pasta, exceto _timeline.md
         if (entry.isFile() && entry.name.endsWith('.md') && entry.name !== '_timeline.md') {
-          count += this.eventsInFile(full)
-        } else if (recursive && entry.isDirectory() && this.isTimeline(full)) {
-          count += this.countEvents(full, true)
+          own += this.eventsInFile(full)
+        } else if (entry.isDirectory() && this.isTimeline(full)) {
+          sub += this.countEventsBoth(full).total
         }
       }
     } catch {
       // silently ignore unreadable dirs
     }
-    return count
+    return { own, total: own + sub }
   }
 
   /** Quantos eventos um .md gera: trechos de um chronicle, ou 1 */
@@ -261,18 +275,19 @@ export class FileSystemService {
 
     const timelineDirs = this.listTimelineDirs(vaultPath)
 
+    // Cada arquivo é lido uma vez: a contagem da timeline e o total (com as
+    // sub-timelines) saem da mesma passagem
+    let totalEvents = 0
     const timelines: RawTimelineRef[] = timelineDirs.map((dirPath) => {
       const meta = this.readTimelineMeta(dirPath)
       const title = meta.title ? String(meta.title) : path.basename(dirPath)
       const icon = meta.icon ? String(meta.icon) : undefined
       const relativePath = path.relative(vaultPath, dirPath)
-      const eventCount = this.countEvents(dirPath, false)
+      const { own, total } = this.countEventsBoth(dirPath)
+      totalEvents += total
 
-      return { title, dirPath, relativePath, icon, eventCount }
+      return { title, dirPath, relativePath, icon, eventCount: own }
     })
-
-    // Total do vault inclui as sub-timelines
-    const totalEvents = timelineDirs.reduce((sum, dir) => sum + this.countEvents(dir), 0)
 
     // Tenta ler titulo do vault de um eventual _vault.md na raiz
     // Sem _vault.md com título: o nome da pasta (como descrito no guia)
@@ -460,6 +475,11 @@ export class FileSystemService {
             if (orig) dateStr = orig.date || dateStr
             if (!dateStr) return
 
+            // Campos de data do trecho documentados no guia (hora, fim, ~circa, precisão)
+            const dateEnd = entry['date-end'] instanceof Date
+              ? (() => { const d = entry['date-end'] as Date; return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}` })()
+              : entry['date-end'] ? String(entry['date-end']) : undefined
+
             events.push({
               filePath,
               relativePath: path.relative(vaultPath, filePath),
@@ -468,6 +488,10 @@ export class FileSystemService {
                 type: 'event',
                 title: orig ? orig.title : String(entry.title ?? entry.label ?? tm('default_entry_title', { n: i + 1 })),
                 date: dateStr,
+                ...(entry.time ? { time: String(entry.time) } : {}),
+                ...(dateEnd ? { 'date-end': dateEnd } : {}),
+                ...(entry.circa !== undefined ? { circa: Boolean(entry.circa) } : {}),
+                ...(entry['date-precision'] ? { 'date-precision': String(entry['date-precision']) } : {}),
                 category: entry.category ?? sanitized.category,
                 importance: entry.importance ?? sanitized.importance ?? 3,
                 tags: Array.isArray(entry.tags) ? entry.tags
@@ -833,25 +857,34 @@ export class FileSystemService {
       if (!isValidDest(originalPath)) {
         throw new Error(tm('err_original_folder_missing'))
       }
-      // Find the .md file inside the wrapper folder
+      // O .md do evento e, se houver, a pasta da sua sub-timeline (movida junto)
       let mdFile: string | null = null
+      let subDir: string | null = null
       try {
         const entries = fs.readdirSync(trashItemPath, { withFileTypes: true })
         const md = entries.find((e) => e.isFile() && e.name.endsWith('.md'))
         if (md) mdFile = path.join(trashItemPath, md.name)
+        const sub = entries.find((e) => e.isDirectory() && this.isTimeline(path.join(trashItemPath, e.name)))
+        if (sub) subDir = path.join(trashItemPath, sub.name)
       } catch { /* ignore */ }
 
-      if (mdFile) {
-        let destPath = originalPath
-        // Resolve collision
-        if (fs.existsSync(destPath)) {
-          const dir = path.dirname(destPath)
-          const base = path.basename(destPath, '.md')
-          let i = 2
-          while (fs.existsSync(path.join(dir, `${base}-${i}.md`))) i++
-          destPath = path.join(dir, `${base}-${i}.md`)
-        }
-        fs.renameSync(mdFile, destPath)
+      // Sem o .md, o item não pode ser restaurado — e não deve ser apagado em silêncio
+      if (!mdFile) throw new Error(tm('err_trash_item_broken'))
+
+      let destPath = originalPath
+      // Resolve collision
+      if (fs.existsSync(destPath)) {
+        const dir = path.dirname(destPath)
+        const base = path.basename(destPath, '.md')
+        let i = 2
+        while (fs.existsSync(path.join(dir, `${base}-${i}.md`))) i++
+        destPath = path.join(dir, `${base}-${i}.md`)
+      }
+      fs.renameSync(mdFile, destPath)
+      // A sub-timeline volta com o mesmo nome do evento (é assim que ela é reconhecida)
+      if (subDir) {
+        const subDest = path.join(path.dirname(destPath), path.basename(destPath, '.md'))
+        if (!fs.existsSync(subDest)) fs.renameSync(subDir, subDest)
       }
       // Delete the wrapper folder
       fs.rmSync(trashItemPath, { recursive: true, force: true })
@@ -913,13 +946,16 @@ export class FileSystemService {
         .replace(/\s+/g, '-')
         .replace(/-+/g, '-') || 'nova-timeline'
     )
+    // A pasta-mãe precisa existir: com `recursive` o app recriava um vault que
+    // tinha sumido (drive desconectado) só por criar uma timeline nele
+    if (!fs.existsSync(parentDir)) throw new Error(tm('err_parent_missing', { path: parentDir }))
     let dirPath = path.join(parentDir, slug)
     if (fs.existsSync(dirPath)) {
       let i = 2
       while (fs.existsSync(path.join(parentDir, `${slug}-${i}`))) i++
       dirPath = path.join(parentDir, `${slug}-${i}`)
     }
-    fs.mkdirSync(dirPath, { recursive: true })
+    fs.mkdirSync(dirPath)
     fs.writeFileSync(path.join(dirPath, '_timeline.md'), `---\ntitle: ${yamlScalar(name)}\n---\n`, 'utf-8')
   }
 
@@ -928,15 +964,7 @@ export class FileSystemService {
    */
   renameTimeline(dirPath: string, newTitle: string): void {
     this.assertWithinVault(dirPath)
-    const metaPath = path.join(dirPath, '_timeline.md')
-    if (!fs.existsSync(metaPath)) {
-      fs.writeFileSync(metaPath, `---\ntitle: ${yamlScalar(newTitle)}\n---\n`, 'utf-8')
-      return
-    }
-    const raw = fs.readFileSync(metaPath, 'utf-8')
-    const { data, content: body } = matter(raw, {})
-    data.title = newTitle
-    fs.writeFileSync(metaPath, matter.stringify(body, data), 'utf-8')
+    this.writeFrontmatterTitle(path.join(dirPath, '_timeline.md'), newTitle)
   }
 
   /**
@@ -944,15 +972,34 @@ export class FileSystemService {
    */
   renameVault(newTitle: string): void {
     if (!this.vaultPath) throw new Error(tm('err_no_vault'))
-    const metaPath = path.join(this.vaultPath, '_vault.md')
+    this.writeFrontmatterTitle(path.join(this.vaultPath, '_vault.md'), newTitle)
+  }
+
+  /**
+   * Troca só a linha `title:` do cabeçalho, como texto. Reescrever o YAML inteiro
+   * (matter.stringify) convertia datas em "2020-01-01T00:00:00.000Z" e apagava
+   * comentários e a formatação do usuário.
+   */
+  private writeFrontmatterTitle(metaPath: string, newTitle: string): void {
+    const titleLine = `title: ${yamlScalar(newTitle)}`
     if (!fs.existsSync(metaPath)) {
-      fs.writeFileSync(metaPath, `---\ntitle: ${yamlScalar(newTitle)}\n---\n`, 'utf-8')
+      fs.writeFileSync(metaPath, `---\n${titleLine}\n---\n`, 'utf-8')
       return
     }
     const raw = fs.readFileSync(metaPath, 'utf-8')
-    const { data, content: body } = matter(raw, {})
-    data.title = newTitle
-    fs.writeFileSync(metaPath, matter.stringify(body, data), 'utf-8')
+    const m = raw.match(/^---\r?\n([\s\S]*?)\r?\n---(\r?\n|$)/)
+    if (!m) {
+      // Sem cabeçalho: ganha um, e o conteúdo segue intacto
+      fs.writeFileSync(metaPath, `---\n${titleLine}\n---\n${raw}`, 'utf-8')
+      return
+    }
+    const nl = raw.includes('\r\n') ? '\r\n' : '\n'
+    const head = m[1]
+    const hasTitle = /^title\s*:/m.test(head)
+    const newHead = hasTitle
+      ? head.replace(/^title\s*:.*$/m, titleLine)
+      : (head.trim() ? `${titleLine}${nl}${head}` : titleLine)
+    fs.writeFileSync(metaPath, `---${nl}${newHead}${nl}---${raw.slice(m[0].length - (m[2]?.length ?? 0))}`, 'utf-8')
   }
 
   /**
@@ -1069,6 +1116,10 @@ export class FileSystemService {
     }
     fs.writeFileSync(path.join(wrapperPath, '_trash_meta.json'), JSON.stringify(meta, null, 2), 'utf-8')
     fs.renameSync(eventFilePath, path.join(wrapperPath, path.basename(eventFilePath)))
+    // A sub-timeline do evento (pasta com o mesmo nome) vai junto — senão ficava
+    // órfã na timeline, sem o evento que a abria
+    const subDir = path.join(path.dirname(eventFilePath), slug)
+    if (this.isTimeline(subDir)) fs.renameSync(subDir, path.join(wrapperPath, slug))
   }
 
   renameEventFile(eventFilePath: string, newFilename: string): { newFilePath: string; newSlug: string } {

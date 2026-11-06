@@ -32,7 +32,7 @@ import { DateInput, DateText } from '@/components/DateInput'
 import { isMultiPart } from '@/utils/events'
 import { parseLocation, parseLocationRaw, locationToRaw } from '@/utils/location'
 import { LocationPicker } from '@/components/map/LocationPicker'
-import { stripAnchors } from '@/utils/anchors'
+import { extractBlock, stripAnchors } from '@/utils/anchors'
 import { imageMarkdown } from '@/utils/markdown'
 import { remarkWikiLinks } from '@/utils/wikiLinks'
 import { StaticWikiAnchor, wikiAnchor } from '@/components/WikiLink'
@@ -89,17 +89,6 @@ function findTextRanges(container: HTMLElement, query: string): Range[] {
     }
   }
   return ranges
-}
-
-function extractBlock(body: string, anchorId: string): string | null {
-  const normalized = body.replace(/\r\n/g, '\n')
-  const blocks = normalized.split(/\n{2,}/)
-  const re = new RegExp(`\\^${anchorId}\\s*$`)
-  for (const block of blocks) {
-    const stripped = block.trim()
-    if (re.test(stripped)) return stripped.replace(/\s*\^\S+\s*$/, '').trim()
-  }
-  return null
 }
 
 /** Extrai TODO o conteúdo de uma entrada de chronicle (entre o anchor anterior e o atual) */
@@ -728,7 +717,9 @@ function EditHeader({ fm, onChange, hasEntries, chrDescription, onChrDescChange,
   const tagRef = useRef<HTMLInputElement>(null)
 
   const addTag = (raw: string) => {
-    const tag = raw.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+    // Sem acentos antes de limpar: "política" virava "poltica" e "São Paulo", "so-paulo"
+    const tag = raw.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
     if (tag && !fm.tags.includes(tag)) set('tags', [...fm.tags, tag])
     setTagInput('')
     setAddingTag(false)
@@ -767,7 +758,7 @@ function EditHeader({ fm, onChange, hasEntries, chrDescription, onChrDescChange,
           ) : (
             <button type="button" onClick={() => set('hasDateEnd', true)}
               className="font-mono text-2xs text-chr-muted hover:text-chr-primary transition-colors">
-              + data fim
+              {t('add_end_date')}
             </button>
           )}
           <LocationChip location={fm.location} onClick={onEditLocation} />
@@ -1611,11 +1602,16 @@ export default function EventView(): React.ReactElement {
     editInitializedRef.current = true
     setIsEditing(true)
     setTimeout(() => textareaRef.current?.focus(), 50)
-  }, [selectedEventRaw, applyEditState])
+  }, [selectedEventRaw, selectedEvent, applyEditState])
 
   // ── Navigate to another event, resetting all edit/draft state ───────────
   const navigateTo = useCallback((event: ChroniclerEvent) => {
-    if (autoSaveTimerRef.current) { clearTimeout(autoSaveTimerRef.current); autoSaveTimerRef.current = null }
+    // Um auto-save ainda agendado grava antes de trocar de evento (senão as
+    // últimas teclas se perdiam)
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current); autoSaveTimerRef.current = null
+      void performSaveRef.current()
+    }
     skipDirtyRef.current = true
     editInitializedRef.current = false
     setIsEditing(false)
@@ -2210,7 +2206,7 @@ export default function EventView(): React.ReactElement {
         >
           <ArrowLeft size={13} strokeWidth={1.5} className="shrink-0" />
           {/* Encolhe e trunca: títulos longos não empurram os botões para fora da tela */}
-          <span className="truncate">{isEditing ? (selectedEvent?.frontmatter.title ?? 'Evento') : (currentNavItem?.title ?? 'Timeline')}</span>
+          <span className="truncate">{isEditing ? (selectedEvent?.frontmatter.title ?? t('event_fallback')) : (currentNavItem?.title ?? t('timeline_fallback'))}</span>
         </button>
 
         <div className="flex items-center shrink-0">
@@ -2677,7 +2673,10 @@ export default function EventView(): React.ReactElement {
       {/* ── Delete Event Confirm ──────────────────────────────────────────── */}
       {showDeleteConfirm && selectedEvent && (
         <ConfirmModal
-          message={t('send_to_trash_desc', { title: selectedEvent.frontmatter.title || selectedEvent.slug })}
+          message={multi && selectedEvent.chronicle
+            // Apagar um trecho manda o arquivo inteiro: o aviso diz isso
+            ? t('send_to_trash_desc_multi', { title: selectedEvent.chronicle.title, count: selectedEvent.chronicle.totalEntries })
+            : t('send_to_trash_desc', { title: selectedEvent.frontmatter.title || selectedEvent.slug })}
           confirmLabel={isDeleting ? '...' : t('send_to_trash')}
           onConfirm={handleDeleteEvent}
           onCancel={() => setShowDeleteConfirm(false)}

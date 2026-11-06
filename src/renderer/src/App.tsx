@@ -27,8 +27,9 @@ import AssetManager from '@/pages/AssetManager'
 import TrashView from '@/pages/TrashView'
 import { useTheme } from '@/hooks/useTheme'
 import { useVaultStore } from '@/stores/useVaultStore'
+import { useAppStore } from '@/stores/useAppStore'
 import type { RawVault } from '@/types/ipc'
-import type { VaultInfo, TimelineRef } from '@/types/chronicler'
+import type { VaultInfo, TimelineRef, Platform } from '@/types'
 
 // Converte RawVault em VaultInfo (duplicado aqui para evitar dep circular com useVault)
 function toVaultInfo(raw: RawVault, vaultPath: string): VaultInfo {
@@ -57,6 +58,18 @@ function ThemeProvider({ children }: { children: React.ReactNode }): React.React
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return <>{children}</>
+}
+
+// ── AppInfoLoader ─────────────────────────────────────────────────────────────
+// Versão e plataforma vêm do processo principal (Sobre, tela inicial, barra lateral)
+function AppInfoLoader(): null {
+  const setAppVersion = useAppStore((s) => s.setAppVersion)
+  const setPlatform = useAppStore((s) => s.setPlatform)
+  useEffect(() => {
+    window.electronAPI.invoke<string>('app:get-version').then((v) => { if (v) setAppVersion(v) }).catch(() => {})
+    window.electronAPI.invoke<Platform>('app:get-platform').then((p) => { if (p) setPlatform(p) }).catch(() => {})
+  }, [setAppVersion, setPlatform])
+  return null
 }
 
 // ── VaultBootstrapper ─────────────────────────────────────────────────────────
@@ -88,9 +101,9 @@ function VaultBootstrapper({ children }: { children: React.ReactNode }): React.R
   return <>{children}</>
 }
 
-// ── Router (data router — necessário para useBlocker no EventView) ────────────
-// createMemoryRouter funciona em Electron (file://) como MemoryRouter, mas é
-// um "data router" que habilita useBlocker para guardar alterações não salvas.
+// ── Router ────────────────────────────────────────────────────────────────────
+// createMemoryRouter funciona em Electron (file://) como MemoryRouter; é um
+// "data router", o que deixa a porta aberta para useBlocker se um dia for preciso.
 const router = createMemoryRouter(
   [
     {
@@ -118,6 +131,7 @@ export default function App(): React.ReactElement {
   // RouterProvider mas seus contextos ainda fluem para os filhos da árvore React.
   return (
     <ThemeProvider>
+      <AppInfoLoader />
       <VaultBootstrapper>
         <RouterProvider router={router} />
       </VaultBootstrapper>
